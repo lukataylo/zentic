@@ -107,17 +107,26 @@ final class ContentToolbar: PointerTrackingView {
     }
 
     private func buildReaderControls() {
+        // Icons, not words. Two labels cost about 150pt of a toolbar whose most
+        // valuable tenant is the address bar, and the pair reads fine as glyphs
+        // once you have used it twice. The tooltip carries the words until then.
         modeControl.segmentCount = 2
-        modeControl.setLabel("Transformed", forSegment: 0)
-        modeControl.setLabel("Original", forSegment: 1)
+        modeControl.setImage(
+            NSImage(systemSymbolName: "textformat", accessibilityDescription: "Transformed"),
+            forSegment: 0
+        )
+        modeControl.setImage(
+            NSImage(systemSymbolName: "globe", accessibilityDescription: "Original page"),
+            forSegment: 1
+        )
+        modeControl.setWidth(28, forSegment: 0)
+        modeControl.setWidth(28, forSegment: 1)
         modeControl.segmentStyle = .capsule
         modeControl.trackingMode = .selectOne
         modeControl.selectedSegment = 0
         modeControl.target = self
         modeControl.action = #selector(modeChanged)
         modeControl.controlSize = .small
-        modeControl.font = .systemFont(ofSize: 11, weight: .medium)
-        modeControl.toolTip = "Zentic's transformed page, or the site's own (⌘\\)"
         modeControl.translatesAutoresizingMaskIntoConstraints = false
 
         configure(
@@ -144,6 +153,12 @@ final class ContentToolbar: PointerTrackingView {
     func apply(reader state: ReaderControlState) {
         modeControl.isEnabled = state.canTransform
         modeControl.selectedSegment = state.mode == .restructured ? 0 : 1
+        // Says *why* it is inert rather than just being inert. On a page Zentic
+        // left alone both segments show the same thing, and a control that appears
+        // to do nothing without explaining itself is the most annoying kind.
+        modeControl.toolTip = state.canTransform
+            ? "Zentic's transformed page, or the site's own (⌘\\)"
+            : "Zentic left this page as it is — there is nothing to switch between"
 
         switch state.rewrite {
         case .none:

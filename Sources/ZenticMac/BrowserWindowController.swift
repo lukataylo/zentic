@@ -23,6 +23,12 @@ final class BrowserWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.title = "Zentic"
+        // Without these the window paints its own opaque background *behind* the
+        // vibrancy view, so behind-window blending has nothing to blend with and
+        // the chrome renders as flat colour. This is the difference between a
+        // tinted panel and actual glass.
+        window.isOpaque = false
+        window.backgroundColor = .clear
         // Lets the sidebar's empty areas drag the window, since there is no title
         // bar left to grab.
         window.isMovableByWindowBackground = true

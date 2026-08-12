@@ -217,7 +217,7 @@ final class SidebarRowView: ChromeView {
             layer.borderWidth = Chrome.glassStrokeWidth
             layer.borderColor = Glass.stroke(dark: dark).cgColor
             layer.shadowColor = NSColor.black.cgColor
-            layer.shadowOpacity = 0.18
+            layer.shadowOpacity = 0.10
             layer.shadowRadius = 4
             layer.shadowOffset = CGSize(width: 0, height: -1)
             titleLabel.textColor = .labelColor

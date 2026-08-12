@@ -48,8 +48,11 @@ enum Chrome {
     /// Hairline edge. A device pixel, not a point — a 1pt border on Retina reads as
     /// a drawn line, and the whole effect depends on the edge being a *refraction*.
     static let glassStrokeWidth: CGFloat = 0.5
-    static let glassShadowRadius: CGFloat = 18
-    static let glassShadowOpacity: Float = 0.24
+    /// Soft and wide, not dark and tight. The shadow is there to prove a surface
+    /// floats above what it covers; anything heavier reads as a drop-shadow effect
+    /// rather than depth, which is the difference between glass and a sticker.
+    static let glassShadowRadius: CGFloat = 14
+    static let glassShadowOpacity: Float = 0.10
 
     /// Reveal animation for auto-hidden chrome. Slower than ``animationDuration``:
     /// a panel sliding in over the page is a spatial move and reads as abrupt if it
