@@ -1450,6 +1450,61 @@ extension BrowserViewController {
         rebuildSidebar()
     }
 
+    /// ⌥⌘D — describe a look, and keep it for this site.
+    @objc func redesignSiteCommand(_ sender: Any?) {
+        guard let controller = selectedController else { return }
+        let origin = controller.url?.host()
+        Task { @MainActor in
+            guard
+                let theme = await RedesignController.shared.promptForDesign(
+                    origin: origin,
+                    over: view.window
+                )
+            else { return }
+            controller.applyDesign(theme)
+        }
+    }
+
+    /// Drop this site's design and fall back to the default.
+    @objc func resetDesignCommand(_ sender: Any?) {
+        guard let controller = selectedController else { return }
+        let origin = controller.url?.host()
+        Task { @MainActor in
+            await RedesignController.shared.forget(origin: origin)
+            // Reloads rather than pushing a default theme: the renderer's own
+            // default is defined by the bundle, not by anything we hold here.
+            controller.reload()
+        }
+    }
+
+    /// Settings ▸ the BYO key. Stored in the Keychain, never in a file.
+    @objc func setAPIKeyCommand(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = "OpenAI API key"
+        alert.informativeText = """
+            Used only for redesign and cloud rewriting, sent only to OpenAI, and \
+            stored in your login Keychain. Zentic has no server: your key never \
+            reaches us.
+            """
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = APIKeyStore.redacted(.openAI) ?? "sk-…"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            try? APIKeyStore.save(field.stringValue, for: .openAI)
+        case .alertSecondButtonReturn:
+            APIKeyStore.remove(.openAI)
+        default:
+            break
+        }
+    }
+
     @objc func toggleSidebarCommand(_ sender: Any?) { toggleSidebar() }
     @objc func toggleToolbarCommand(_ sender: Any?) { toggleToolbar() }
     @objc func toggleFocusModeCommand(_ sender: Any?) { toggleFocusMode() }

@@ -360,6 +360,33 @@ final class TabController: NSObject {
         }
     }
 
+    // MARK: - Design
+
+    /// Push a design to the page. Presentation only: no re-extraction, no reload.
+    func applyDesign(_ theme: ReaderTheme) {
+        guard let bridge, let webView else { return }
+        Task {
+            try? await bridge.send(.applyTheme(theme), to: webView)
+            trace("redesign", "tab \(shortID) applied \(theme.name)")
+        }
+    }
+
+    /// Reapply this origin's saved design once the page is rendered.
+    ///
+    /// Runs on every reveal rather than once per tab, because an SPA navigation
+    /// re-renders without a new web view and would otherwise drop back to the
+    /// default design mid-session.
+    private func applySavedDesign() {
+        guard didRestructure else { return }
+        let origin = url?.host()
+        Task { @MainActor in
+            guard let theme = await RedesignController.shared.savedDesign(for: origin) else {
+                return
+            }
+            applyDesign(theme)
+        }
+    }
+
     // MARK: - Rewrite
 
     /// Whether this page is one where rewriting needs an explicit confirm.
@@ -705,6 +732,7 @@ extension TabController: ReaderBridgeDelegate {
             // dead. Only a page-load outcome may change this.
             if payload.reason != .userRequested {
                 didRestructure = payload.reason == .rendered
+                applySavedDesign()
             }
             trace("bridge", "\(shortID) revealed · \(payload.reason.rawValue) · \(payload.elapsedMs)ms")
             delegate?.tabControllerDidChangeChrome(self)

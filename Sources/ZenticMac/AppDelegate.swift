@@ -102,6 +102,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(item("Hide Zentic", #selector(NSApplication.hide(_:)), "h"))
         menu.addItem(item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
         menu.addItem(.separator())
+        menu.addItem(
+            item("OpenAI API Key…", #selector(BrowserViewController.setAPIKeyCommand(_:)), ",")
+        )
+        menu.addItem(.separator())
         menu.addItem(item("Quit Zentic", #selector(NSApplication.terminate(_:)), "q"))
 
         let holder = NSMenuItem()
@@ -167,6 +171,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         menu.addItem(
             item("Focus Mode", #selector(BrowserViewController.toggleFocusModeCommand(_:)), "f", [.command, .shift])
+        )
+        menu.addItem(.separator())
+        menu.addItem(
+            item("Redesign This Site…", #selector(BrowserViewController.redesignSiteCommand(_:)), "d", [.command, .option])
+        )
+        menu.addItem(
+            item("Reset This Site's Design", #selector(BrowserViewController.resetDesignCommand(_:)), "")
         )
         menu.addItem(.separator())
         menu.addItem(backgroundMenuItem())
