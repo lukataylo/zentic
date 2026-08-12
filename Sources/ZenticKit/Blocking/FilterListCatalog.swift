@@ -30,6 +30,30 @@ public enum FilterListCatalog {
             )!,
             isDefault: true
         ),
+        // Peter Lowe's list is a plain domain blocklist rather than an EasyList
+        // dialect, so essentially all of it survives conversion to Safari syntax —
+        // an unusually good ratio of blocked hosts to rule-list entries. Shipped by
+        // uBlock Origin, AdGuard and Pi-hole alike.
+        FilterListSource(
+            id: "peter-lowe",
+            title: "Peter Lowe's Ad and Tracking Servers",
+            url: URL(
+                string: "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=adblockplus&showintro=0&mimetype=plaintext"
+            )!,
+            isDefault: true
+        ),
+        // The engagement furniture the whole product exists to remove: newsletter
+        // interstitials, social widgets, "recommended for you" rails. Layer 2
+        // discards these anyway on a page it restructures, but this also cleans up
+        // the pages Zentic deliberately leaves alone.
+        FilterListSource(
+            id: "easylist-annoyances",
+            title: "EasyList Annoyances",
+            url: URL(
+                string: "https://secure.fanboy.co.nz/fanboy-annoyance.txt"
+            )!,
+            isDefault: true
+        ),
     ]
 
     /// Rules from the bundled seed list.

@@ -13,3 +13,7 @@ web/.esbuild-meta.json
 
 # Filter list snapshots are fetched, not committed
 Rules/downloaded/
+
+# Never commit screenshots taken of a live desktop — they capture whatever else
+# was on screen, which has already included an API key once.
+docs/screenshot*.png

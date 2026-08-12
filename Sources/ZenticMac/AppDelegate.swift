@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Before any web view exists, so the memory diagnostic can tell our WebKit
         // processes from every other browser's.
         MemoryProbe.captureHelperBaseline()
+        Blocking.warm()
         installMenuBar()
 
         do {

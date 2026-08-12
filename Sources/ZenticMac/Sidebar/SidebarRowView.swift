@@ -280,7 +280,24 @@ final class SidebarRowView: ChromeView {
         applyLayerColors()
     }
 
+    /// So a click into a background window acts immediately instead of only
+    /// raising the window and being thrown away.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func mouseDown(with event: NSEvent) {
+        // The close button is only *visible* while hovered, and hover can lag a
+        // frame behind the pointer — after a scroll, a re-layout, or a window
+        // activation. When it does, the button is not hit-testable, this row gets
+        // the click instead, and the user's first press on the × merely selected
+        // the tab: hence "you have to click it twice". Deciding from the geometry
+        // makes it one press regardless of what hover believes.
+        if case .close = accessory {
+            let point = convert(event.locationInWindow, from: nil)
+            if accessoryButton.frame.insetBy(dx: -3, dy: -3).contains(point) {
+                onClose?()
+                return
+            }
+        }
         // Consumed here rather than in mouseUp so selection feels immediate, which
         // matters at 30 tabs where the alternative reads as lag.
         onClick?()

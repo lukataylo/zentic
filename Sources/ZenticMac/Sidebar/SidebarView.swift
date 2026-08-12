@@ -184,6 +184,17 @@ final class SidebarView: PointerTrackingView {
         ])
     }
 
+    /// Drag the window by the sidebar's empty space.
+    ///
+    /// Replaces `isMovableByWindowBackground`, which had to go because it claimed
+    /// mouse-downs on the toolbar's controls. Rows, the pinned grid and the space
+    /// switcher all handle their own clicks, so a drag reaching this view is by
+    /// definition on empty space — which is exactly the area that should move the
+    /// window now that there is no title bar to grab.
+    override func mouseDragged(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
+
     // MARK: - Rendering
 
     func reload(_ model: SidebarModel) {

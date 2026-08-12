@@ -29,9 +29,12 @@ final class BrowserWindowController: NSWindowController {
         // tinted panel and actual glass.
         window.isOpaque = false
         window.backgroundColor = .clear
-        // Lets the sidebar's empty areas drag the window, since there is no title
-        // bar left to grab.
-        window.isMovableByWindowBackground = true
+        // Deliberately off. With `fullSizeContentView` the toolbar sits inside the
+        // band AppKit still treats as titlebar, and background-dragging claims the
+        // mouse-down there — so the mode toggle and the rewrite button were dead on
+        // arrival, intermittently logging "Window move completed without beginning".
+        // The sidebar drags the window explicitly instead; see `SidebarView`.
+        window.isMovableByWindowBackground = false
         window.tabbingMode = .disallowed
         window.minSize = NSSize(width: 720, height: 480)
         window.contentViewController = browser

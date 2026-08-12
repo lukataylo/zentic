@@ -147,6 +147,11 @@ final class TabController: NSObject {
             trace("bridge", "tab \(shortID) bridge unavailable: \(error)")
         }
 
+        // Ads, trackers and cookie walls. Attached per tab because the shield is
+        // per origin — one site being allowed through must not lift blocking
+        // everywhere.
+        Blocking.attach(to: configuration.userContentController, origin: record.url?.host())
+
         let webView = TrackedWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
