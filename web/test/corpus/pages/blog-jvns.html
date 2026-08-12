@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8">
+<title>Learning a few things about running SQLite</title>
+<meta name="author" content="Julia Evans">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="description" content="Learning a few things about running SQLite">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta property="og:title" content='Learning a few things about running SQLite'>
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://jvns.ca/blog/2026/07/17/learning-about-running-sqlite/" />
+<meta property="og:site_name" content="Julia Evans" />
+
+<link rel="canonical" href="https://jvns.ca/blog/2026/07/17/learning-about-running-sqlite/">
+<link href="/favicon.ico" rel="icon">
+
+<link href="/stylesheets/screen.css" rel="preload" type="text/css" as="style">
+
+<link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+<link href="/stylesheets/print.css" media="print" rel="stylesheet" type="text/css">
+
+
+<link href="/atom.xml" rel="alternate" title="Julia Evans" type="application/atom+xml">
+
+ 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css" integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0" crossorigin="anonymous">
+<script defer data-domain="jvns.ca" src="https://plausible.io/js/script.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js" integrity="sha384-PwRUT/YqbnEjkZO0zZxNqcxACrXe+j766U2amXcgMg5457rve2Y7I6ZJSm2A0mS4" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+<script defer type="text/javascript">   
+window.heap=window.heap||[],heap.load=function(e,t){window.heap.appid=e,window.heap.config=t=t||{};var r=document.createElement("script");r.type="text/javascript",r.async=!0,r.src="https://cdn.heapanalytics.com/js/heap-"+e+".js";var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(r,a);for(var n=function(e){return function(){heap.push([e].concat(Array.prototype.slice.call(arguments,0)))}},p=["addEventProperties","addUserProperties","clearEventProperties","identify","resetIdentity","removeEventProperty","setEventProperties","track","unsetEventProperty"],o=0;o<p.length;o++)heap[p[o]]=n(p[o])};   
+heap.load("2242143965"); 
+</script> 
+</head>
+<body>
+<div id="skiptocontent">
+  <a href="#main">Skip to main content</a>
+</div>
+<div id="wrap">
+<header role="banner">
+<hgroup>
+<h1><a href="/">Julia Evans</a></h1>
+</hgroup>
+<ul class="header-links">
+<li><a href="/about">About</a></li>
+<li><a href="/talks">Talks</a></li>
+<li><a href="/projects/">Projects</a></li>
+<li><a rel="me" href="https://social.jvns.ca/@b0rk">Mastodon</a></li>
+<li><a href="https://bsky.app/profile/b0rk.jvns.ca">Bluesky</a></li>
+<li><a href="https://github.com/jvns">Github</a></li>
+</ul>
+</header>
+<nav role="navigation" class="header-nav"><ul class="main-navigation">
+<li><a href="/categories/favorite/">Favorites</a></li>
+<li><a href="/til/">TIL</a></li>
+<li><a href="https://wizardzines.com">Zines</a></li>
+<li class="subscription" data-subscription="rss"><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+</ul>
+</nav>
+<div id="main">
+<div id="content">
+
+
+<div>
+<article class="hentry" role="article">
+<header>
+<h1 class="entry-title">Learning a few things about running SQLite</h1>
+
+<div class="post-tags">
+  
+  •
+  
+    <a class="post-tag" href="/categories/sqlite">sqlite</a> 	•
+  
+  
+</div>
+<p class="meta sans">
+<time class="date" datetime="2026-07-17T00:00:00" pubdate data-updated="true">
+
+  July 17, 2026
+  
+</time>
+</p>
+</header>
+<main>
+     <p>Hello! I&rsquo;ve been working on a Django site recently, and I decided to use SQLite
+as the database.
+When I was getting started with using SQLite as database for a website I read a <a href="https://alldjango.com/articles/definitive-guide-to-using-django-sqlite-in-production">bunch</a>
+of blog posts about how it is totally fine to use SQLite in production for a
+small site and I think it <em>is</em> totally fine, but what I did not fully appreciate
+is that SQLite is still a database, databases are complicated, and I do not know
+a lot about operating databases.</p>
+<p>So here are a couple of small things I&rsquo;ve been learning about running SQLite. This
+is the 4th website I&rsquo;ve used SQLite for, and I think this one is harder because
+with the power of the Django ORM I&rsquo;ve been making the database do more work than
+I was previously without Django.</p>
+<p>I started by turning on WAL mode like all the blog posts said to do and hoping for the best.</p>
+<h3 id="analyze-is-apparently-important" class="post-heading">
+    <a href="#analyze-is-apparently-important">
+      <code>ANALYZE</code> is apparently important
+    </a>
+</h3>
+<p>Today I was running a query (using <a href="https://www.sqlite.org/fts5.html">SQLite&rsquo;s FTS5</a> for
+full-text search) on a table with 4000 rows and it took 5 seconds. That seemed
+wrong to me: computers are fast!</p>
+<p>It turned out that what I needed to do was to run <a href="https://sqlite.org/lang_analyze.html"><code>ANALYZE</code></a>!
+Immediately the problem query went from taking 5 seconds to like 0.05 seconds
+(or some other number small enough that I didn&rsquo;t care to investigate further).
+I still don&rsquo;t know exactly what went wrong in the query plan,
+but my best guess is that it was some sort of <a href="https://accidentallyquadratic.tumblr.com/">accidentally quadratic</a> thing.</p>
+<p><code>ANALYZE</code> generates &ldquo;statistics&rdquo; (I guess about the number of rows in each table? and presumably other things?)
+so that the query planner can make better choices.</p>
+<p>Maybe one day I&rsquo;ll learn to read a query plan.</p>
+<h3 id="cleaning-up-the-database-is-tricky" class="post-heading">
+    <a href="#cleaning-up-the-database-is-tricky">
+      cleaning up the database is tricky
+    </a>
+</h3>
+<p>Occasionally I&rsquo;ve run into situations where I accidentally put a bunch of rows
+in my database that I don&rsquo;t want to be there (for example completed tasks from
+<a href="https://github.com/RealOrangeOne/django-tasks-db">django-tasks-db</a>), and I want to clean them up.</p>
+<p>What&rsquo;s happened to me a few times in this case is:</p>
+<ol>
+<li>I run some kind of command to clean up the rows</li>
+<li>The command takes more than 5 seconds, since there are a lot of rows (though I still have some questions about why these DELETE statements are so slow honestly, maybe there&rsquo;s a bunch of Python code running inside a transaction, I&rsquo;m not sure)</li>
+<li>One of the other workers tries to write the database while this is happening, and times out after 5 seconds (I have a timeout of 5 seconds set)</li>
+<li>The worker crashes because it couldn&rsquo;t write to the database and the VM shuts down</li>
+</ol>
+<p>My approach so far has been to just do these cleanup operations in small batches
+so that I don&rsquo;t need to do database queries that take more than 5 seconds to
+run. This whole experience has given me more of an appreciation for why someone
+might want to use a &ldquo;real&rdquo; database like Postgres which can have more than one
+writer at the same time though.</p>
+<p>Maybe in the future I&rsquo;ll just take the site down for scheduled maintenance
+instead when I need to do this kind of thing, but I haven&rsquo;t figured out a
+workflow for that yet.</p>
+<h3 id="no-notes-on-performance-of-orm-queries-yet" class="post-heading">
+    <a href="#no-notes-on-performance-of-orm-queries-yet">
+      no notes on performance of ORM queries yet
+    </a>
+</h3>
+<p>So far I&rsquo;ve been using Django&rsquo;s ORM to make any query I want without paying any
+attention at all to query performance and it&rsquo;s mostly been going okay other
+than the <code>ANALYZE</code> thing. The database is pretty small (maybe 10000 rows?) and
+I expect it to stay pretty small forever, so I&rsquo;m hoping that that plan will
+keep working.</p>
+<h3 id="backing-up-sqlite" class="post-heading">
+    <a href="#backing-up-sqlite">
+      backing up sqlite
+    </a>
+</h3>
+<p>I&rsquo;ve done SQLite backups a couple of ways. I don&rsquo;t think I&rsquo;ve actually tested
+restoring from my backups but I do usually try to monitor them with a dead man&rsquo;s
+switch.</p>
+<p><strong>way 1: restic</strong></p>
+<pre><code>sqlite3 /data/calendar.db &quot;VACUUM INTO '/tmp/calendar.sqlite'&quot;
+gzip /tmp/calendar.sqlite
+
+# Upload backup to S3
+# Sometimes the backup gets OOM killed and so it stays locked, do an unlock
+restic -r s3://s3.amazonaws.com/some_bucket/ unlock
+# Do the backup &amp; prune old backups
+restic -r s3://s3.amazonaws.com/some_bucket/ backup /tmp/calendar.sqlite.gz
+restic -r s3://s3.amazonaws.com/some_bucket/ snapshots
+restic -r s3://s3.amazonaws.com/some_bucket/ forget -l 1 -H 6 -d 2 -w 2 -m 2 -y 2
+restic -r s3://s3.amazonaws.com/some_bucket/ prune
+</code></pre>
+<p><strong>way 2: <a href="https://litestream.io/">litestream</a></strong></p>
+<p>I started trying out Litestream recently because I felt like doing incremental backups might
+be more efficient: my restic backups were sometimes getting OOM killed, and I
+was a bit tired of it. Basically I just write a config file and run:</p>
+<pre><code>litestream replicate -config litestream.yml
+</code></pre>
+<p>I set <code>retention: 400h</code> in my config file in an attempt to
+retain some amount of history of the database but I have no idea if it works.</p>
+<p>I&rsquo;ve been backing up to AWS, which is always a pain because it&rsquo;s annoying to
+navigate the AWS console to generate credentials. Maybe one day I&rsquo;ll move away
+to some other S3-compatible alternative.</p>
+<h3 id="you-can-use-multiple-databases" class="post-heading">
+    <a href="#you-can-use-multiple-databases">
+      you can use multiple databases
+    </a>
+</h3>
+<p>My current project only has one database, but one trick I used with
+<a href="https://messwithdns.net/">Mess with DNS</a> was to split the tables into three separate
+database files because I didn&rsquo;t actually need my tables to be in the same db. I think it was helpful.</p>
+<p>Mess with DNS has been running on SQLite for 4 years now (since 2022) and it&rsquo;s
+been great, I think the move from Postgres was a great choice for that project.</p>
+<h3 id="that-s-all" class="post-heading">
+    <a href="#that-s-all">
+      that&rsquo;s all!
+    </a>
+</h3>
+<p>It&rsquo;s always kind of fun to see how long it takes me to learn sort of basic
+things about the technologies I&rsquo;m using. I think I used SQLite for a web project
+for the first time in 2022 and I only learned that <code>ANALYZE</code> existed today!
+I imagine in a year or two I&rsquo;ll be learning about some other very basic feature.</p>
+<h3 id="some-references" class="post-heading">
+    <a href="#some-references">
+      some references
+    </a>
+</h3>
+<p>Some blog posts I&rsquo;ve looked at, other than the official docs:</p>
+<ul>
+<li><a href="https://alldjango.com/articles/definitive-guide-to-using-django-sqlite-in-production">The definitive guide to using Django with SQLite in production</a></li>
+<li><a href="https://gist.github.com/phiresky/978d8e204f77feaa0ab5cca08d2d5b27">a gist on sqlite performance tuning</a></li>
+</ul>
+
+</main>
+
+<footer>
+
+<style type="text/css">
+  #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; display: inline;}
+  #mc_embed_signup  {
+    display: inline;
+  }
+  #mc_embed_signup input.button {
+    background: #ff5e00;
+    display: inline;
+    color: white;
+    padding: 6px 12px;
+  }
+</style>
+<div class="sharing">
+
+<style>
+    .form-inline {
+        display:flex; flex-flow: row wrap; justify-content: center;
+    }
+    .form-inline input, .form-inline span {
+        padding: 10px;
+    }
+    .form-inline input {
+        display:inline;
+        max-width:30%; 
+        margin: 0 10px 0 0; 
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+    }
+    button {
+        background-color: #f50;
+        box-shadow: none;
+        border: 0;
+        border-radius: 5px;
+        color: white;
+        padding: 5px 10px;
+    }
+    @media (max-width: 800px) {
+        .form-inline input {
+            margin: 10px 0;
+            max-width:100% !important;
+        }
+        .form-inline {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>
+
+<div align="center">
+    <form class="form-inline" action="https://app.convertkit.com/forms/1052396/subscriptions" method="post" data-uid="8884355abb" data-format="inline" data-version="5">
+        <span> Want a weekly digest of this blog?</span>
+        <input name="email_address" type="text" placeholder="Email address" /> 
+        <button type="submit" data-element="submit">Subscribe</button>
+    </form>
+</div>
+
+
+</div>
+
+<p class="meta">
+  
+    <a class="basic-alignment left" href="https://jvns.ca/blog/2026/05/15/moving-away-from-tailwind--and-learning-to-structure-my-css-/" title="Previous Post: Moving away from Tailwind, and learning to structure my CSS">Moving away from Tailwind, and learning to structure my CSS</a>
+  
+  
+    <a class="basic-alignment right" href="https://jvns.ca/blog/2026/07/21/more-nice-django-things/" title="Next Post: Some more things about Django I&#39;ve been enjoying">Some more things about Django I&#39;ve been enjoying</a>
+  
+</p>
+</footer>
+
+</article>
+</div>
+
+</div>
+</div>
+<nav role="navigation" class="footer-nav"> <a href="/">Archives</a>
+</nav>
+<footer role="contentinfo"><span class="credit">&copy; Julia Evans. </span>
+  <span>If you like this, you may like <a href="https://web.archive.org/web/20181228051203/http://www.uliaea.ca/">Ulia Ea</a> or, more seriously, this list of <a href="https://jvns.ca/blogroll">blogs I love</a> or some <a href="https://jvns.ca/bookshelf">books I've read</a>. <br> 
+<p class="rc-scout__text"><i class="rc-scout__logo"></i>
+You might also like the <a class="rc-scout__link" href="https://www.recurse.com/scout/click?t=546ea46360584b522270b8c3e5d830f8">Recurse Center</a>, my very favorite programming community <a href="/categories/hackerschool/">(my posts about it)</a></p>
+</span>
+<style class="rc-scout__style" type="text/css">.rc-scout{display:block;padding:0;border:0;margin:0;}.rc-scout__text{display:block;padding:0;border:0;margin:0;height:100%;font-size:100%;}.rc-scout__logo{display:inline-block;padding:0;border:0;margin:0;width:0.85em;height:0.85em;background:no-repeat center url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2015%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2212%22%20height%3D%2210%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2210%22%20height%3D%228%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%228%22%20height%3D%226%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%20fill%3D%22%2361ae24%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%2210%22%20height%3D%224%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%223%22%20fill%3D%22%23000%22%3E%3C%2Frect%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%226%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fff%22%3E%3C%2Frect%3E%3C%2Fsvg%3E');}.rc-scout__link:link,.rc-scout__link:visited{color:#61ae24;text-decoration:underline;}.rc-scout__link:hover,.rc-scout__link:active{color:#4e8b1d;}</style>
+</footer>
+<script type="text/rocketscript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+</div>
+</body>
+</html>
+

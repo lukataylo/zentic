@@ -1,0 +1,562 @@
+<!DOCTYPE HTML>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta content="default-src &#39;self&#39;; script-src &#39;self&#39; https://cdn.usefathom.com; img-src https://*; child-src &#39;none&#39;;" http-equiv="Content-Security-Policy" />
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:creator" content="@typesanitizer" />
+	<meta property="og:title" content="Reviewing code is a skill" />
+	<meta property="og:description" content='A discussion on code review with short case studies and links to research on expertise.' />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <title>Reviewing code is a skill</title>
+        <link href="../tsan.css" rel="stylesheet" />
+        <link href="../favicon.ico" type="image/x-icon" rel="icon" />
+        <!-- Fathom - beautiful, simple website analytics -->
+        <script src="https://cdn.usefathom.com/script.js" data-site="OMVEKSGO" defer></script>
+        <!-- / Fathom -->
+    </head>
+    <body>
+        <nav role="select">
+            <ul><li></li>
+                <li><a href="../index.html">About</a></li>
+                <li><a href="../blog/index.html">Blog</a>
+                    (<a href="../blog/rss.xml">RSS</a>)
+                </li>
+            </ul>
+        </nav>
+        <article>
+          <section>
+	          <h1 id="reviewing-code-is-a-skill">Reviewing code is a skill</h1>
+<p><strong>Intended audience:</strong> Software developers interested in getting better at developing software. Initially, I meant this post more for junior developers, but some parts are more applicable for tech leads etc. So if the post appears a bit muddled, please accept this apology from my inner Pascal, “Sorry, I did not have the time to break it up into two posts.”</p>
+<p>In developer communities, there has been a lot of discussion
+on code review, especially over the course of 2025-2026.
+For example, you may have seen claims like:<span class="sidenote-wrapper"><label for="sn-0" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-0" class="margin-toggle"/><span class="sidenote">Not necessarily all from the same people.<br />
+<br />
+</span></span></p>
+<ol type="1">
+<li>“Code review is the bottleneck”</li>
+<li>“Mandatory pre-merge code review is for low-trust environments; you should push directly to main”</li>
+<li>“Code review doesn’t find bugs”</li>
+<li>“Code review is not for X, it’s for Y”</li>
+<li>“LLMs are better than humans at reviewing code”</li>
+<li>“LLM code reviews are much better than humans at finding edge cases/bugs”</li>
+<li>“You should stop looking at the code; you should be doing XYZ instead”</li>
+</ol>
+<p>and so on.</p>
+<p>Out of this, zooming in on “Code review is not for X, it’s for Y”
+for a moment, the research has the following to say:</p>
+<blockquote>
+<p>By coding our interview data, we identified four key themes for what Google developers expect from code reviews: education, maintaining norms, gatekeeping, and accident prevention. Education regards either teaching or learning from a code review and is in line with the initial reasons for introducing code review; norms refer to an organization preference for a discretionary choice (e.g., formatting or API usage patterns); gatekeeping concerns the establishment and maintenance of boundaries around source code, design choices or another artifact; and accidents refer to the introduction of bugs, defects or other quality related issues.</p>
+<p>– <a href="https://dl.acm.org/doi/pdf/10.1145/3183519.3183525">Modern Code Review: A Case Study at Google</a> (2018)</p>
+</blockquote>
+<p>Similarly, <a href="https://d1wqtxts1xzle7.cloudfront.net/123087856/icse2013-libre.pdf?1748877378=&amp;response-content-disposition=inline%3B+filename%3DExpectations_outcomes_and_challenges_of.pdf&amp;Expires=1786290544&amp;Signature=R5O-pbRUD~ZBlCXj7MKPrQovHnP94AzTDdRaHH7OMLzSz-rElLhqbwYRJrN76q2ooGx6cRtl5laCF1fMf-rp3~CuR9vSOY2zWA20TuZCrQueownjjFMsMwMk16RgdsSgAPxtA~TXCOD06HqAo~wYeETeJW-l9gbRgbaFI2caM7pxbZM3eY2TvPQi54EAeymv3OyIylije4xUtlaoa9b7bwSfxSHwvxkaS2alYSqVu3HO1iZMTTQs9djOzEV3J8yGoJ26-PFhhwSUG1HIawGy6iGgOPur5Ue-EMWoLa85l5zGzh0jBdyJcf7VAaDIbU9wC4K~yXh9GzMocHpXV0YHDw__&amp;Key-Pair-Id=APKAJLOHF5GGSLRBV4ZA">Expectations, outcomes, and challenges of modern code review</a> (2013) points out:</p>
+<blockquote>
+<p>Our study reveals that while finding defects remains the main motivation for review, reviews are less about defects than expected and instead provide additional benefits such as knowledge transfer, increased team awareness, and creation of alternative solutions to problems. Moreover, we find that code and change understanding is the key aspect of code reviewing and that developers employ a wide range of mechanisms to meet their understanding needs, most of which are not met by current tools</p>
+</blockquote>
+<p>So at least, hopefully we can agree that code review
+serves many purposes.</p>
+<p>I will get to the other points in a bit.</p>
+<p>But before that, I want to articulate a framing which I haven’t seen much elsewhere.
+Namely, that <em>reviewing code is a skill</em>. Specifically, I posit that:</p>
+<ul>
+<li>It’s possible to get better at reviewing code. By “better”,
+I mean across all of the purposes above: catching bugs,
+catching design issues, increasing one’s awareness of what’s
+going on, and understanding the code.</li>
+<li>It’s possible to teach someone to get better at reviewing code.</li>
+<li>By virtue of it being a fairly modern skill, we don’t quite know
+where the human skill ceiling lies
+(e.g. what is the Pareto frontier in terms of speed vs quality?).</li>
+<li>If you’re a software developer, and if you believe that people
+will continue to be involved in the development and maintenance
+of programs for the foreseeable future, then it’s <em>valuable</em>
+to get better at reviewing code.</li>
+</ul>
+<p>First, I will give three small examples taken from the
+past few weeks of work of me finding bugs when
+reviewing code. I’ve specifically chosen bugs for discussion because
+they’re relatively unambiguous.</p>
+<p>Next, I will provide some of my own historical background
+related to code review, and some arguments in favor
+of the core thesis.</p>
+<p>After that, I discuss some ideas for experimenting with
+and improving code review.</p>
+<p>Finally, I discuss the aforementioned oft-repeated memes around
+code review and how they hold up to scrutiny with
+the thesis in mind.</p>
+<p>Let’s get started.</p>
+<h2 id="a-tale-of-three-almost-introduced-bugs">A tale of three almost-introduced bugs</h2>
+<p>A bunch of details have been elided in the course
+of explaining the different examples below,
+in an attempt to make them digestible.
+It may be valuable to keep an eye on stray thoughts of the form,
+“well, that seems like a code smell, no wonder you almost had that bug”
+or “duh, this could’ve been avoided with XYZ”.</p>
+<p>In two out of the three cases, the person who wrote
+the PR had experience with the surrounding code.</p>
+<p>The other thing to note is that LLM reviews
+with a mixture of high-end coding models (around Jun 2026)
+were run for all of the PRs described below.
+They did not catch the issues that I caught.</p>
+<hr />
+<p>It may be helpful
+to consult this handy table from Lorin Hochstein’s
+<a href="https://surfingcomplexity.blog/2026/08/02/traditional-versus-resilience-engineering-views/">Traditional versus resilience engineering views</a>:<span class="sidenote-wrapper"><label for="sn-1" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-1" class="margin-toggle"/><span class="sidenote">The post is short and recommended reading. The table below is a subset of the one in the original post.<br />
+<br />
+</span></span></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Traditional view focuses on</th>
+<th style="text-align: left;">Resilience engineering view focuses on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">objectives</td>
+<td style="text-align: left;">production pressure</td>
+</tr>
+<tr>
+<td style="text-align: left;">reducing complexity</td>
+<td style="text-align: left;">navigating complexity</td>
+</tr>
+<tr>
+<td style="text-align: left;">root cause</td>
+<td style="text-align: left;">interaction of multiple factors</td>
+</tr>
+<tr>
+<td style="text-align: left;">human variability as liability</td>
+<td style="text-align: left;">human variability as asset</td>
+</tr>
+</tbody>
+</table>
+<p>One way to read the cases below is to try to think
+about both sides of the table as you read them.</p>
+<h3 id="writing-some-git-configuration">Writing some git configuration</h3>
+<p>We use our own devboxes<span class="sidenote-wrapper"><label for="sn-2" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-2" class="margin-toggle"/><span class="sidenote">Disposable VMs used for software development.<br />
+<br />
+</span></span> at <code>$WORK</code> which run on EC2 instances.
+The logic for starting things has two subprocesses:</p>
+<ul>
+<li><p>One background process, to initialize state which isn’t needed right away.
+This process may or may not have finished by the time the
+user starts using the devbox.</p></li>
+<li><p>One foreground process, which needs some extra data from
+the user’s laptop, and blocks the user until it’s done.
+Only after this process finishes can the user start using the devbox.</p></li>
+</ul>
+<p>To reduce latency, we’ve been working on
+moving more operations to the background process.
+In this spirit,
+one of my colleagues created a PR to move some of
+the modifications to the global <code>~/.gitconfig</code><span class="sidenote-wrapper"><label for="sn-3" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-3" class="margin-toggle"/><span class="sidenote">In the interest of performance and consistency, we want to manage some aspects of people’s Git configurations. Yes, I know Nix exists, I use it for one of my own servers. No, we don’t use Nix at work. You’re keeping a check on your intrusive thoughts, right?<br />
+<br />
+</span></span>
+from the foreground process to the background process.</p>
+<p>So when a <code>git config</code> command needs to modify <code>~/.gitconfig</code>,
+it first acquires an exclusive file lock on <code>~/.gitconfig.lock</code>.
+This prevents concurrent modifications from other (cooperating)
+processes, such as other <code>git config</code> calls.</p>
+<p>When I saw the PR, I remembered we’d hit non-determinism
+in the devbox setup, where git’s behavior of fast-failure
+on lock acquisition failure led to flakiness
+during startup due to a similar problem of concurrent writes.</p>
+<p>Just retrying on top would’ve still led to non-determinism,
+so my colleague added a cross-process dependency edge
+using an existing mechanism,
+where the write would only happen after the background process finished.</p>
+<p>Then I pointed out that we’d actually tried that earlier,
+but we’d gotten rid of that almost immediately,
+due to the increase in end-to-end latency
+(because now a subpart of the foreground process
+would have to wait for the <em>whole</em> background process
+to finish).</p>
+<p>In the end, since we also had some file modifications which
+couldn’t quite go through <code>git config</code> directly,<span class="sidenote-wrapper"><label for="sn-4" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-4" class="margin-toggle"/><span class="sidenote">Due to needing to reconcile <code># DO NOT EDIT</code> blocks.<br />
+<br />
+</span></span>
+we converged on a solution which had a separate <code>flock</code> operation
+(with its own <code>.lock</code> file). This allowed for (1) having retries
+with backoff (2) doing multiple modifications under the same <code>flock</code>
+without other intervening writes
+(3) doing direct writes without worrying about concurrent writers.</p>
+<h3 id="to-display-progress-or-not-to-display-progress">To display progress or not to display progress</h3>
+<p>There’s a periodic CI job which does some processing
+and uploads a tarball to an AWS S3 bucket.
+Turns out, the <code>aws</code> CLI displays progress by default.
+Presumably, this is meant to help with debugging issues,
+as well as provide reassurance about progress
+when using the CLI directly in the terminal.</p>
+<p>When this colleague changed the logic to upload to
+4 buckets from 1 bucket to speed up downloads from other
+regions,<span class="sidenote-wrapper"><label for="sn-5" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-5" class="margin-toggle"/><span class="sidenote">AWS buckets belong to a specific region.<br />
+<br />
+</span></span> the CI job started failing,
+due to the log file exceeding the limit of 10MB.</p>
+<p>Turns out, the <code>aws</code> CLI logs a line for every 256 KB uploaded.
+This corresponds to tens of thousands of log lines when the upload is 10GB+.
+Multiplying the log lines by 4 tipped the job over the 10MB limit.</p>
+<p>The colleague submitted a PR to change the invocations to
+use <code>--no-progress</code> to unbork the CI job.
+At the time, my first thought was, “Hmm, is this the only option?
+Maybe there’s a way to show fewer progress updates?
+If the job fails mid-upload, it’d be nice to have some
+progress information to make it clearer <em>when</em> the job
+failed relative to the start of the upload.”</p>
+<p>So I looked up the docs for the <code>aws</code> CLI, and saw a flag
+<code>--progress-seconds &lt;INT&gt;</code> which allowed tuning the frequency
+of progress updates. I asked the PR author if we could use
+that instead.</p>
+<p>At the back of my mind, I remembered a mini-incident
+we’d had earlier, where a commonly used script had introduced
+an <code>aws</code> CLI flag, but not all environments the script ran in
+had a sufficiently new CLI version which supported it,
+so the script broke for a bunch of people.</p>
+<p>Since the PR author had also seen that happen,
+I assumed that they would do the due diligence to check
+what version of the CLI was running in the CI job and
+check whether that CLI version supported <code>--progress-seconds</code>.</p>
+<p>The PR author got back to me quickly and updated the PR to
+remove <code>--no-progress</code> and use <code>--progress-seconds</code>.</p>
+<p>I was a bit surprised at the speed, so I realized they might
+not have thought of the same risk. First, I tried looking
+at the aws CLI changelog to see if it mentioned when the flag
+was introduced (since the flag’s documentation didn’t have this
+information). It did not. Then I had LLM chase down
+what CLI version the CI job was using,
+as well as which commit introduced that flag in the <code>aws</code> CLI,
+and the first published release with that commit.
+This uncovered the fact that the job would break
+if <code>--progress-seconds</code> was used,
+because the existing CLI version in the job was too old.</p>
+<p>I did some spot checks on the commits and versions,
+and then commented on the PR with a brief apology
+for not stating my assumptions earlier,
+and asked if they could cross-check the findings/find an alternate solution.</p>
+<p>The PR was later fixed by installing a sufficiently new
+<code>aws</code> CLI version that was already being packaged
+in another place in the repo.</p>
+<h3 id="the-extra-sha-that-couldve-caused-an-outage">The extra SHA that could’ve caused an outage</h3>
+<p>Remember the CI job from the previous example?
+One of the things I’ve been working on lately is decoupling
+the release process of that job group from the overall
+CI release process.<span class="sidenote-wrapper"><label for="sn-6" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-6" class="margin-toggle"/><span class="sidenote">The CI system is complicated enough
+that different jobs can have their own release processes.<br />
+<br />
+</span></span></p>
+<p>One day, I hit a merge conflict while rebasing my WIP
+changes on top of the <code>master</code> branch. Turns out,
+someone had added new variations of the existing job.</p>
+<p>So the job group is responsible for uploading certain tarballs.
+An engineer needed some more tarballs to be uploaded
+slightly differently. They’d created a separate job for that,
+instead of updating an existing job in the group.</p>
+<p>I was like, “hmm, why is this a different job, shouldn’t it
+involve adding one more element to a list somewhere?”</p>
+<p>Turns out, the reviewer for that job-addition PR had
+recommended separating out the new job from the old one
+to start with to reduce risk with disrupting the existing job’s
+performance, reliability etc. Additionally, one of
+the “slight” differences was that the new job was uploading
+sidecar files with a checksum.<span class="sidenote-wrapper"><label for="sn-7" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-7" class="margin-toggle"/><span class="sidenote">If you’re reading this and going “but doesn’t S3 already natively support checksums”, I actually didn’t know about that until after all of this was done-and-dusted, and I’m guessing the original PR author didn’t either.<br />
+<br />
+</span></span></p>
+<p>I was confused looking at that. “If this job needs checksums,
+do the existing jobs need checksums? If so, why didn’t they
+make the checksum logic uniformly applicable to all jobs?
+Do we need to update the existing readers to check the integrity
+of the old tarballs?
+Are these new tarballs crossing some kind of trust boundary
+whereas the old tarballs were not?”</p>
+<p>Thinking a bit more, I realized there was a bug.
+About a year back, I’d watched a presentation by
+Prof. Hannes Mühleisen called
+<a href="https://youtu.be/YQEUkFWa69o?si=9om_lryDl57PBIno&amp;t=919">DuckLake - The SQL-Powered Lakehouse Format for the Rest of Us</a>.
+It was talking about Apache Iceberg and its use
+of files, which seemed very complicated.</p>
+<figure>
+<img src="assets/apache-iceberg.png" alt="Apache Iceberg’s metadata layout: a catalog holds a current metadata pointer per table, each metadata file tracks snapshots, each snapshot points to a manifest list, which points to manifest files, which finally point to the data files." />
+<figcaption aria-hidden="true">Apache Iceberg’s metadata layout: a catalog holds a current metadata pointer per table, each metadata file tracks snapshots, each snapshot points to a manifest list, which points to manifest files, which finally point to the data files.</figcaption>
+</figure>
+<p>At the time, my understanding was that some of this
+complexity was due to essentially not having a way
+to do multi-object transactions. And thus, one of the
+key design decisions for DuckLake was to
+have a SQL database (with ACID transactions) for
+maintaining metadata.</p>
+<p>Coming back to the CI job, it was uploading the tarball
+to a fixed object name in a fixed bucket. This was uploaded
+before the checksum. So while S3 guarantees all-or-nothing
+semantics for a write to an object,
+if the job was canceled or crashed before uploading the checksum,
+then readers checking the integrity of the tarball
+against the old checksum in a fail-closed manner<span class="sidenote-wrapper"><label for="sn-8" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-8" class="margin-toggle"/><span class="sidenote">The usual way to use checksums.<br />
+<br />
+</span></span>
+would start failing, which would lead to an ~outage
+for that particular feature until the tarball
+and checksums were back in sync.</p>
+<p>I pointed out this failure mode to the person who created the PR,
+as well as in the PR introducing the read path.
+In the end, the read path check for the sidecar file
+was not introduced.</p>
+<h2 id="the-case-for-code-review-being-a-skill">The case for code review being a skill</h2>
+<p>Let’s rewind the clock back a bit. To 2018.</p>
+<p>I was working as a graduate student in physics.
+The research I was doing involved
+various kinds of simulations.
+We used Jupyter notebooks for much
+of the work. The simulations would work one
+day, they’d stop working the next day,
+and the third day, they’d continue not working
+despite undoing the work from the second day.</p>
+<p>I was struggling with how to manage the code,
+how to make it efficient, and how to prevent
+mistakes from coming up, and how to use version
+control.
+At the time, I started learning about automated testing
+and code review. I recall being quite amazed, “Wait,
+what? People actually review all of the code, not
+just the outputs?! Wow, it must be nice to
+work as a software developer.”</p>
+<p>Eventually, I got increasingly more interested
+in the process of writing software better,
+and more disenchanted with the physics
+I was supposed to be studying.
+I ended up dropping out of the PhD program in 2019,
+and started working as a software engineer.</p>
+<hr />
+<p>Since then until now, over the course
+of my career so far,
+there have been multiple times where someone
+have commented that they’ve found my code reviews
+more helpful than the average review they’re used to.</p>
+<p>As one data point, before 2026, when reviewing a PR,
+depending on the author’s familiarity with how I review,
+the underlying code, prior discussions etc.,
+my comment density on PRs has been in the range of
+30-100 SLOC/comment. Not all of them were about bugs.
+Most were about more “boring” things like asking
+clarifying questions, naming, layering etc.</p>
+<hr />
+<p>So why am I telling you all of this?
+Well, my point is that I learnt how to review code
+along the way. I was not magically born with some
+innate ability to do code review, or to catch
+bugs in code review.</p>
+<p>Are there aspects somewhat specific to me
+which help me in spotting bugs?
+Probably, yes. Some things I can think of:</p>
+<ul>
+<li>When I discover a bug that I introduced earlier,
+I tend to take it more personally
+than other developers I’ve met.</li>
+<li>I tend to think of programs in terms of
+invariants and <a href="https://blog.get-nerve.com/to-be-a-better-programmer-write-little-proofs-in-your-head/">little proofs</a>.</li>
+<li>I like reading tech blogs and watching tech talks,
+especially those with debugging stories
+and performance investigations.</li>
+</ul>
+<p>Out of these, I think the second point in particular
+is very learnable and teachable.</p>
+<p>Stepping back a bit, I think there’s a <em>lot</em> we don’t
+really know about code review. If you look at the literature
+on code reviews, it’s generally pretty anemic.</p>
+<p>Apart from doing more structured studies
+– which would be difficult to get buy-in for
+in a typical corporate environment –
+I think there’s a lot of room for trying out
+new practices related to code review,
+including at small scales,
+to make it more useful for authors, reviewers and
+the surrounding team.</p>
+<h2 id="putting-on-the-mad-scientist-hat-for-a-bit">Putting on the mad scientist hat for a bit</h2>
+<p>In this section, I want to suggest some potential
+ideas to improve upon (or at least, try variations of)
+code review as a practice. The purpose of
+writing these down is twofold:</p>
+<ul>
+<li>To give you some inspiration for coming up with
+ideas of your own.</li>
+<li>To give you some sense of how existing practices
+are lacking in particular aspects</li>
+</ul>
+<p>The point is not “you should go try these out”
+(maybe you shouldn’t) or “I am certain that
+these will work well” (I’m not, because I haven’t
+had the chance to put them into practice).</p>
+<p>The ideas below assume a strong foundation of <a href="https://rework.withgoogle.com/intl/en/guides/understand-team-effectiveness">psychological safety</a>,
+because if you don’t have that,
+you should almost certainly be fixing that first
+before trying out more weird things.</p>
+<h3 id="randomized-process-oriented-socratic-dialogues">Randomized process-oriented Socratic dialogues</h3>
+<p>Say you have a junior engineer who is requesting a review
+from a senior engineer with expertise relevant to the
+code being changed.</p>
+<p>When the PR is up, and the review is requested,
+say a bot randomly decides (based on some
+tunable frequency) to create a meeting.</p>
+<p>In the meeting, the senior person, instead of pointing
+out things which don’t quite make sense,
+or could be done differently, instead
+first asks the junior person for their perspective
+on why they did things a certain way,
+or what assumptions they were making.<span class="sidenote-wrapper"><label for="sn-9" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-9" class="margin-toggle"/><span class="sidenote">It’s key to avoid counterfactual questions for why something was <em>not</em> done a certain way, or why the person did <em>not</em> think of something. This might sound easy, but if you actually try this, you’ll notice it’s quite hard to stick to this! (EDIT: If you’re wondering “why should I avoid counterfactuals”, you might find my previous post <a href="https://typesanitizer.com/blog/bug-analysis.html">How should we learn from my bugs?</a> and Lorin Hochstein’s <a href="https://surfingcomplexity.blog/2019/08/22/the-problem-with-counterfactuals/">The Problem with Counterfactuals</a> useful.)<br />
+<br />
+</span></span></p>
+<p>During this process, a junior with cognitive agility will recognize
+gaps in their understanding, and potentially identify
+improvements they could make.</p>
+<p>The focus would be on the <em>thought process</em> for
+different sub-skills like writing a good PR description
+or robust error handling, with the PR serving
+as a foil to ground the discussion.</p>
+<p>See also: <a href="https://www.shadowboxtraining.com/news/2026/01/20/6-principles-of-effective-feedback/">6 principles of Effective feedback</a>, §1. Effective feedback is based on process, not outcome.</p>
+<h3 id="lightweight-near-miss-post-mortems">Lightweight near-miss post-mortems</h3>
+<p>Today, it’s increasingly more common to have post-mortems
+for incidents. It’s also common to organize work into
+sprints and have team retro meetings at the end
+of a sprint.<span class="sidenote-wrapper"><label for="sn-10" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-10" class="margin-toggle"/><span class="sidenote">Also a skill that can be learned, improved upon etc.!<br />
+<br />
+</span></span></p>
+<p>What if, every time a bug was caught in code review during
+the sprint, the PR author was asked to record a short clip
+explaining the context and what the caught issue was,
+and if the kind of issue matched a past issue,
+what the impact of the past issue was.<span class="sidenote-wrapper"><label for="sn-11" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-11" class="margin-toggle"/><span class="sidenote">The wording here is very deliberate. I’m explicitly not mentioning “what the potential impact could’ve been had the issue slipped through” because that goes into the territory of speculation/prediction.<br />
+<br />
+</span></span></p>
+<p>During the team retro, the team could watch the clips together,
+ask questions and increase shared knowledge.
+This way, everyone on the team would also be exposed
+to a lot more bugs that almost slipped through.</p>
+<p>To avoid having differences in frequency, you could limit this
+to at most one clip per person per meeting.</p>
+<p>See also: <a href="https://surfingcomplexity.blog/2025/02/01/youre-missing-your-near-misses/">You’re missing your near misses</a>.</p>
+<h3 id="firewalled-modeling">Firewalled modeling</h3>
+<p>In <a href="https://www.youtube.com/watch?v=FvNRlE4E9QQ">Finding bugs without running or even looking at code (video)</a> (StrangeLoop 2019), Jay Parlar
+describes an example of him trying to build a model
+in Alloy for an access control system –
+which spanned multiple codebases, and where he hadn’t
+looked at the code – and in the process of modeling,
+he found both bugs and design issues.</p>
+<p>In my own limited experience, lightweight formal methods
+seem useful when trying to reason about process semantics
+(involving cancelation, potentially indefinite waits,
+file locking protocols) as well as access control.</p>
+<p>What if, as a baseline, when you started working on a system,
+especially a complex one which interfaced with multiple
+external systems or carried high security or correctness
+risks, two people played the roles of the modeler
+and the programmer.
+The modeler would develop the model <em>without</em> looking at the code,
+and the programmer would work on the code.
+They’d meet in the middle to create test cases.</p>
+<p>Then the model could serve as a much smaller reference
+to be able to review the thoroughness of the code,
+as well as to test out various unusual situations
+that would otherwise require a large amount of test scaffolding,
+especially in the early stages of the project.</p>
+<h3 id="studying-expertise">Studying expertise</h3>
+<p>(OK, this one doesn’t fit under “mad scientist” but whatever. It’s my blog.)</p>
+<p>In many fields, there is a growing body of literature around expertise.
+This doesn’t really exist for code (and specifically code review)
+in quite the same way.</p>
+<p>What if you analyzed the code reviews happening in your team
+and tried to figure out if there are outlier (domain, person) pairs
+in terms of insightful review comments.
+Or maybe you get this information just from interviewing people.</p>
+<p>Once you’ve found the outliers, you could try an easy-to-learn
+approach like <a href="https://commoncog.com/an-easier-method-for-extracting-tacit-knowledge/">Applied Cognitive Task Analysis</a>
+for extracting the tacit knowledge these people have.
+Doing this is easier for code review compared to many other tasks,
+because instead of simulating a difficult-to-simulate situation
+(such as firefighting), you can actually just have
+the person review PRs live.</p>
+<h2 id="on-the-zeitgeist-surrounding-code-review">On the zeitgeist surrounding code review</h2>
+<p>Hopefully, by this point, I’ve convinced you somewhat that
+reviewing code is a skill, and that there’s a lot more
+room left for us to try out different practices.
+For example, in terms of training programs,
+we are not close to more well-studied
+areas like team sports (e.g. soccer) and
+two-player games (like Chess, Go etc.).</p>
+<p>At this point, you might (reasonably) still be thinking:
+“So what? LLMs are going to get better at all of these things
+much faster than humans can get better at them,
+so it’s pointless to try to compete with LLMs
+at reviewing code.”<span class="sidenote-wrapper"><label for="sn-12" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-12" class="margin-toggle"/><span class="sidenote">A related objection might be that while you might care about code review, your management doesn’t. Sorry, I don’t have any advice related to convincing management.<br />
+<br />
+</span></span></p>
+<p>If you’ll recall my phrasing from before:</p>
+<blockquote>
+<p>If you’re a software developer, and if you believe that people
+will continue to be involved in the development and maintenance
+of programs for the foreseeable future, then it’s <em>valuable</em>
+to get better at reviewing code.</p>
+</blockquote>
+<p>The second part of this is conditional on the first.
+So we can disagree on what likelihood we assign to the premise itself (“if you believe … for the foreseeable future”) being true,
+but that’s a separate discussion from whether the implication (the “then”)
+itself holds.</p>
+<p>The flipped version of the implication would be something like:</p>
+<blockquote>
+<p>If you’re a software developer, and even if you believe that people
+will continue to be involved in the development and maintenance
+of programs for the foreseeable future, it’s <em>net negative</em>
+to get better at reviewing code.</p>
+</blockquote>
+<p>For example, you could hold this position because you think
+that there are other skills which you could learn that provide
+significantly higher leverage.<span class="sidenote-wrapper"><label for="sn-13" class="margin-toggle sidenote-number"></label><input type="checkbox" id="sn-13" class="margin-toggle"/><span class="sidenote">I commonly see “system design” and “product thinking” or “developing taste” as being touted as more important to develop.<br />
+<br />
+</span></span>
+Or you might think that reviewing code will later
+be restricted to a small fraction of working programmers,
+like how a relatively small fraction of programmers today
+look at assembly code on a regular basis.</p>
+<p>To this, I have the following responses.</p>
+<p>First, if you’re able to drop down a lower-level of abstraction
+compared to your peers, that’s almost always an advantage
+because you’re able to tackle a wider set of problems that they can.
+For example, today, if you’re able to understand SQL query plans
+more easily, or you understand things like memory allocation
+and assembly, you are at an advantage at designing more robust
+and high-performance code compared to engineers
+who don’t understand those topics.</p>
+<p>Second, given that software development is still in its
+infancy compared to so many other fields,
+it’s quite possible that we’re not even close
+to seeing the ceiling on human skill and performance
+on various aspects, such as, but not limited to, code review.
+So it may very well be that the average skill you see
+around you may be far from the ceiling is.</p>
+<p>Lastly, I recommend grounding your world view
+in experience reports, case studies, and your own observations,
+rather than “takes” on social media.
+Cedric Chin has written about much better
+about this than I could’ve in
+<a href="https://commoncog.com/how-to-make-sense-of-ai/">How to make sense of AI</a>
+and <a href="https://commoncog.com/letter-to-a-young-person-worrying-about-ai/">Letter to a young person worrying about AI</a>.</p>
+<p>At the end of the day,
+if you’re going to be responsible for the code you ship,
+and the code you ship has real consequences for real people,
+it’s worth asking how you can get better at what you do.
+To that end, I believe that investing in getting better
+at reviewing code is one of the best things you can do
+as a software developer.</p>
+<hr />
+<blockquote>
+<p>Yaksha: What is swifter than the wind?</p>
+<p>Yudhishtira: The mind.</p>
+<p>Yaksha: More numerous than the blades of grass?</p>
+<p>Yudhishtira: The thoughts in the mind.</p>
+<p>Yaksha: What is the most praiseworthy thing of all?</p>
+<p>Yudhishtira: Skill.</p>
+<p>Yaksha: The most valuable possession?</p>
+<p>Yudhishtira: Knowledge.</p>
+</blockquote>
+          </section>
+        </article>
+    </body>
+</html>

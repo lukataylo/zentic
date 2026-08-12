@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Untitled – Design</title>
+</head>
+<body>
+<!--
+  Hand-authored fixture: a WebGL design tool. The document is a canvas plus
+  chrome; there is no text to extract at all, which is the easy case — but it is
+  the one that must never regress, because the failure mode is a blank reading
+  view over someone's artwork.
+-->
+<div id="app" class="app-shell">
+  <div role="toolbar" aria-label="Tools">
+    <button aria-label="Move">V</button>
+    <button aria-label="Frame">F</button>
+    <button aria-label="Rectangle">R</button>
+    <button aria-label="Pen">P</button>
+    <button aria-label="Text">T</button>
+    <button aria-label="Comment">C</button>
+    <button aria-label="Present">▶</button>
+  </div>
+
+  <div role="tree" aria-label="Layers">
+    <div role="treeitem">Page 1</div>
+    <div role="treeitem">Header</div>
+    <div role="treeitem">Hero / Desktop</div>
+    <div role="treeitem">Card · variant=default</div>
+    <div role="treeitem">Icon / chevron</div>
+  </div>
+
+  <div role="application" aria-label="Canvas">
+    <canvas id="webgl-viewport" class="webgl-canvas" width="1600" height="1000" aria-label="Design canvas"></canvas>
+  </div>
+
+  <div role="tabpanel" aria-label="Design panel">
+    <div role="tablist">
+      <button role="tab" aria-selected="true">Design</button>
+      <button role="tab">Prototype</button>
+      <button role="tab">Inspect</button>
+    </div>
+    <label>X <input type="number" value="240"></label>
+    <label>Y <input type="number" value="128"></label>
+    <label>W <input type="number" value="360"></label>
+    <label>H <input type="number" value="220"></label>
+    <select aria-label="Blend mode"><option>Pass through</option><option>Multiply</option></select>
+    <input type="range" aria-label="Opacity" min="0" max="100" value="100">
+  </div>
+</div>
+</body>
+</html>

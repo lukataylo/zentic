@@ -1,0 +1,1042 @@
+[
+  {
+    "slug": "news-bbc-article",
+    "archetype": "article",
+    "title": "Burnham 'confident' early release of PC Harper's killers can be halted",
+    "words": 1010,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-bbc-front",
+    "archetype": "article",
+    "title": "Breaking news, video and the latest top stories from the U.S. and around the world",
+    "words": 207,
+    "confidence": 0.05,
+    "kinds": [
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": false,
+    "declined": "confidence 0.05"
+  },
+  {
+    "slug": "news-guardian-article",
+    "archetype": "article",
+    "title": "Europe’s total solar eclipse: the best place to see it and how to view it safely",
+    "words": 139,
+    "confidence": 0.4,
+    "kinds": [
+      "figure",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "news-guardian-longread",
+    "archetype": "article",
+    "title": "The great silence: why haven’t we found any aliens yet?",
+    "words": 4819,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-npr-article",
+    "archetype": "article",
+    "title": "Former Syrian President Assad sentenced to death in absentia",
+    "words": 471,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-arstechnica-article",
+    "archetype": "article",
+    "title": "Less than 2.5% of Taylor Farms' recalled lettuce went to Taco Bells",
+    "words": 649,
+    "confidence": 0.98,
+    "kinds": [
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-theverge-article",
+    "archetype": "article",
+    "title": "Google’s free streaming service now lets you pick shows and movies to watch",
+    "words": 185,
+    "confidence": 0.8,
+    "kinds": [
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-cnn-article",
+    "archetype": "article",
+    "title": "Insurers shun many ships carrying goods through the Red Sea as attacks continue",
+    "words": 917,
+    "confidence": 0.98,
+    "kinds": [
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-aljazeera-index",
+    "archetype": "article",
+    "title": "News | Today's latest from Al Jazeera",
+    "words": 51,
+    "confidence": 0.05,
+    "kinds": [
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": false,
+    "declined": "confidence 0.05"
+  },
+  {
+    "slug": "news-apnews-hub",
+    "archetype": "article",
+    "title": "Science",
+    "words": 1784,
+    "confidence": 0.4,
+    "kinds": [
+      "figure",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "news-propublica",
+    "archetype": "article",
+    "title": "More Than Half the Homes in East Omaha Have Unsafe Lead Levels. That Doesn’t Mean the EPA Will Clean Them Up.",
+    "words": 1561,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "news-hackaday",
+    "archetype": "article",
+    "title": "January 1, 2024",
+    "words": 1517,
+    "confidence": 0.4,
+    "kinds": [
+      "figure",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "blog-paulgraham",
+    "archetype": "article",
+    "title": "How to Do Great Work",
+    "words": 11822,
+    "confidence": 0.9,
+    "kinds": [
+      "paragraph",
+      "quote"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-danluu",
+    "archetype": "article",
+    "title": "Keyboard latency",
+    "words": 3840,
+    "confidence": 0.9,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph",
+      "quote",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-jvns",
+    "archetype": "article",
+    "title": "Learning a few things about running SQLite",
+    "words": 927,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-simonwillison",
+    "archetype": "article",
+    "title": "New release of LLM adds support for reasoning traces, OpenAI Responses, server-side tools, and smarter logging",
+    "words": 856,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-overreacted",
+    "archetype": "article",
+    "title": "A Chain Reaction",
+    "words": 1924,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-martinfowler",
+    "archetype": "article",
+    "title": "Catalog of Patterns of Distributed Systems",
+    "words": 665,
+    "confidence": 0.8,
+    "kinds": [
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-joelonsoftware",
+    "archetype": "article",
+    "title": "Things You Should Never Do, Part I",
+    "words": 1425,
+    "confidence": 0.98,
+    "kinds": [
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-cloudflare",
+    "archetype": "article",
+    "title": "Serving the most critical missions- Cloudflare for Government achieves FedRAMP Class D (High) Certified status",
+    "words": 879,
+    "confidence": 0.98,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-eli-bendersky",
+    "archetype": "article",
+    "title": "Notes on the Fourier Transform - Eli Bendersky's website",
+    "words": 2137,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-substack",
+    "archetype": "article",
+    "title": "Book Review: The Others Within Us",
+    "words": 6960,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "list",
+      "paragraph",
+      "quote"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "blog-medium",
+    "archetype": "article",
+    "title": "Software 2.0",
+    "words": 2129,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-gnome",
+    "archetype": "article",
+    "title": "GNOME Shell Design Dreams",
+    "words": 1725,
+    "confidence": 0.98,
+    "kinds": [
+      "embed",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "blog-typesanitizer",
+    "archetype": "article",
+    "title": "Reviewing code is a skill",
+    "words": 4010,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "quote",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-mdn-fetch",
+    "archetype": "docs",
+    "title": "Using the Fetch API",
+    "words": 2302,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-python-datamodel",
+    "archetype": "docs",
+    "title": "3. Data model",
+    "words": 16704,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-nodejs-fs",
+    "archetype": "docs",
+    "title": "File system | Node.js v26.7.0 Documentation",
+    "words": 22797,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-react-learn",
+    "archetype": "docs",
+    "title": "Thinking in React",
+    "words": 1977,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-tailwind",
+    "archetype": "docs",
+    "title": "flex-basis - Flexbox & Grid",
+    "words": 203,
+    "confidence": 0.65,
+    "kinds": [
+      "code",
+      "heading",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-kubernetes",
+    "archetype": "docs",
+    "title": "Pods",
+    "words": 3160,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-rust-book",
+    "archetype": "docs",
+    "title": "What is Ownership? - The Rust Programming Language",
+    "words": 3691,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-postgres",
+    "archetype": "docs",
+    "title": "SELECT",
+    "words": 9330,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "docs-swift-book",
+    "archetype": "app",
+    "title": "Documentation",
+    "words": 0,
+    "confidence": 0.75,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: +0.30 only 47 prose words; +0.30 app shell (#app) with little prose"
+  },
+  {
+    "slug": "docs-vite",
+    "archetype": "docs",
+    "title": "Features",
+    "words": 3811,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "quote"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "wiki-wikipedia-photosynthesis",
+    "archetype": "article",
+    "title": "Photosynthesis",
+    "words": 11108,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "wiki-wikipedia-riemann",
+    "archetype": "article",
+    "title": "Riemann zeta function",
+    "words": 7450,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "wiki-wikipedia-arabic",
+    "archetype": "article",
+    "title": "الأندلس - ويكيبيديا",
+    "words": 26305,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "quote",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "wiki-wikipedia-hebrew",
+    "archetype": "article",
+    "title": "מדעי המחשב – ויקיפדיה",
+    "words": 2307,
+    "confidence": 0.98,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "academic-arxiv-abs",
+    "archetype": "article",
+    "title": "Attention Is All You Need",
+    "words": 263,
+    "confidence": 0.65,
+    "kinds": [
+      "heading",
+      "paragraph",
+      "quote",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "academic-arxiv-html",
+    "archetype": "article",
+    "title": "DeepSeek-V3 Technical Report",
+    "words": 17308,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "math",
+      "paragraph",
+      "quote",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "academic-plos",
+    "archetype": "article",
+    "title": "Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities",
+    "words": 5168,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "medical-mayoclinic",
+    "archetype": "article",
+    "title": "Migraine - Symptoms and causes",
+    "words": 2477,
+    "confidence": 0.98,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "academic-sep",
+    "archetype": "article",
+    "title": "Consciousness (Stanford Encyclopedia of Philosophy)",
+    "words": 22883,
+    "confidence": 0.98,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph",
+      "quote"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "forum-hackernews",
+    "archetype": "app",
+    "title": "Hacker News",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "forum-reddit-thread",
+    "archetype": "app",
+    "title": "Five Programming Books That Changed How I Think : programming",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "forum-discourse",
+    "archetype": "article",
+    "title": "PEP 703: Making the Global Interpreter Lock Optional",
+    "words": 2078,
+    "confidence": 0.4,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph",
+      "quote"
+    ],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "code-github-repo",
+    "archetype": "docs",
+    "title": "duckduckgo/autoconsent",
+    "words": 460,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "code-github-issue",
+    "archetype": "docs",
+    "title": "Suggestion: 'protected' modifier · Issue #1 · microsoft/TypeScript · GitHub",
+    "words": 318,
+    "confidence": 0.98,
+    "kinds": [
+      "code",
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "recipe-bbcgoodfood",
+    "archetype": "article",
+    "title": "Best ever chocolate brownies recipe",
+    "words": 875,
+    "confidence": 0.75,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "recipe-budgetbytes",
+    "archetype": "article",
+    "title": "Sweet, salty, addictive Garlic Noodles — a staple for 16 years & counting!",
+    "words": 1302,
+    "confidence": 0.98,
+    "kinds": [
+      "embed",
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "quote"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "recipe-kingarthur",
+    "archetype": "article",
+    "title": "Classic Birthday Cake",
+    "words": 1280,
+    "confidence": 0.75,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  },
+  {
+    "slug": "finance-sec-filing",
+    "archetype": "article",
+    "title": "aapl-20230930",
+    "words": 24146,
+    "confidence": 0.9,
+    "kinds": [
+      "figure",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "finance-yahoo-quote",
+    "archetype": "article",
+    "title": "Your privacy choices",
+    "words": 0,
+    "confidence": 0.05,
+    "kinds": [],
+    "fidelitySensitive": true,
+    "restructured": false,
+    "declined": "empty: 0 words"
+  },
+  {
+    "slug": "legal-cornell-uscode",
+    "archetype": "article",
+    "title": "17 U.S. Code § 107 - Limitations on exclusive rights: Fair use",
+    "words": 4807,
+    "confidence": 0.98,
+    "kinds": [
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "legal-cornell-wex",
+    "archetype": "article",
+    "title": "negligence",
+    "words": 889,
+    "confidence": 0.98,
+    "kinds": [
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "app-excalidraw",
+    "archetype": "app",
+    "title": "Excalidraw Whiteboard",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-drawio",
+    "archetype": "app",
+    "title": "Flowchart Maker & Online Diagram Software",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-gmail-shell",
+    "archetype": "app",
+    "title": "Gmail",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-google-docs",
+    "archetype": "app",
+    "title": "Google Docs: Sign-in",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-google-calendar",
+    "archetype": "app",
+    "title": "Google Calendar - Sign in to Access & Edit Your Schedule",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-notion-login",
+    "archetype": "app",
+    "title": "Notion",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-slack",
+    "archetype": "app",
+    "title": "Slack",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-figma-file",
+    "archetype": "app",
+    "title": "Login | Figma",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-photopea",
+    "archetype": "app",
+    "title": "Photopea | Online Photo Editor",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-jsfiddle",
+    "archetype": "app",
+    "title": "JSFiddle - React, Tailwind, and code Playground",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-whatsapp",
+    "archetype": "app",
+    "title": "WhatsApp Web",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-icloud",
+    "archetype": "app",
+    "title": "iCloud",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-tradingview",
+    "archetype": "app",
+    "title": "Live stock, index, futures, Forex and Bitcoin charts on TradingView",
+    "words": 0,
+    "confidence": 1,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: deny-list"
+  },
+  {
+    "slug": "app-synthetic-gmail-inbox",
+    "archetype": "app",
+    "title": "Inbox (14) - you@example-corp.com - Corp Mail",
+    "words": 0,
+    "confidence": 0.9,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: 33 controls, 0 prose words"
+  },
+  {
+    "slug": "app-synthetic-docs-editor",
+    "archetype": "app",
+    "title": "Onboarding plan — Writer",
+    "words": 0,
+    "confidence": 0.95,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: editable region holds 100% of prose"
+  },
+  {
+    "slug": "app-synthetic-figma-canvas",
+    "archetype": "app",
+    "title": "Untitled – Design",
+    "words": 0,
+    "confidence": 0.95,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: canvas covers 203% of viewport"
+  },
+  {
+    "slug": "app-synthetic-notion-page",
+    "archetype": "app",
+    "title": "Engineering Handbook",
+    "words": 0,
+    "confidence": 0.95,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: editable region holds 100% of prose"
+  },
+  {
+    "slug": "app-synthetic-bank-dashboard",
+    "archetype": "app",
+    "title": "Accounts summary",
+    "words": 0,
+    "confidence": 0.9,
+    "kinds": [],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "app: 17 controls, 17 prose words"
+  },
+  {
+    "slug": "medical-medlineplus",
+    "archetype": "article",
+    "title": "Asthma: MedlinePlus Medical Encyclopedia",
+    "words": 1718,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": true,
+    "restructured": true
+  },
+  {
+    "slug": "academic-ar5iv",
+    "archetype": "article",
+    "title": "Attention Is All You Need",
+    "words": 5319,
+    "confidence": 0.98,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "math",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": true
+  }
+]

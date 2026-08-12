@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Accounts summary</title>
+  <meta name="robots" content="noindex">
+</head>
+<body>
+<!--
+  Hand-authored fixture: a retail bank dashboard, logged in.
+
+  The worst possible page to restructure. The numbers are the content, they are
+  laid out in tables the sanitizer would happily re-render, and a reader that
+  drops a row or reorders a column has told the user something false about their
+  own money. Note there is no prose at all — the veto that catches this is
+  "dense controls, nothing to read".
+-->
+<div id="app">
+  <header role="banner">
+    <span>Signed in as J. DADIANI</span>
+    <button>Log out</button>
+    <button aria-label="Help">?</button>
+    <button aria-label="Notifications">3</button>
+  </header>
+
+  <nav aria-label="Primary">
+    <a href="/accounts/summary" aria-current="page">Accounts</a>
+    <a href="/payments">Payments</a>
+    <a href="/transfers">Transfers</a>
+    <a href="/statements">Statements</a>
+    <a href="/cards">Cards</a>
+    <a href="/settings">Settings</a>
+  </nav>
+
+  <section aria-label="Accounts">
+    <div role="group">
+      <h2>Current Account ····4417</h2>
+      <p><strong>£2,481.19</strong> available</p>
+      <button>Make a payment</button>
+      <button>Move money</button>
+      <button>Statements</button>
+    </div>
+    <div role="group">
+      <h2>Savings ····9052</h2>
+      <p><strong>£18,300.00</strong> · 3.85% AER</p>
+      <button>Move money</button>
+      <button>Manage</button>
+    </div>
+    <div role="group">
+      <h2>Credit Card ····2210</h2>
+      <p><strong>£412.66</strong> of £6,000.00</p>
+      <button>Pay balance</button>
+      <button>Freeze card</button>
+    </div>
+  </section>
+
+  <form aria-label="Filter transactions">
+    <label>From <input type="date" value="2026-07-01"></label>
+    <label>To <input type="date" value="2026-08-11"></label>
+    <label>Type
+      <select><option>All</option><option>Card payment</option><option>Direct debit</option><option>Transfer</option></select>
+    </label>
+    <label>Minimum <input type="number" value="0"></label>
+    <button type="submit">Apply</button>
+    <button type="reset">Clear</button>
+    <button type="button">Export CSV</button>
+  </form>
+
+  <table>
+    <caption>Recent transactions</caption>
+    <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col">Type</th><th scope="col">Out</th><th scope="col">In</th><th scope="col">Balance</th></tr></thead>
+    <tbody>
+      <tr><td>11 Aug</td><td>SAINSBURYS S/MKTS</td><td>Card</td><td>48.12</td><td></td><td>2,481.19</td></tr>
+      <tr><td>11 Aug</td><td>TFL TRAVEL CH</td><td>Card</td><td>6.80</td><td></td><td>2,529.31</td></tr>
+      <tr><td>10 Aug</td><td>OCTOPUS ENERGY</td><td>Direct debit</td><td>132.00</td><td></td><td>2,536.11</td></tr>
+      <tr><td>08 Aug</td><td>ACME LTD SALARY</td><td>Bank credit</td><td></td><td>3,914.22</td><td>2,668.11</td></tr>
+      <tr><td>07 Aug</td><td>TRANSFER TO SAVINGS</td><td>Transfer</td><td>500.00</td><td></td><td>-1,246.11</td></tr>
+      <tr><td>06 Aug</td><td>APPLE.COM/BILL</td><td>Card</td><td>2.99</td><td></td><td>-746.11</td></tr>
+      <tr><td>05 Aug</td><td>THE BOOKSHOP</td><td>Card</td><td>21.50</td><td></td><td>-743.12</td></tr>
+    </tbody>
+  </table>
+
+  <div role="status" aria-live="polite">Balances shown are indicative and may exclude pending transactions.</div>
+</div>
+</body>
+</html>

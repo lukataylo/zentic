@@ -1,0 +1,30 @@
+{
+  "payload" : {
+    "nodes" : [
+      {
+        "area" : 620000,
+        "classes" : [
+          "post",
+          "prose"
+        ],
+        "depth" : 3,
+        "hiddenOnNarrow" : false,
+        "id" : "post",
+        "linkCount" : 7,
+        "paragraphCount" : 24,
+        "path" : "body>div:nth-of-type(2)>article",
+        "role" : "main",
+        "tag" : "article",
+        "textLength" : 4820
+      }
+    ],
+    "origin" : "https:\/\/example.com",
+    "pathPattern" : "\/posts\/*",
+    "viewport" : {
+      "height" : 900,
+      "width" : 1280
+    }
+  },
+  "type" : "needsRecipe",
+  "v" : 1
+}

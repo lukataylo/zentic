@@ -1,0 +1,8 @@
+{
+  "payload" : {
+    "elapsedMs" : 1500,
+    "reason" : "failsafe"
+  },
+  "type" : "revealed",
+  "v" : 1
+}

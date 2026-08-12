@@ -1,0 +1,84 @@
+{
+  "debugLogging" : true,
+  "minConfidence" : 0.55,
+  "minWordCount" : 40,
+  "mode" : "restructured",
+  "passthroughOrigins" : [
+    "https:\/\/mail.google.com"
+  ],
+  "recipe" : {
+    "archetype" : "article",
+    "contentSelectors" : [
+      "article.post",
+      "main"
+    ],
+    "generatedAt" : "2025-07-31T22:13:20Z",
+    "junkSelectors" : [
+      ".related",
+      ".newsletter-cta"
+    ],
+    "origin" : "https:\/\/example.com",
+    "pathPattern" : "\/posts\/*",
+    "provenance" : "curated",
+    "quirks" : [
+      "lazyImageAttrs"
+    ],
+    "schemaVersion" : 1
+  },
+  "revealFailsafeMs" : 1500,
+  "settleCeilingMs" : 900,
+  "settleQuietPeriodMs" : 120,
+  "skeletonNodeLimit" : 220,
+  "theme" : {
+    "createdAt" : "2025-07-31T22:13:20Z",
+    "id" : "builtin.zentic",
+    "name" : "Zentic",
+    "source" : "builtIn",
+    "tokens" : {
+      "dark" : {
+        "accent" : "#7aa2f7",
+        "background" : "#141416",
+        "border" : "#2c2c31",
+        "codeBackground" : "#1a1a1d",
+        "surface" : "#1e1e21",
+        "text" : "#ececf0",
+        "textMuted" : "#9a9aa2",
+        "visited" : "#b9a0f0"
+      },
+      "density" : 1,
+      "light" : {
+        "accent" : "#2f6fed",
+        "background" : "#ffffff",
+        "border" : "#e3e3e0",
+        "codeBackground" : "#f4f4f2",
+        "surface" : "#f7f7f5",
+        "text" : "#1c1c1e",
+        "textMuted" : "#6b6b70",
+        "visited" : "#6b4fbb"
+      },
+      "ornament" : {
+        "dropCap" : false,
+        "headingCase" : "asIs",
+        "justify" : false,
+        "linkDecoration" : "underline",
+        "listMarker" : "disc",
+        "rule" : "hairline"
+      },
+      "shape" : {
+        "borderWidth" : 1,
+        "elevation" : "subtle",
+        "radius" : 10
+      },
+      "typography" : {
+        "baseSize" : 17,
+        "body" : "systemSans",
+        "heading" : "systemSans",
+        "letterSpacing" : 0,
+        "lineHeight" : 1.65,
+        "measure" : 68,
+        "mono" : "systemMono",
+        "scaleRatio" : 1.25
+      }
+    }
+  }
+}

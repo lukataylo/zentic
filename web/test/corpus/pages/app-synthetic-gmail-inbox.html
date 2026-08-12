@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Inbox (14) - you@example-corp.com - Corp Mail</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<!--
+  Hand-authored fixture. A real mail client cannot be fetched without
+  credentials, and its unauthenticated shell exercises none of the heuristics
+  that matter. This is the shape that does: a grid of one-line rows, a toolbar,
+  dense controls, and no prose anywhere.
+
+  The host is deliberately NOT on the bundled deny-list, so this tests detection
+  rather than the list.
+-->
+<div id="app">
+  <header role="banner">
+    <button aria-label="Main menu">☰</button>
+    <form role="search"><input type="search" aria-label="Search mail" placeholder="Search mail"></form>
+    <button aria-label="Support">?</button>
+    <button aria-label="Settings">⚙</button>
+    <button aria-label="Apps">⋮⋮</button>
+  </header>
+
+  <nav aria-label="Mailboxes">
+    <button>Compose</button>
+    <a href="/u/0/inbox" aria-current="page">Inbox <span>14</span></a>
+    <a href="/u/0/starred">Starred</a>
+    <a href="/u/0/snoozed">Snoozed</a>
+    <a href="/u/0/sent">Sent</a>
+    <a href="/u/0/drafts">Drafts <span>3</span></a>
+    <a href="/u/0/spam">Spam</a>
+    <a href="/u/0/trash">Trash</a>
+    <a href="/u/0/label/Receipts">Receipts</a>
+    <a href="/u/0/label/Travel">Travel</a>
+  </nav>
+
+  <div role="toolbar" aria-label="Message list controls">
+    <input type="checkbox" aria-label="Select all">
+    <button aria-label="Refresh">⟳</button>
+    <button aria-label="More">⋮</button>
+    <button aria-label="Archive">Archive</button>
+    <button aria-label="Report spam">Spam</button>
+    <button aria-label="Delete">Delete</button>
+    <button aria-label="Mark as read">Mark read</button>
+    <button aria-label="Snooze">Snooze</button>
+    <select aria-label="Rows per page"><option>50</option><option>100</option></select>
+    <button aria-label="Newer">‹</button>
+    <button aria-label="Older">›</button>
+  </div>
+
+  <div role="grid" aria-label="Inbox">
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">Priya Raman</span><a role="gridcell" href="/u/0/inbox/1a2b">Re: Q3 forecast — numbers attached</a><span role="gridcell">10:42</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">GitHub</span><a role="gridcell" href="/u/0/inbox/1a2c">[zentic/web] Run failed: build (main)</a><span role="gridcell">09:58</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">★</button><span role="gridcell">Deliveroo</span><a role="gridcell" href="/u/0/inbox/1a2d">Your order is on the way</a><span role="gridcell">09:31</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">Anna Weber</span><a role="gridcell" href="/u/0/inbox/1a2e">lunch tomorrow?</a><span role="gridcell">Yesterday</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">HMRC</span><a role="gridcell" href="/u/0/inbox/1a2f">Self Assessment: statement available</a><span role="gridcell">Yesterday</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">Marco Silva</span><a role="gridcell" href="/u/0/inbox/1a30">Slides for Thursday</a><span role="gridcell">Yesterday</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">Notion</span><a role="gridcell" href="/u/0/inbox/1a31">3 pages were updated</a><span role="gridcell">2 Aug</span></div>
+    <div role="row"><input type="checkbox" aria-label="Select"><button aria-label="Star">☆</button><span role="gridcell">Recruiter</span><a role="gridcell" href="/u/0/inbox/1a32">Senior role — quick chat?</a><span role="gridcell">2 Aug</span></div>
+  </div>
+
+  <div role="status" aria-live="polite">14 unread</div>
+</div>
+</body>
+</html>

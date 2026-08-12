@@ -1,0 +1,42 @@
+[Adblock Plus 2.0]
+! Title: Zentic test fixture
+! A deliberately small filter list that exercises every branch of the conversion
+! pipeline. Committed so the blocking tests never need the network.
+!
+! Counts asserted in Tests/ZenticKitTests/BlockingTests.swift. If you add a rule
+! here, update them — the test asserting exact conversion output is the only thing
+! that would notice SafariConverterLib changing shape under us.
+
+! --- network rules, expressible in Safari -----------------------------------
+||ads.example.com^$third-party
+||tracker.example.net^
+||beacon.example.org^$image
+||pixel.example.com^$script
+||metrics.example.io^
+||telemetry.example.co^$third-party
+||adserver.example.dev^
+||sync.example.app^$third-party
+
+! --- exceptions -------------------------------------------------------------
+@@||ads.example.com^$domain=shop.example.com
+@@||tracker.example.net^$document
+
+! --- cosmetic rules, expressible as css-display-none ------------------------
+##.zentic-ad-slot
+##div[id^="zentic-banner-"]
+example.com##.sponsored-post
+news.example.org##.promo-rail
+
+! --- inexpressible: Safari's syntax has no equivalent -----------------------
+! Scriptlet injection.
+example.com#%#//scriptlet('abort-on-property-read', 'adBlockDetected')
+! Extended CSS, needs a JS engine to evaluate.
+example.com#?#div:has-text(Sponsored)
+! Response-body rewriting.
+||example.com^$replace=/adPlaceholder/x/
+! Content-Security-Policy injection.
+||example.com^$csp=script-src 'self'
+! Resource redirection.
+||example.com/ads.js^$redirect=noopjs
+! AdGuard-only modifier.
+||example.com^$stealth

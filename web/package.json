@@ -1,0 +1,30 @@
+{
+  "name": "zentic-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "In-page bundle: strip, extract, restructure. Injected into every page by ZenticKit.",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "corpus": "tsx test/corpus/measure.ts",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test && npm run test:corpus && npm run build",
+    "test:corpus": "vitest run --config vitest.corpus.config.ts"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.2.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^27.0.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@duckduckgo/autoconsent": "^16.20.1",
+    "defuddle": "^0.19.2",
+    "katex": "^0.18.4"
+  }
+}

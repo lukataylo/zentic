@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Engineering Handbook</title>
+  <meta property="og:title" content="Engineering Handbook">
+</head>
+<body>
+<!--
+  Hand-authored fixture, and the hardest of the five: a document-shaped app.
+  Block-based editors look almost exactly like published articles — semantic
+  headings, long paragraphs, a title, even Open Graph tags — and a page like this
+  is the strongest argument for the editable-region veto being a veto rather than
+  one weight among many. Every block is separately editable, so the reader is
+  looking at a workspace, not a document.
+-->
+<div id="__next">
+  <div role="banner">
+    <nav aria-label="Breadcrumb"><a href="/Engineering-8f2c">Engineering</a> / <a href="/Engineering-Handbook-8f2c1a">Handbook</a></nav>
+    <button>Share</button>
+    <button aria-label="Comments">💬</button>
+    <button aria-label="Updates">🕘</button>
+    <button aria-label="Favourite">★</button>
+    <button aria-label="More">⋯</button>
+  </div>
+
+  <main>
+    <div data-block-id="t0" contenteditable="true" role="textbox"><h1>Engineering Handbook</h1></div>
+
+    <div data-block-id="b1" contenteditable="true" role="textbox">
+      <p>We optimise for the ability to change things later. Most of what follows is a consequence of that: small pull requests because they are easy to revert, boring dependencies because they are easy to replace, and written decisions because a decision nobody wrote down cannot be revisited, only re-argued.</p>
+    </div>
+    <div data-block-id="b2" contenteditable="true" role="textbox">
+      <p>Reviews are for correctness and for shared understanding, in that order. If a change is correct but nobody else understands why it is correct, it will be broken within the quarter by someone acting reasonably. So a review comment asking "why" is never noise, and answering it in the code beats answering it in the thread.</p>
+    </div>
+    <div data-block-id="h2" contenteditable="true" role="textbox"><h2>On-call</h2></div>
+    <div data-block-id="b3" contenteditable="true" role="textbox">
+      <p>The on-call rotation is one week, one primary, one secondary, and it starts on Wednesday so that a bad handover does not land on a Friday evening. Pages that fire twice without a runbook get a runbook before the shift ends; pages that fire without being actionable get deleted, because an alert nobody can act on trains everyone to ignore alerts.</p>
+    </div>
+    <div data-block-id="b4" contenteditable="true" role="textbox">
+      <p>Anything that woke someone up gets written up within two working days, blameless, with a timeline and one owner per follow-up. The write-up is not the point either — the follow-ups are, and a write-up with no owned follow-ups is a document we will read again after the same outage.</p>
+    </div>
+    <div data-block-id="b5" contenteditable="true" role="textbox">
+      <p>We do not have a formal severity ladder beyond "is a customer affected right now". Adding one has been proposed twice and both times the discussion consumed more time than the ambiguity ever cost.</p>
+    </div>
+  </main>
+
+  <div role="dialog" aria-label="Slash commands" hidden>
+    <input type="text" aria-label="Filter blocks">
+    <button>Text</button><button>Heading</button><button>Table</button><button>Code</button>
+  </div>
+</div>
+</body>
+</html>

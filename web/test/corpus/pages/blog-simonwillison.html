@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://simonwillison.net/2026/Aug/4/new-release-of-llm/">
+<title>New release of LLM adds support for reasoning traces, OpenAI Responses, server-side tools, and smarter logging</title>
+<script defer data-domain="simonwillison.net" src="https://plausible.io/js/plausible.js"></script>
+<link rel="alternate" type="application/atom+xml" title="Atom" href="/atom/everything/">
+<link rel="stylesheet" type="text/css" href="/static/css/all.7977d7c44aeb.css">
+<link rel="webmention" href="https://webmention.io/simonwillison.net/webmention">
+<link rel="pingback" href="https://webmention.io/simonwillison.net/xmlrpc">
+<meta name="author" content="Simon Willison">
+<meta property="og:site_name" content="Simon Willison’s Weblog">
+
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://static.simonwillison.net/static/2026/best-thing-pelicans-card.jpg">
+<meta name="twitter:creator" content="@simonw">
+<meta property="og:url" content="https://simonwillison.net/2026/Aug/4/new-release-of-llm/">
+<meta property="og:title" content="New release of LLM adds support for reasoning traces, OpenAI Responses, server-side tools, and smarter logging">
+<meta property="og:image" content="https://static.simonwillison.net/static/2026/best-thing-pelicans-card.jpg">
+<meta property="og:type" content="article">
+<meta property="og:description" content="I released LLM 0.32 this morning, the most significant new version of LLM since the initial launch of the project. The new version includes support for visible reasoning traces, server-side …">
+<meta property="og:updated_time" content="1785887904">
+
+
+
+
+
+<script>
+(function() { // Apply theme immediately to prevent flash
+  const theme = localStorage.getItem('theme');
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+})();
+</script>
+</head>
+<body class="smallhead">
+
+<div id="smallhead">
+  <div id="smallhead-inner">
+    <h1><a href="/">Simon Willison’s Weblog</a></h1>
+    <a id="smallhead-about" href="/about/#subscribe">Subscribe</a>
+  </div>
+</div><!-- #smallhead -->
+
+
+<div id="sponsored-banner" class="sponsor-scheme-sky">
+  <div id="sponsored-banner-inner">
+    <strong class="sponsored-label">Sponsored by:</strong> Dynatrace &mdash; When agents enter the SDLC, observability becomes the enabler to move from code generation to scalable engineering. <a class="sponsor-learn-more-label" href="https://fandf.co/4fwyS92" rel="sponsored noopener" target="_blank">Read the blog for a framework to get started</a>
+  </div>
+</div>
+
+
+<div id="wrapper">
+<div id="primary">
+
+<div class="entry entryPage">
+
+
+<div data-permalink-context="/2026/Aug/4/new-release-of-llm/">
+<h2>New release of LLM adds support for reasoning traces, OpenAI Responses, server-side tools, and smarter logging</h2>
+<p class="mobile-date">4th August 2026</p>
+
+
+
+<p>I released <a href="https://llm.datasette.io/en/stable/changelog.html#v0-32">LLM 0.32</a> this morning, the most significant new version of LLM since the initial launch of the project. The new version includes support for visible reasoning traces, server-side provider tools, redesigned content-addressable SQLite logs, new models, and new features enabled by the OpenAI Responses API. I also released a new version of the <a href="https://github.com/simonw/llm-anthropic">llm-anthropic plugin</a> with substantial updates of its own.</p>
+<h4 id="headline-features-for-llm-cli-users">Headline features for LLM CLI users</h4>
+<p>Running LLM against reasoning models now <strong>displays their reasoning traces</strong> to standard error, so you can see what they are “thinking” without that information being included in the standard output that you might pipe to another tool. Add <code>-R/--hide-reasoning</code> to turn this off.</p>
+<p><img src="https://static.simonwillison.net/static/2026/best-pelicans.gif" alt="Running llm &quot;think about the best thing about pelicans&quot; in the macOS terminal window - grey text outputs saying Exploring pelican qualities, then after a paragraph of that a white paragraph of text comes out saying: The best thing about pelicans is their wonderfully oversized, practical design: that enormous bill and pouch look comical, but they make pelicans remarkably skilled fishers. Even better, many species cooperate—working together to herd fish before scooping them up. They’re a great mix of goofy, graceful, and surprisingly clever." style="max-width: 100%;"></p>
+<p>LLM includes support out-of-the-box for the <strong>GPT-5.6 model family</strong>, and the new default model used with <code>llm "prompt"</code> is now the inexpensive but capable <strong>GPT-5.6 Luna</strong>.</p>
+<p>LLM calls can now use <strong>server-side tools</strong> from various providers. OpenAI provide <a href="https://llm.datasette.io/en/stable/openai-models.html#code-interpreter">a code execution environment</a> as a server-side tool; LLM can now run prompts that benefit from that like so:</p>
+<div class="highlight highlight-source-shell"><pre>llm --tool CodeInterpreter <span class="pl-s"><span class="pl-pds">'</span>Show current python and SQLite versions<span class="pl-pds">'</span></span></pre></div>
+<p>OpenAI also gets a <a href="https://llm.datasette.io/en/stable/openai-models.html#web-search">WebSearch</a> tool.</p>
+<p>The <a href="https://github.com/simonw/llm-anthropic">llm-anthropic</a> plugin adds <a href="https://github.com/simonw/llm-anthropic/blob/0.26/README.md#web-search">WebSearch</a>, <a href="https://github.com/simonw/llm-anthropic/blob/0.26/README.md#web-fetch">WebFetch</a>, <a href="https://github.com/simonw/llm-anthropic/blob/0.26/README.md#code-execution">CodeExecution</a>, and <a href="https://github.com/simonw/llm-anthropic/blob/0.26/README.md#mcp-connector">AnthropicMCP</a>, which looks like this:</p>
+<div class="highlight highlight-source-shell"><pre>llm -m claude-sonnet-5 -T <span class="pl-s"><span class="pl-pds">'</span>AnthropicMCP("https://datasette.simonwillison.net/-/mcp")<span class="pl-pds">'</span></span> \
+  <span class="pl-s"><span class="pl-pds">'</span>how many rows in the blog_blogmark table?<span class="pl-pds">'</span></span></pre></div>
+<p>That causes Anthropic to execute MCP calls against my new <a href="https://simonwillison.net/2026/Jul/31/stateless-mcp/#datasette-mcp">datasette-mcp</a> plugin as part of a single request/response interaction with their API.</p>
+<p>The new <strong>llm openai endpoint</strong> command provides a tool for <a href="https://llm.datasette.io/en/stable/other-models.html#run-against-an-endpoint-without-configuring-it">executing prompts against <em>any</em> OpenAI compatible endpoint</a> as a one-liner. These aren’t logged, which makes this a handy tool for running one-off prompts against anything that speaks the lingua franca of the LLM API world.</p>
+<p>Here’s how I use that to run prompts against Gemma 4 12B running in my localhost <a href="https://lmstudio.ai">LM Studio</a> API, via <code>uvx</code> (no LLM installation required) and mixing in the <a href="https://github.com/simonw/llm-tools-quickjs">llm-tools-quickjs</a> tool plugin for good measure:</p>
+<div class="highlight highlight-source-shell"><pre>uvx --with llm-tools-quickjs \
+  llm openai endpoint http://localhost:1234/v1 -m google/gemma-4-12b \
+  -T QuickJS <span class="pl-s"><span class="pl-pds">'</span>Use QuickJS to multiply 3434 * 2434<span class="pl-pds">'</span></span> --td</pre></div>
+<p><img src="https://static.simonwillison.net/static/2026/openai-endpoint-gemma.webp" alt="Output reads Tool call: QuickJS_execute_javascript({'javascript': '3434 * 2434'})  8358356 The result of 3434 * 2434 is 8,358,356." style="max-width: 100%;"></p>
+<h4 id="new-features-in-the-python-api">New features in the Python API</h4>
+<p>LLM’s Python API previously required you to create a conversation and then send messages to it one at a time. This was an abstraction over the true nature of LLMs, where each request carries a complete history of the messages that came before it. That abstraction started to get in the way for some more advanced cases, so the new release introduces a <code>model.prompt(messages=[])</code> parameter that can be used like this:</p>
+<pre><span class="pl-k">import</span> <span class="pl-s1">llm</span>
+<span class="pl-k">from</span> <span class="pl-s1">llm</span> <span class="pl-k">import</span> <span class="pl-s1">user</span>, <span class="pl-s1">assistant</span>, <span class="pl-s1">system</span>
+
+<span class="pl-s1">model</span> <span class="pl-c1">=</span> <span class="pl-s1">llm</span>.<span class="pl-c1">get_model</span>(<span class="pl-s">"gpt-5.6-luna"</span>)
+
+<span class="pl-s1">response</span> <span class="pl-c1">=</span> <span class="pl-s1">model</span>.<span class="pl-c1">prompt</span>(<span class="pl-s1">messages</span><span class="pl-c1">=</span>[
+    <span class="pl-en">system</span>(<span class="pl-s">"You are a helpful pirate."</span>),
+    <span class="pl-en">user</span>(<span class="pl-s">"What is the capital of France?"</span>),
+    <span class="pl-en">assistant</span>(<span class="pl-s">"Paris, matey."</span>),
+    <span class="pl-en">user</span>(<span class="pl-s">"And Germany?"</span>),
+])
+<span class="pl-en">print</span>(<span class="pl-s1">response</span>.<span class="pl-c1">text</span>())</pre>
+<p>LLM previously returned an iterable sequence of strings from each prompt. This worked great when models returned a string response, but failed to predict the weird shape that models would evolve towards. Today many models return a mix of reasoning text, output strings, tool calls, and even image attachments. With LLM 0.32 you can <a href="https://llm.datasette.io/en/stable/python-api.html#structured-messages-and-streaming-events">do this instead</a>:</p>
+<pre><span class="pl-k">for</span> <span class="pl-s1">event</span> <span class="pl-c1">in</span> <span class="pl-s1">model</span>.<span class="pl-c1">prompt</span>(<span class="pl-s">"Explain cats"</span>).<span class="pl-c1">stream_events</span>():
+    <span class="pl-k">if</span> <span class="pl-s1">event</span>.<span class="pl-c1">type</span> <span class="pl-c1">==</span> <span class="pl-s">"reasoning"</span>:
+        <span class="pl-en">print</span>(<span class="pl-s">f"[thinking] <span class="pl-s1"><span class="pl-kos">{</span><span class="pl-s1">event</span>.<span class="pl-c1">chunk</span><span class="pl-kos">}</span></span>"</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-s">""</span>, <span class="pl-s1">flush</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)
+    <span class="pl-k">elif</span> <span class="pl-s1">event</span>.<span class="pl-c1">type</span> <span class="pl-c1">==</span> <span class="pl-s">"text"</span>:
+        <span class="pl-en">print</span>(<span class="pl-s1">event</span>.<span class="pl-c1">chunk</span>, <span class="pl-s1">end</span><span class="pl-c1">=</span><span class="pl-s">""</span>, <span class="pl-s1">flush</span><span class="pl-c1">=</span><span class="pl-c1">True</span>)
+    <span class="pl-k">else</span>:
+        <span class="pl-en">print</span>(<span class="pl-s">f"Other event: <span class="pl-s1"><span class="pl-kos">{</span><span class="pl-s1">event</span><span class="pl-kos">}</span></span>"</span>)</pre>
+<p>Combine these features and we can <em>finally</em> provide a robust implementation of the semi-standard OpenAI chat completions API, which I’ve now released as the <a href="https://github.com/simonw/llm-chat-completions-server">llm-chat-completions-server</a> plugin:</p>
+<div class="highlight highlight-source-shell"><pre>llm install llm-chat-completions-server
+llm chat-completions-server --port 9000
+<span class="pl-c"><span class="pl-c">#</span> Server is now running on http://127.0.0.1:9000/v1</span></pre></div>
+<p>Now you can run prompts against LLM via that server, using the new <code>llm openai endpoint</code> command!</p>
+<div class="highlight highlight-source-shell"><pre>llm openai endpoint http://127.0.0.1:9000/v1 <span class="pl-s"><span class="pl-pds">'</span>hello<span class="pl-pds">'</span></span> -m gpt-5.4-mini</pre></div>
+<p>The bigger challenge with that kind of API concerns logging. If we’re going to support the pattern where the message sequence is appended to on every request, ideally we can avoid logging all of that duplicate JSON for every turn.</p>
+<p>The solution is the new <a href="https://llm.datasette.io/en/stable/logging.html#the-message-store">content-addressable message store</a>, modeled after Git. You can see the new schema for that <a href="https://llm.datasette.io/en/stable/logging.html#sql-schema">in the documentation</a>, but the <code>llm logs</code> and <code>llm logs --json</code> commands have both been upgraded to convert that format back into something that’s easy to consume.</p>
+<h4 id="and-the-rest">And the rest</h4>
+<p>There is a whole lot more in this release. The <a href="https://llm.datasette.io/en/stable/changelog.html#v0-32">0.32 release notes</a> are pretty comprehensive, and the notes for <a href="https://llm.datasette.io/en/stable/changelog.html#rc2-2026-07-30">0.32rc2</a>, <a href="https://llm.datasette.io/en/stable/changelog.html#rc1-2026-07-30">0.32rc</a>, <a href="https://llm.datasette.io/en/stable/changelog.html#a3-2026-06-09">0.32a3</a>, <a href="https://llm.datasette.io/en/stable/changelog.html#a2-2026-05-12">0.32a2</a>, and <a href="https://llm.datasette.io/en/stable/changelog.html#a0-2026-04-28">0.32a0</a> should fill in any gaps.</p>
+<p>Existing LLM plugins should all continue to work, but plugins that provide extra models will need to be upgraded to 0.32 in order to participate fully in the new streaming events system. There’s a guide to implementing plugins with <a href="https://llm.datasette.io/en/stable/plugins/advanced-model-plugins.html#structured-messages-and-streaming-events">Structured messages and streaming events</a> in the documentation.</p>
+<p>I’ve updated some of my own plugins:</p>
+<ul>
+<li>
+<a href="https://github.com/simonw/llm-anthropic/releases/tag/0.26">llm-anthropic 0.26</a> adds support for the Claude 5 family of models, plus <code>WebSearch</code>, <code>WebFetch</code>, <code>CodeExecution</code>, and <code>AnthropicMCP</code> server-side tools.</li>
+<li>
+<a href="https://github.com/simonw/llm-gemini">llm-gemini</a> and <a href="https://github.com/simonw/llm-openrouter">llm-openrouter</a> and <a href="https://github.com/simonw/llm-mistral">llm-mistral</a> are nearly there, releases coming soon.</li>
+</ul>
+<h4 id="i-guess-llm-is-an-agent-framework-now">I guess LLM is an agent framework now</h4>
+<p>Quite a few of the lower-level tools changes in this release were driven by the needs of <a href="https://agent.datasette.io/">Datasette Agent</a>. When I started work on LLM, the term “agent” had such a vague definition that I refused to use it. In <a href="https://simonwillison.net/2025/Sep/18/agents/">September 2025</a> I came around to the idea that "<strong>An LLM agent runs tools in a loop to achieve a goal</strong>" is well established enough now that I could stop avoiding the term entirely.</p>
+<p>Tool chains can now <a href="https://llm.datasette.io/en/stable/python-api.html#python-api-tools-pause">pause for human approval</a> and <a href="https://llm.datasette.io/en/stable/python-api.html#python-api-tools-resume">resume from a stored message history</a>—both needed by Datasette Agent.</p>
+<p>Looking at LLM today it’s beginning to look very agent-shaped to me. There’s something neat about having a CLI utility that can mix and match different tools from different sources with different models all as a one-liner, and that includes a Python library powerful enough to build systems like <a href="https://agent.datasette.io/">Datasette Agent</a> and <a href="https://github.com/simonw/llm-coding-agent">llm-coding-agent</a>.</p>
+<p>Maybe the next version of LLM will bake the concept of an “agent” into the core library. I’m still trying to figure out what that would look like.</p>
+
+
+</div>
+<div class="entryFooter">Posted <a href="/2026/Aug/4/">4th August 2026</a> at 11:58 pm &middot; Follow me on <a href="https://fedi.simonwillison.net/@simon">Mastodon</a>, <a href="https://bsky.app/profile/simonwillison.net">Bluesky</a>, <a href="https://twitter.com/simonw">Twitter</a> or <a href="https://simonwillison.net/about/#subscribe">subscribe to my newsletter</a></div>
+<p class="edit-page-link" data-admin-url="/admin/blog/entry/9406/" style="display: none;"></p>
+
+</div>
+
+
+<div class="recent-articles">
+<h2>More recent articles</h2>
+<ul class="bullets">
+  
+    <li><a href="/2026/Aug/7/openai-timeline/">Now we have a timeline of the OpenAI accidental attack against Hugging Face</a> - 7th August 2026</li>
+  
+    <li><a href="/2026/Aug/5/raccoon-heist/">One-shotting a Raccoon Heist game using Claude Fable 5</a> - 5th August 2026</li>
+  
+</ul>
+</div>
+
+
+
+</div> <!-- #primary -->
+
+<div id="secondary">
+
+<div class="metabox">
+<p class="this-is">This is <strong>New release of LLM adds support for reasoning traces, OpenAI Responses, server-side tools, and smarter logging</strong> by Simon Willison, posted on <a href="/2026/Aug/4/">4th August 2026</a>.</p>
+
+<div class="series-info">
+  <p>Part of series <strong><a href="/series/llm-releases/">New releases of LLM</a></strong></p>
+  <ol start="10">
+    
+      
+        <li><a href="/2025/May/27/llm-tools/">Large Language Models can run tools in your terminal with LLM 0.26</a> - May 27, 2025, 8:35 p.m. </li>
+      
+    
+      
+        <li><a href="/2025/Aug/11/llm-027/">LLM 0.27, the annotated release notes: GPT-5 and improved tool calling</a> - Aug. 11, 2025, 11:57 p.m. </li>
+      
+    
+      
+        <li><a href="/2026/Apr/29/llm/">LLM 0.32a0  is a major backwards-compatible refactor</a> - April 29, 2026, 7:01 p.m. </li>
+      
+    
+      
+        <li><strong>New release of LLM adds support for reasoning traces, OpenAI Responses, server-side tools, and smarter logging</strong></a> - Aug. 4, 2026, 11:58 p.m. </li>
+      
+    
+    
+  </ol>
+</div>
+
+
+    
+        <a class="item-tag" href="/tags/projects/" rel="tag">
+            projects
+            <span>551</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/releases/" rel="tag">
+            releases
+            <span>28</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/ai/" rel="tag">
+            ai
+            <span>2,180</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/openai/" rel="tag">
+            openai
+            <span>446</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/generative-ai/" rel="tag">
+            generative-ai
+            <span>1,931</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/llms/" rel="tag">
+            llms
+            <span>1,898</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/llm/" rel="tag">
+            llm
+            <span>621</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/anthropic/" rel="tag">
+            anthropic
+            <span>326</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/llm-tool-use/" rel="tag">
+            llm-tool-use
+            <span>75</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/llm-reasoning/" rel="tag">
+            llm-reasoning
+            <span>99</span>
+        </a>
+    
+        <a class="item-tag" href="/tags/model-context-protocol/" rel="tag">
+            model-context-protocol
+            <span>33</span>
+        </a>
+    
+
+
+
+<p><strong>Next:</strong> <a href="/2026/Aug/5/raccoon-heist/">One-shotting a Raccoon Heist game using Claude Fable 5</a></p>
+
+
+<p><strong>Previous:</strong> <a href="/2026/Jul/31/stateless-mcp/">Stateless MCP has recaptured my interest (and inspired mcp-explorer and datasette-mcp)</a></p>
+
+
+<section style="
+    /* .promo */
+    border-radius: 8px;
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    /* .variant-a */
+    border: 2px solid #6c3eb9;
+  ">
+  <h3 style="
+      /* h3 */
+      margin: 0 0 0.5rem;
+      font-size: 1.25rem;
+    ">
+    Monthly briefing
+  </h3>
+  <p style="
+      /* p */
+      margin: 0 0 1rem;
+      line-height: 1.4;
+    ">
+    Sponsor me for <strong>$10/month</strong> and get a curated email digest of the month's most important LLM developments.
+  </p>
+  <p style="
+      /* p */
+      margin: 0 0 1rem;
+      line-height: 1.4;
+    ">
+    Pay me to send you less!
+  </p>
+  <a href="https://github.com/sponsors/simonw/" style="
+      /* a.button */
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: #6c3eb9;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: 600;
+    ">
+    Sponsor &amp; subscribe
+  </a>
+</section>
+</div>
+
+
+
+</div> <!-- #secondary -->
+</div> <!-- #wrapper -->
+
+
+
+
+
+
+
+
+
+
+
+<div id="ft">
+    <ul>
+      <li><a href="/about/#disclosures">Disclosures</a></li>
+      <li><a href="/about/#about-site">Colophon</a></li>
+      <li>&copy;</li>
+      <li><a href="/2002/">2002</a></li>
+      <li><a href="/2003/">2003</a></li>
+      <li><a href="/2004/">2004</a></li>
+      <li><a href="/2005/">2005</a></li>
+      <li><a href="/2006/">2006</a></li>
+      <li><a href="/2007/">2007</a></li>
+      <li><a href="/2008/">2008</a></li>
+      <li><a href="/2009/">2009</a></li>
+      <li><a href="/2010/">2010</a></li>
+      <li><a href="/2011/">2011</a></li>
+      <li><a href="/2012/">2012</a></li>
+      <li><a href="/2013/">2013</a></li>
+      <li><a href="/2014/">2014</a></li>
+      <li><a href="/2015/">2015</a></li>
+      <li><a href="/2016/">2016</a></li>
+      <li><a href="/2017/">2017</a></li>
+      <li><a href="/2018/">2018</a></li>
+      <li><a href="/2019/">2019</a></li>
+      <li><a href="/2020/">2020</a></li>
+      <li><a href="/2021/">2021</a></li>
+      <li><a href="/2022/">2022</a></li>
+      <li><a href="/2023/">2023</a></li>
+      <li><a href="/2024/">2024</a></li>
+      <li><a href="/2025/">2025</a></li>
+      <li><a href="/2026/">2026</a></li>
+      <li>
+        <button id="theme-toggle" type="button" aria-label="Toggle theme">
+          <!-- Auto/System icon (default) -->
+          <svg id="icon-auto" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2V4a8 8 0 1 0 0 16z"/></svg>
+          <!-- Light icon -->
+          <svg id="icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none"><path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121zM23 11v2h-3v-2h3zM4 11v2H1v-2h3z"/></svg>
+          <!-- Dark icon -->
+          <svg id="icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none"><path d="M10 7a7 7 0 0 0 12 4.9v.1c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2h.1A6.979 6.979 0 0 0 10 7zm-6 5a8 8 0 0 0 15.062 3.762A9 9 0 0 1 8.238 4.938 7.999 7.999 0 0 0 4 12z"/></svg>
+        </button>
+      </li>
+    </ul>
+</div>
+
+
+
+<style>image-gallery:not(:defined) img {max-height: 150px;} captioned-image-gallery:not(:defined) > figure {max-height: 240px; overflow: hidden;}</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('h2[id],h3[id],h4[id],h5[id],h6[id]').forEach(el => {
+    const id = el.getAttribute('id');
+    const permalinkContext = el.closest('[data-permalink-context]');
+    if (permalinkContext) {
+      const url = permalinkContext.getAttribute('data-permalink-context');
+      const hashLink = document.createElement('a');
+      hashLink.style.borderBottom = 'none';
+      hashLink.style.color = '#666';
+      hashLink.style.fontSize = '1em';
+      hashLink.style.opacity = 0.8;
+      hashLink.setAttribute('href', url + '#' + id);
+      hashLink.innerText = '#';
+      el.appendChild(document.createTextNode('\u00A0'));
+      el.appendChild(hashLink);
+    }
+  });
+});
+</script>
+<script type="module">
+const config = [
+  {"tag": "lite-youtube", "js": "/static/lite-yt-embed.js", "css": "/static/lite-yt-embed.css"},
+  {"tag": "image-gallery", "js": "/static/image-gallery.js", "css": null},
+  {"tag": "captioned-image-gallery", "js": "/static/captioned-image-gallery.js", "css": null},
+  {"tag": "click-to-play", "js": "/static/click-to-play.js", "css": "/static/click-to-play.css"},
+  {"tag": "github-code", "js": "/static/github-code.js", "css": null}
+];
+for (const {tag, js, css} of config) {
+  if (document.querySelector(tag)) {
+    if (css) {
+      document.head.appendChild(
+        Object.assign(document.createElement('link'), {
+          rel: 'stylesheet',
+          href: css
+        })
+      );
+    }
+    if (js) {
+      await import(js);
+    }
+  }
+}
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.localStorage.getItem('ADMIN')) {
+      document.querySelectorAll('.edit-page-link').forEach(el => {
+        const url = el.getAttribute('data-admin-url');
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.className = 'edit-link';
+          a.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Edit';
+          el.appendChild(a);
+          el.style.display = 'block';
+        }
+      });
+    }
+  });
+</script>
+<script>
+// Random tag navigation - shows button if recently came from tag random
+(function() {
+  const stored = localStorage.getItem('random_tag');
+  if (!stored) return;
+
+  try {
+    const data = JSON.parse(stored);
+    const elapsed = Date.now() - data.timestamp;
+
+    // Only show if within 5 seconds
+    if (elapsed > 5000) return;
+
+    const header = document.getElementById('smallhead-inner');
+    if (!header) return;
+
+    const btn = document.createElement('a');
+    btn.href = '/random/' + encodeURIComponent(data.tag) + '/';
+    btn.className = 'random-tag-nav';
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="15.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="8.5" cy="15.5" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="15.5" cy="15.5" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg> Random ' + data.tag;
+
+    btn.addEventListener('click', function(e) {
+      // Bump the timestamp before navigating
+      localStorage.setItem('random_tag', JSON.stringify({
+        tag: data.tag,
+        timestamp: Date.now()
+      }));
+    });
+
+    // Insert before the Subscribe link
+    const subscribeLink = document.getElementById('smallhead-about');
+    if (subscribeLink) {
+      header.insertBefore(btn, subscribeLink);
+    } else {
+      header.appendChild(btn);
+    }
+  } catch (e) {
+    // Invalid JSON, clear it
+    localStorage.removeItem('random_tag');
+  }
+})();
+</script>
+<script>
+// Theme toggle functionality
+(function() {
+  const toggle = document.getElementById('theme-toggle');
+  const iconAuto = document.getElementById('icon-auto');
+  const iconLight = document.getElementById('icon-light');
+  const iconDark = document.getElementById('icon-dark');
+
+  // Theme states: 'auto' (default), 'light', 'dark'
+  function getTheme() {
+    return localStorage.getItem('theme') || 'auto';
+  }
+
+  function setTheme(theme) {
+    if (theme === 'auto') {
+      localStorage.removeItem('theme');
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      localStorage.setItem('theme', theme);
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    updateIcon(theme);
+  }
+
+  function updateIcon(theme) {
+    iconAuto.style.display = theme === 'auto' ? 'block' : 'none';
+    iconLight.style.display = theme === 'light' ? 'block' : 'none';
+    iconDark.style.display = theme === 'dark' ? 'block' : 'none';
+
+    // Update aria-label for accessibility
+    const labels = {
+      'auto': 'Theme: Auto (system preference). Click to switch to light.',
+      'light': 'Theme: Light. Click to switch to dark.',
+      'dark': 'Theme: Dark. Click to switch to auto.'
+    };
+    toggle.setAttribute('aria-label', labels[theme]);
+  }
+
+  // Cycle through themes: auto -> light -> dark -> auto
+  function cycleTheme() {
+    const current = getTheme();
+    const next = current === 'auto' ? 'light' : current === 'light' ? 'dark' : 'auto';
+    setTheme(next);
+  }
+
+  // Initialize
+  updateIcon(getTheme());
+  toggle.addEventListener('click', cycleTheme);
+})();
+</script>
+</body>
+</html>

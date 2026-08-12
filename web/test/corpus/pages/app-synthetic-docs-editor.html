@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Onboarding plan — Writer</title>
+</head>
+<body>
+<!--
+  Hand-authored fixture: a word processor with a real document open.
+
+  This is the case a scoring-only detector gets wrong, and the reason
+  `detectApp` has a veto for editable regions. Everything an article detector
+  looks for is present — long paragraphs, headings, a title — but the prose lives
+  inside a contenteditable surface. Restructuring it would replace the user's
+  live document with a read-only copy while their cursor was in it.
+-->
+<div id="root">
+  <div role="toolbar" aria-label="Formatting">
+    <select aria-label="Style"><option>Normal text</option><option>Heading 1</option></select>
+    <select aria-label="Font"><option>Arial</option><option>Georgia</option></select>
+    <button aria-label="Bold"><b>B</b></button>
+    <button aria-label="Italic"><i>I</i></button>
+    <button aria-label="Underline">U</button>
+    <button aria-label="Text colour">A</button>
+    <button aria-label="Bulleted list">•</button>
+    <button aria-label="Numbered list">1.</button>
+    <button aria-label="Insert link">🔗</button>
+    <button aria-label="Insert comment">💬</button>
+    <button aria-label="Undo">↶</button>
+    <button aria-label="Redo">↷</button>
+  </div>
+
+  <div class="page-surface">
+    <div contenteditable="true" role="textbox" aria-multiline="true" aria-label="Document body" spellcheck="true">
+      <h1>Onboarding plan</h1>
+      <p>The first two weeks decide how long someone takes to become productive, so the plan below is deliberately front-loaded. Rather than a week of reading, a new engineer ships a small change on day two — a typo fix, a log line, anything that goes through the whole pipeline. The point is not the change, it is that they have now touched every system between their laptop and production, and they know which parts hurt.</p>
+      <p>Week one covers access, the local build, and one guided walkthrough of the request path. We pair for the first pull request rather than reviewing it after the fact, because a review comment on a design decision made three days earlier is expensive for everyone involved. By Friday they should be able to explain, roughly, where a request goes and what could break it.</p>
+      <p>Week two moves to a scoped feature with a real deadline that is not urgent. The tension there is intentional: without a deadline nobody learns how the team actually operates under one, and with an urgent deadline nobody learns anything at all. Their buddy stays on hand but stops driving, and the retro at the end of the week is about the process rather than the code.</p>
+      <p>What we have consistently got wrong in the past is documentation. Every new starter finds the same four stale pages, and every new starter is told to "feel free to update them". Nobody does, because editing documentation you do not yet understand is intimidating. So the plan now assigns it: fixing the page that misled you is part of the onboarding, not a favour.</p>
+    </div>
+  </div>
+
+  <div role="complementary" aria-label="Comments">
+    <button>Resolve</button>
+    <button>Reply</button>
+  </div>
+  <div role="status" aria-live="polite">All changes saved to Drive</div>
+</div>
+</body>
+</html>

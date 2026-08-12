@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+
+node_modules/
+web/.esbuild-meta.json
+
+# Built app bundles
+*.app/
+
+# Filter list snapshots are fetched, not committed
+Rules/downloaded/

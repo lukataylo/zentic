@@ -1,0 +1,1697 @@
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:dc="http://purl.org/dc/terms/"
+      xmlns:doi="http://dx.doi.org/"
+      lang="en" xml:lang="en"
+      itemscope itemtype="http://schema.org/Article"
+      class="no-js">
+
+
+
+<head prefix="og: http://ogp.me/ns#">
+
+
+
+
+<link rel="stylesheet" href="/resource/css/screen.css?b1f0b4a121c93a71298ef3002942236f"/>
+  <!-- allows for  extra head tags -->
+
+
+<!-- hello -->
+<link rel="stylesheet" type="text/css"
+      href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,600">
+
+<link media="print" rel="stylesheet" type="text/css"  href="/resource/css/print.css"/>
+    <script type="text/javascript">
+        var siteUrlPrefix = "/plosone/";
+    </script>
+  <script src="/resource/js/vendor/modernizr-v2.7.1.js" type="text/javascript"></script>
+  <script src="/resource/js/vendor/detectizr.min.js" type="text/javascript"></script>
+
+  <link rel="shortcut icon" href="/resource/img/favicon.ico" type="image/x-icon"/>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+
+
+
+
+
+  <link rel="canonical" href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0289493" />
+  <meta name="description" content="Additive manufacturing, or 3D printing, has revolutionized the way we create objects. However, its layer-by-layer process may lead to an increased incidence of local defects compared to traditional casting-based methods. Factors such as light intensity, depth of light penetration, component inhomogeneity, and fluctuations in nozzle temperature all contribute to defect formations. These defective regions can become sources of toxic component leakage, but pinpointing their locations in 3D printed materials remains a challenge. Traditional toxicological assessments rely on the extraction and subsequent exposure of living organisms to these harmful agents, thus only offering a passive detection approach. Therefore, the development of an active system to both identify and locate sources of toxicity is essential in the realm of 3D printing technologies. Herein, we introduce the use of the nematode model organism, Caenorhabditis elegans (C. elegans), for toxicity evaluation. C. elegans exhibits distinctive &rsquo;sensing&rsquo; and &rsquo;locomotion&rsquo; capabilities that enable it to actively navigate toward safe zones while steering clear of hazardous areas. This active behavior sets C. elegans apart from other aquatic and animal models, making it an exceptional choice for immediate and precise identification and localization of toxicity sources in 3D printed materials." />
+
+  <meta name="citation_abstract" content="Additive manufacturing, or 3D printing, has revolutionized the way we create objects. However, its layer-by-layer process may lead to an increased incidence of local defects compared to traditional casting-based methods. Factors such as light intensity, depth of light penetration, component inhomogeneity, and fluctuations in nozzle temperature all contribute to defect formations. These defective regions can become sources of toxic component leakage, but pinpointing their locations in 3D printed materials remains a challenge. Traditional toxicological assessments rely on the extraction and subsequent exposure of living organisms to these harmful agents, thus only offering a passive detection approach. Therefore, the development of an active system to both identify and locate sources of toxicity is essential in the realm of 3D printing technologies. Herein, we introduce the use of the nematode model organism, Caenorhabditis elegans (C. elegans), for toxicity evaluation. C. elegans exhibits distinctive &rsquo;sensing&rsquo; and &rsquo;locomotion&rsquo; capabilities that enable it to actively navigate toward safe zones while steering clear of hazardous areas. This active behavior sets C. elegans apart from other aquatic and animal models, making it an exceptional choice for immediate and precise identification and localization of toxicity sources in 3D printed materials.">
+
+
+  <meta name="keywords" content="Caenorhabditis elegans,3D printing,Toxicity,Hazardous materials,Eggs,Animal behavior,Biological locomotion,X-ray photoelectron spectroscopy" />
+
+
+<meta name="citation_doi" content="10.1371/journal.pone.0289493"/>
+<meta name="citation_author" content="Jun Sung Kim"/>
+  <meta name="citation_author_institution" content="Department of Chemistry KAIST, Daejeon, Republic of Korea"/>
+<meta name="citation_author" content="Sang-Kyu Park"/>
+  <meta name="citation_author_institution" content="Department of Medical Biotechnology, College of Medical Science, Soonchunhyang University, Asan, Chungnam, Korea"/>
+<meta name="citation_author" content="Haeshin Lee"/>
+  <meta name="citation_author_institution" content="Department of Chemistry KAIST, Daejeon, Republic of Korea"/>
+
+<meta name="citation_title" content="Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities"/>
+<meta itemprop="name" content="Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities"/>
+<meta name="citation_journal_title" content="PLOS ONE"/>
+<meta name="citation_journal_abbrev" content="PLOS ONE"/>
+<meta name="citation_date" content="Aug 2, 2023"/>
+<meta name="citation_firstpage" content="e0289493"/>
+<meta name="citation_issue" content="8"/>
+<meta name="citation_volume" content="18"/>
+<meta name="citation_issn" content="1932-6203"/>
+<meta name="citation_publisher" content="Public Library of Science"/>
+
+  <meta name="citation_pdf_url" content="https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0289493&type=printable">
+
+  <meta name="citation_article_type" content="Research Article">
+
+<meta name="dc.identifier" content="10.1371/journal.pone.0289493" />
+
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:site" content="plosone"/>
+    <meta name="twitter:title" content="Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities" />
+    <meta property="twitter:description" content="Additive manufacturing, or 3D printing, has revolutionized the way we create objects. However, its layer-by-layer process may lead to an increased incidence of local defects compared to traditional casting-based methods. Factors such as light intensity, depth of light penetration, component inhomogeneity, and fluctuations in nozzle temperature all contribute to defect formations. These defective regions can become sources of toxic component leakage, but pinpointing their locations in 3D printed materials remains a challenge. Traditional toxicological assessments rely on the extraction and subsequent exposure of living organisms to these harmful agents, thus only offering a passive detection approach. Therefore, the development of an active system to both identify and locate sources of toxicity is essential in the realm of 3D printing technologies. Herein, we introduce the use of the nematode model organism, Caenorhabditis elegans (C. elegans), for toxicity evaluation. C. elegans exhibits distinctive &rsquo;sensing&rsquo; and &rsquo;locomotion&rsquo; capabilities that enable it to actively navigate toward safe zones while steering clear of hazardous areas. This active behavior sets C. elegans apart from other aquatic and animal models, making it an exceptional choice for immediate and precise identification and localization of toxicity sources in 3D printed materials." />
+    <meta property="twitter:image" content="https://journals.plos.org/plosone/article/figure/image?id=10.1371/journal.pone.0289493.g004&size=inline" />
+
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0289493"/>
+<meta property="og:title" content="Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities"/>
+<meta property="og:description" content="Additive manufacturing, or 3D printing, has revolutionized the way we create objects. However, its layer-by-layer process may lead to an increased incidence of local defects compared to traditional casting-based methods. Factors such as light intensity, depth of light penetration, component inhomogeneity, and fluctuations in nozzle temperature all contribute to defect formations. These defective regions can become sources of toxic component leakage, but pinpointing their locations in 3D printed materials remains a challenge. Traditional toxicological assessments rely on the extraction and subsequent exposure of living organisms to these harmful agents, thus only offering a passive detection approach. Therefore, the development of an active system to both identify and locate sources of toxicity is essential in the realm of 3D printing technologies. Herein, we introduce the use of the nematode model organism, Caenorhabditis elegans (C. elegans), for toxicity evaluation. C. elegans exhibits distinctive &rsquo;sensing&rsquo; and &rsquo;locomotion&rsquo; capabilities that enable it to actively navigate toward safe zones while steering clear of hazardous areas. This active behavior sets C. elegans apart from other aquatic and animal models, making it an exceptional choice for immediate and precise identification and localization of toxicity sources in 3D printed materials."/>
+<meta property="og:image" content="https://journals.plos.org/plosone/article/figure/image?id=10.1371/journal.pone.0289493.g004&size=inline"/>
+
+<meta name="citation_reference" content="citation_title=In vitro/in vivo assessment and mechanisms of toxicity of bioceramic materials and its wear particulates;citation_author=G Thrivikraman;citation_author=G Madras;citation_author=B Basu;citation_journal_title=RSC Adv;citation_volume=4;citation_number=4;citation_first_page=12763;citation_last_page=12781;citation_publication_date=2014;"/>    
+<meta name="citation_reference" content="citation_title=Literature review on duckweed toxicity testing;citation_author=W. Wang;citation_journal_title=Environ Res;citation_volume=52;citation_number=52;citation_first_page=7;citation_last_page=22;citation_publication_date=1990;"/>    
+<meta name="citation_reference" content="citation_title=Assessment of Lemna gibba L.(duckweed) as a potential ecological indicator for contaminated aquatic ecosystem by boron mine effluent;citation_author=H Böcük;citation_author=A Yakar;citation_author=OC Türker;citation_journal_title=Ecol Indic;citation_volume=29;citation_number=29;citation_first_page=538;citation_last_page=548;citation_publication_date=2013;"/>    
+
+<meta name="citation_reference" content="ISO. Water quality—Determination of the toxic effect of water constituents and waste water to duckweed (Lemna minor)—Duckweed growth inhibition test. 2001."/>
+<meta name="citation_reference" content="citation_title=Daphnia magna as a model to assess heavy metal toxicity: comparative assessment with mouse system;citation_author=B Khangarot;citation_author=P Ray;citation_author=H Chandr;citation_journal_title=Acta Hydrochim Hydrobiol;citation_volume=15;citation_number=15;citation_first_page=427;citation_last_page=432;citation_publication_date=1987;"/>    
+<meta name="citation_reference" content="citation_title=Toxicity and endocrine disruption in zebrafish (Danio rerio) and two freshwater invertebrates (Daphnia magna and Moina macrocopa) after chronic exposure to mefenamic acid;citation_author=HJ Collard;citation_author=K Ji;citation_author=S Lee;citation_author=X Liu;citation_author=S Kang;citation_author=Y Kho;citation_journal_title=Ecotoxicol Environ Saf;citation_volume=94;citation_number=94;citation_first_page=80;citation_last_page=86;citation_publication_date=2013;"/>    
+<meta name="citation_reference" content="citation_title=The zebrafish as a model system in developmental, toxicological and transgenic research;citation_author=Z Lele;citation_author=P Krone;citation_journal_title=Biotechnol Adv;citation_volume=14;citation_number=14;citation_first_page=57;citation_last_page=72;citation_publication_date=1996;"/>    
+<meta name="citation_reference" content="citation_title=Assessing and reducing the toxicity of 3D-printed parts;citation_author=SM Oskui;citation_author=G Diamante;citation_author=C Liao;citation_author=W Shi;citation_author=J Gan;citation_author=D Schlenk;citation_journal_title=Environ Sci Technol Lett;citation_volume=3;citation_number=3;citation_first_page=1;citation_last_page=6;citation_publication_date=2016;"/>    
+<meta name="citation_reference" content="citation_title=Toxicological screening;citation_author=S. Parasuraman;citation_journal_title=J Pharmacol Pharmacother;citation_volume=2;citation_number=2;citation_first_page=74;citation_publication_date=2011;"/>    
+<meta name="citation_reference" content="citation_title=Regulatory considerations in the design and manufacturing of implantable 3D-printed medical devices;citation_author=RJ Morrison;citation_author=KN Kashlan;citation_author=CL Flanangan;citation_author=JK Wright;citation_author=GE Green;citation_author=SJ Hollister;citation_journal_title=Clin Transl Sci;citation_volume=8;citation_number=8;citation_first_page=594;citation_last_page=600;citation_publication_date=2015;"/>    
+<meta name="citation_reference" content="citation_title=Organ-on-chip technology: Current state and future developments;citation_author=R Kodzius;citation_author=F Schulze;citation_author=X Gao;citation_author=MR Schneider;citation_journal_title=Genes;citation_volume=8;citation_number=8;citation_first_page=266;citation_publication_date=2017;"/>    
+
+<meta name="citation_reference" content="Zhu F, Skommer J, Friedrich T, Kaslin J, Wlodkowic D. 3D printed polymers toxicity profiling: A caution for biodevice applications. SPIE; 2015. pp. 82–88."/>
+<meta name="citation_reference" content="citation_title=Diffusion in polymer solids and solutions;citation_inbook_title=Mass Transf Chem Eng Process;citation_author=M. Karimi;citation_volume=25;citation_number=25;citation_first_page=17;citation_publication_date=2011;"/>    
+<meta name="citation_reference" content="citation_title=Factors affecting dimensional precision of consumer 3D printing;citation_author=DD Hernandez;citation_journal_title=Int J Aviat Aeronaut Aerosp;citation_volume=2;citation_number=2;citation_first_page=2;citation_publication_date=2015;"/>    
+<meta name="citation_reference" content="citation_title=The insulin/PI 3-kinase pathway regulates salt chemotaxis learning in Caenorhabditis elegans;citation_author=M Tomioka;citation_author=T Adachi;citation_author=H Suzuki;citation_author=H Kunitomo;citation_author=WR Schafer;citation_author=Y Iino;citation_journal_title=Neuron;citation_volume=51;citation_number=51;citation_first_page=613;citation_last_page=625;citation_publication_date=2006;"/>    
+<meta name="citation_reference" content="citation_title=C. elegans: a practical approach;citation_author=IA Hope;citation_publication_date=1999;citation_publisher=OUP Oxford"/>    
+<meta name="citation_reference" content="citation_title=Genomics in C. elegans: so many genes, such a little worm;citation_author=LW Hillier;citation_author=A Coulson;citation_author=JI Murray;citation_author=Z Bao;citation_author=JE Sulston;citation_author=RH Waterston;citation_journal_title=Genome Res;citation_volume=15;citation_number=15;citation_first_page=1651;citation_last_page=1660;citation_publication_date=2005;"/>    
+<meta name="citation_reference" content="citation_title=An overview of C. elegans biology;citation_author=K. Strange;citation_journal_title=C Elegans Methods Appl;citation_first_page=1;citation_last_page=11;citation_publication_date=2006;"/>    
+<meta name="citation_reference" content="citation_title=Selenocysteine modulates resistance to environmental stress and confers anti-aging effects in C. elegans;citation_author=J-S Kim;citation_author=S-H Kim;citation_author=S-K Park;citation_journal_title=Clinics;citation_volume=72;citation_number=72;citation_first_page=491;citation_last_page=498;citation_publication_date=2017;"/>    
+<meta name="citation_reference" content="citation_title=Supplementation of S-allyl cysteine improves health span in Caenorhabditis elegans;citation_author=J-S Kim;citation_author=S-K Park;citation_journal_title=Biosci J;citation_volume=33;citation_number=33;citation_first_page=411;citation_last_page=421;citation_publication_date=2017;"/>    
+<meta name="citation_reference" content="citation_title=The method of the body bending assay using Caenorhabditis elegans;citation_author=M Nawa;citation_author=M Matsuoka;citation_journal_title=Bio-Protoc;citation_volume=2;citation_number=2;citation_first_page=e253;citation_last_page=e253;citation_publication_date=2012;"/>    
+<meta name="citation_reference" content="citation_title=Significant longevity-extending effects of EGCG on Caenorhabditis elegans under stress;citation_author=L Zhang;citation_author=G Jie;citation_author=J Zhang;citation_author=B Zhao;citation_journal_title=Free Radic Biol Med;citation_volume=46;citation_number=46;citation_first_page=414;citation_last_page=421;citation_publication_date=2009;"/>    
+<meta name="citation_reference" content="citation_title=Caenorhabditis elegans: an emerging model in biomedical and environmental toxicology;citation_author=MC Leung;citation_author=PL Williams;citation_author=A Benedetto;citation_author=C Au;citation_author=KJ Helmcke;citation_author=M Aschner;citation_journal_title=Toxicol Sci;citation_volume=106;citation_number=106;citation_first_page=5;citation_last_page=28;citation_publication_date=2008;"/>    
+<meta name="citation_reference" content="citation_title=Asymptotically efficient rank invariant test procedures;citation_author=R Peto;citation_author=J Peto;citation_journal_title=J R Stat Soc Ser Gen;citation_volume=135;citation_number=135;citation_first_page=185;citation_last_page=198;citation_publication_date=1972;"/>    
+<meta name="citation_reference" content="citation_title=A simple method for maintaining large, aging populations of Caenorhabditis elegans;citation_author=S Gandhi;citation_author=J Santelli;citation_author=DH Mitchell;citation_author=J Wesley Stiles;citation_author=D Rao Sanadi;citation_journal_title=Mech Ageing Dev;citation_volume=12;citation_number=12;citation_first_page=137;citation_last_page=150;citation_publication_date=1980;"/>    
+<meta name="citation_reference" content="citation_title=Life span of the wild and mutant nematode Caenorhabditis elegans;citation_author=R Hosono;citation_author=Y Mitsui;citation_author=Y Sato;citation_author=S Aizawa;citation_author=J Miwa;citation_journal_title=Exp Gerontol;citation_volume=17;citation_number=17;citation_first_page=163;citation_last_page=172;citation_publication_date=1982;"/>    
+<meta name="citation_reference" content="citation_title=FUdR causes a twofold increase in the lifespan of the mitochondrial mutant gas-1;citation_author=JM Van Raamsdonk;citation_author=S Hekimi;citation_journal_title=Mech Ageing Dev;citation_volume=132;citation_number=132;citation_first_page=519;citation_last_page=521;citation_publication_date=2011;"/>    
+<meta name="citation_reference" content="citation_title=The use of FUdR can cause prolonged longevity in mutant nematodes;citation_author=L Aitlhadj;citation_author=SR Stürzenbaum;citation_journal_title=Mech Ageing Dev;citation_volume=131;citation_number=131;citation_first_page=364;citation_last_page=365;citation_publication_date=2010;"/>    
+<meta name="citation_reference" content="citation_title=A stress-sensitive reporter predicts longevity in isogenic populations of Caenorhabditis elegans;citation_author=SL Rea;citation_author=D Wu;citation_author=JR Cypser;citation_author=JW Vaupel;citation_author=TE Johnson;citation_journal_title=Nat Genet;citation_volume=37;citation_number=37;citation_first_page=894;citation_last_page=898;citation_publication_date=2005;"/>    
+<meta name="citation_reference" content="citation_title=Variable Pathogenicity Determines Individual Lifespan in Caenorhabditis elegans;citation_author=A Sánchez-Blanco;citation_author=SK Kim;citation_journal_title=PLOS Genet;citation_volume=7;citation_number=7;citation_first_page=e1002047;citation_publication_date=2011;"/>    
+
+<meta name="citation_reference" content="Stiernagle T. Maintenance of C. elegans. 1999."/>
+<meta name="citation_reference" content="citation_title=Genetics of Egg-Laying in Worms;citation_author=WR Schafer;citation_journal_title=Annu Rev Genet;citation_volume=0;citation_number=0;citation_publication_date=2006;"/>    
+<meta name="citation_reference" content="citation_title=The effect of a type I photoinitiator on cure kinetics and cell toxicity in projection-microstereolithography;citation_author=R Bail;citation_author=A Patel;citation_author=H Yang;citation_author=C Rogers;citation_author=F Rose;citation_author=J Segal;citation_journal_title=Procedia CIRP;citation_volume=5;citation_number=5;citation_first_page=222;citation_last_page=225;citation_publication_date=2013;"/>    
+<meta name="citation_reference" content="citation_title=Efficient unimolecular photoinitiators for simultaneous hybrid thiol–yne–epoxy photopolymerization under visible LED light irradiation;citation_author=Z Li;citation_author=W Shen;citation_author=X Liu;citation_author=R Liu;citation_journal_title=Polym Chem;citation_volume=8;citation_number=8;citation_first_page=1579;citation_last_page=1588;citation_publication_date=2017;"/>    
+
+
+<script type="text/javascript">
+    var WombatConfig = WombatConfig || {};
+    WombatConfig.journalKey = "PLoSONE";
+    WombatConfig.journalName = "PLOS One";
+    WombatConfig.figurePath = "/plosone/article/figure/image";
+    WombatConfig.figShareInstitutionString = "plos";
+    WombatConfig.doiResolverPrefix = "https://dx.plos.org/";
+</script>
+
+<script type="text/javascript">
+  var WombatConfig = WombatConfig || {};
+  WombatConfig.metrics = WombatConfig.metrics || {};
+  WombatConfig.metrics.referenceUrl      = "http://lagotto.io/plos";
+  WombatConfig.metrics.googleScholarUrl  = "https://scholar.google.com/scholar";
+  WombatConfig.metrics.googleScholarCitationUrl  = WombatConfig.metrics.googleScholarUrl + "?hl=en&lr=&q=";
+  WombatConfig.metrics.crossrefUrl  = "https://www.crossref.org";
+</script>
+<script defer="defer" src="/resource/js/defer.js?d9d3f0b96eec19b974a3"></script><script src="/resource/js/sync.js?d9d3f0b96eec19b974a3"></script>
+<script src="/resource/js/vendor/jquery.min.js" type="text/javascript"></script>
+
+          <script type="text/javascript" src="https://widgets.figshare.com/static/figshare.js"></script>
+
+<script src="/resource/js/vendor/fastclick/lib/fastclick.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/foundation/foundation.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/underscore-min.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/underscore.string.min.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/moment.js" type="text/javascript"></script>
+
+
+<script src="/resource/js/vendor/jquery-ui-effects.min.js" type="text/javascript"></script>
+
+<script src="/resource/js/vendor/foundation/foundation.tooltip.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/foundation/foundation.dropdown.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/foundation/foundation.tab.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/foundation/foundation.reveal.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/foundation/foundation.slider.js" type="text/javascript"></script>
+
+<script src="/resource/js/util/utils.js" type="text/javascript"></script>
+<script src="/resource/js/components/toggle.js" type="text/javascript"></script>
+<script src="/resource/js/components/truncate_elem.js" type="text/javascript"></script>
+<script src="/resource/js/components/tooltip_hover.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/jquery.dotdotdot.js" type="text/javascript"></script>
+
+
+<!-- DoubleClick overall ad setup script -->
+<script type='text/javascript'>
+  var googletag = googletag || {};
+  googletag.cmd = googletag.cmd || [];
+  if (window.plosCookieConsent?.hasConsented('advertising')) {
+    (function() {
+      var gads = document.createElement('script');
+      gads.async = true;
+      gads.type = 'text/javascript';
+      var useSSL = 'https:' == document.location.protocol;
+      gads.src = (useSSL ? 'https:' : 'http:') +
+          '//www.googletagservices.com/tag/js/gpt.js';
+      var node = document.getElementsByTagName('script')[0];
+      node.parentNode.insertBefore(gads, node);
+    })();
+  }
+</script>
+
+<!-- DoubleClick ad slot setup script -->
+
+  <script id="doubleClickSetupScript" type='text/javascript'>
+    googletag.cmd.push(function() {
+  googletag.defineSlot('/75507958/PONE_728x90_ATF', [728, 90], 'div-gpt-ad-1458247671871-0').addService(googletag.pubads());
+  googletag.defineSlot('/75507958/PONE_160x600_BTF', [160, 600], 'div-gpt-ad-1458247671871-1').addService(googletag.pubads());
+      googletag.pubads().enableSingleRequest();
+      googletag.enableServices();
+    });
+  </script>
+
+<!--For Google Tag manager to be able to track site information  -->
+<script>
+
+  dataLayer = [{
+    'mobileSite': 'false',
+    'desktopSite': 'true'
+  }];
+
+</script>
+
+    <title>Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities | PLOS One</title>
+</head>
+
+<body class="article plosone">
+
+
+<!-- Google Tag Manager -->
+<noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-TP26BH"
+                  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<script>
+  (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    '//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TP26BH');
+</script>
+
+<noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-MQQMGF"
+                  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    '//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-MQQMGF');</script>
+<!-- End Google Tag Manager -->
+
+<!-- Start of HubSpot Embed Code -->
+<script>
+  // from https://developers.hubspot.com/docs/reference/api/analytics-and-events/cookie-banner/cookie-banner-api#example-using-a-third-party-cookie-banner-to-control-hubspot-cookies
+  window.disableHubSpotCookieBanner = true;
+  window._hsp = window._hsp || [];
+  window._hsp.push(['setHubSpotConsent',
+      {
+        analytics: window.plosCookieConsent?.hasConsented('analytics'),
+        advertisement: window.plosCookieConsent?.hasConsented('advertising'),
+        functionality: window.plosCookieConsent?.hasConsented('functionality')
+      }
+    ]);
+</script>
+<script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/44092021.js"></script>
+<!-- End of HubSpot Embed Code -->
+
+<!-- New Relic -->
+<script type="text/javascript">
+  ;window.NREUM||(NREUM={});NREUM.init={distributed_tracing:{enabled:true},privacy:{cookies_enabled:true},ajax:{deny_list:["bam.nr-data.net"]}};
+  window.NREUM||(NREUM={}),__nr_require=function(t,e,n){function r(n){if(!e[n]){var o=e[n]={exports:{}};t[n][0].call(o.exports,function(e){var o=t[n][1][e];return r(o||e)},o,o.exports)}return e[n].exports}if("function"==typeof __nr_require)return __nr_require;for(var o=0;o<n.length;o++)r(n[o]);return r}({1:[function(t,e,n){function r(t){try{s.console&&console.log(t)}catch(e){}}var o,i=t("ee"),a=t(32),s={};try{o=localStorage.getItem("__nr_flags").split(","),console&&"function"==typeof console.log&&(s.console=!0,o.indexOf("dev")!==-1&&(s.dev=!0),o.indexOf("nr_dev")!==-1&&(s.nrDev=!0))}catch(c){}s.nrDev&&i.on("internal-error",function(t){r(t.stack)}),s.dev&&i.on("fn-err",function(t,e,n){r(n.stack)}),s.dev&&(r("NR AGENT IN DEVELOPMENT MODE"),r("flags: "+a(s,function(t,e){return t}).join(", ")))},{}],2:[function(t,e,n){function r(t,e,n,r,s){try{l?l-=1:o(s||new UncaughtException(t,e,n),!0)}catch(f){try{i("ierr",[f,c.now(),!0])}catch(d){}}return"function"==typeof u&&u.apply(this,a(arguments))}function UncaughtException(t,e,n){this.message=t||"Uncaught error with no additional information",this.sourceURL=e,this.line=n}function o(t,e){var n=e?null:c.now();i("err",[t,n])}var i=t("handle"),a=t(33),s=t("ee"),c=t("loader"),f=t("gos"),u=window.onerror,d=!1,p="nr@seenError";if(!c.disabled){var l=0;c.features.err=!0,t(1),window.onerror=r;try{throw new Error}catch(h){"stack"in h&&(t(14),t(13),"addEventListener"in window&&t(7),c.xhrWrappable&&t(15),d=!0)}s.on("fn-start",function(t,e,n){d&&(l+=1)}),s.on("fn-err",function(t,e,n){d&&!n[p]&&(f(n,p,function(){return!0}),this.thrown=!0,o(n))}),s.on("fn-end",function(){d&&!this.thrown&&l>0&&(l-=1)}),s.on("internal-error",function(t){i("ierr",[t,c.now(),!0])})}},{}],3:[function(t,e,n){var r=t("loader");r.disabled||(r.features.ins=!0)},{}],4:[function(t,e,n){function r(){U++,L=g.hash,this[u]=y.now()}function o(){U--,g.hash!==L&&i(0,!0);var t=y.now();this[h]=~~this[h]+t-this[u],this[d]=t}function i(t,e){E.emit("newURL",[""+g,e])}function a(t,e){t.on(e,function(){this[e]=y.now()})}var s="-start",c="-end",f="-body",u="fn"+s,d="fn"+c,p="cb"+s,l="cb"+c,h="jsTime",m="fetch",v="addEventListener",w=window,g=w.location,y=t("loader");if(w[v]&&y.xhrWrappable&&!y.disabled){var x=t(11),b=t(12),E=t(9),R=t(7),O=t(14),T=t(8),P=t(15),S=t(10),M=t("ee"),N=M.get("tracer"),C=t(23);t(17),y.features.spa=!0;var L,U=0;M.on(u,r),b.on(p,r),S.on(p,r),M.on(d,o),b.on(l,o),S.on(l,o),M.buffer([u,d,"xhr-resolved"]),R.buffer([u]),O.buffer(["setTimeout"+c,"clearTimeout"+s,u]),P.buffer([u,"new-xhr","send-xhr"+s]),T.buffer([m+s,m+"-done",m+f+s,m+f+c]),E.buffer(["newURL"]),x.buffer([u]),b.buffer(["propagate",p,l,"executor-err","resolve"+s]),N.buffer([u,"no-"+u]),S.buffer(["new-jsonp","cb-start","jsonp-error","jsonp-end"]),a(T,m+s),a(T,m+"-done"),a(S,"new-jsonp"),a(S,"jsonp-end"),a(S,"cb-start"),E.on("pushState-end",i),E.on("replaceState-end",i),w[v]("hashchange",i,C(!0)),w[v]("load",i,C(!0)),w[v]("popstate",function(){i(0,U>1)},C(!0))}},{}],5:[function(t,e,n){function r(){var t=new PerformanceObserver(function(t,e){var n=t.getEntries();s(v,[n])});try{t.observe({entryTypes:["resource"]})}catch(e){}}function o(t){if(s(v,[window.performance.getEntriesByType(w)]),window.performance["c"+p])try{window.performance[h](m,o,!1)}catch(t){}else try{window.performance[h]("webkit"+m,o,!1)}catch(t){}}function i(t){}if(window.performance&&window.performance.timing&&window.performance.getEntriesByType){var a=t("ee"),s=t("handle"),c=t(14),f=t(13),u=t(6),d=t(23),p="learResourceTimings",l="addEventListener",h="removeEventListener",m="resourcetimingbufferfull",v="bstResource",w="resource",g="-start",y="-end",x="fn"+g,b="fn"+y,E="bstTimer",R="pushState",O=t("loader");if(!O.disabled){O.features.stn=!0,t(9),"addEventListener"in window&&t(7);var T=NREUM.o.EV;a.on(x,function(t,e){var n=t[0];n instanceof T&&(this.bstStart=O.now())}),a.on(b,function(t,e){var n=t[0];n instanceof T&&s("bst",[n,e,this.bstStart,O.now()])}),c.on(x,function(t,e,n){this.bstStart=O.now(),this.bstType=n}),c.on(b,function(t,e){s(E,[e,this.bstStart,O.now(),this.bstType])}),f.on(x,function(){this.bstStart=O.now()}),f.on(b,function(t,e){s(E,[e,this.bstStart,O.now(),"requestAnimationFrame"])}),a.on(R+g,function(t){this.time=O.now(),this.startPath=location.pathname+location.hash}),a.on(R+y,function(t){s("bstHist",[location.pathname+location.hash,this.startPath,this.time])}),u()?(s(v,[window.performance.getEntriesByType("resource")]),r()):l in window.performance&&(window.performance["c"+p]?window.performance[l](m,o,d(!1)):window.performance[l]("webkit"+m,o,d(!1))),document[l]("scroll",i,d(!1)),document[l]("keypress",i,d(!1)),document[l]("click",i,d(!1))}}},{}],6:[function(t,e,n){e.exports=function(){return"PerformanceObserver"in window&&"function"==typeof window.PerformanceObserver}},{}],7:[function(t,e,n){function r(t){for(var e=t;e&&!e.hasOwnProperty(u);)e=Object.getPrototypeOf(e);e&&o(e)}function o(t){s.inPlace(t,[u,d],"-",i)}function i(t,e){return t[1]}var a=t("ee").get("events"),s=t("wrap-function")(a,!0),c=t("gos"),f=XMLHttpRequest,u="addEventListener",d="removeEventListener";e.exports=a,"getPrototypeOf"in Object?(r(document),r(window),r(f.prototype)):f.prototype.hasOwnProperty(u)&&(o(window),o(f.prototype)),a.on(u+"-start",function(t,e){var n=t[1];if(null!==n&&("function"==typeof n||"object"==typeof n)){var r=c(n,"nr@wrapped",function(){function t(){if("function"==typeof n.handleEvent)return n.handleEvent.apply(n,arguments)}var e={object:t,"function":n}[typeof n];return e?s(e,"fn-",null,e.name||"anonymous"):n});this.wrapped=t[1]=r}}),a.on(d+"-start",function(t){t[1]=this.wrapped||t[1]})},{}],8:[function(t,e,n){function r(t,e,n){var r=t[e];"function"==typeof r&&(t[e]=function(){var t=i(arguments),e={};o.emit(n+"before-start",[t],e);var a;e[m]&&e[m].dt&&(a=e[m].dt);var s=r.apply(this,t);return o.emit(n+"start",[t,a],s),s.then(function(t){return o.emit(n+"end",[null,t],s),t},function(t){throw o.emit(n+"end",[t],s),t})})}var o=t("ee").get("fetch"),i=t(33),a=t(32);e.exports=o;var s=window,c="fetch-",f=c+"body-",u=["arrayBuffer","blob","json","text","formData"],d=s.Request,p=s.Response,l=s.fetch,h="prototype",m="nr@context";d&&p&&l&&(a(u,function(t,e){r(d[h],e,f),r(p[h],e,f)}),r(s,"fetch",c),o.on(c+"end",function(t,e){var n=this;if(e){var r=e.headers.get("content-length");null!==r&&(n.rxSize=r),o.emit(c+"done",[null,e],n)}else o.emit(c+"done",[t],n)}))},{}],9:[function(t,e,n){var r=t("ee").get("history"),o=t("wrap-function")(r);e.exports=r;var i=window.history&&window.history.constructor&&window.history.constructor.prototype,a=window.history;i&&i.pushState&&i.replaceState&&(a=i),o.inPlace(a,["pushState","replaceState"],"-")},{}],10:[function(t,e,n){function r(t){function e(){f.emit("jsonp-end",[],l),t.removeEventListener("load",e,c(!1)),t.removeEventListener("error",n,c(!1))}function n(){f.emit("jsonp-error",[],l),f.emit("jsonp-end",[],l),t.removeEventListener("load",e,c(!1)),t.removeEventListener("error",n,c(!1))}var r=t&&"string"==typeof t.nodeName&&"script"===t.nodeName.toLowerCase();if(r){var o="function"==typeof t.addEventListener;if(o){var a=i(t.src);if(a){var d=s(a),p="function"==typeof d.parent[d.key];if(p){var l={};u.inPlace(d.parent,[d.key],"cb-",l),t.addEventListener("load",e,c(!1)),t.addEventListener("error",n,c(!1)),f.emit("new-jsonp",[t.src],l)}}}}}function o(){return"addEventListener"in window}function i(t){var e=t.match(d);return e?e[1]:null}function a(t,e){var n=t.match(l),r=n[1],o=n[3];return o?a(o,e[r]):e[r]}function s(t){var e=t.match(p);return e&&e.length>=3?{key:e[2],parent:a(e[1],window)}:{key:t,parent:window}}var c=t(23),f=t("ee").get("jsonp"),u=t("wrap-function")(f);if(e.exports=f,o()){var d=/[?&](?:callback|cb)=([^&#]+)/,p=/(.*)\.([^.]+)/,l=/^(\w+)(\.|$)(.*)$/,h=["appendChild","insertBefore","replaceChild"];Node&&Node.prototype&&Node.prototype.appendChild?u.inPlace(Node.prototype,h,"dom-"):(u.inPlace(HTMLElement.prototype,h,"dom-"),u.inPlace(HTMLHeadElement.prototype,h,"dom-"),u.inPlace(HTMLBodyElement.prototype,h,"dom-")),f.on("dom-start",function(t){r(t[0])})}},{}],11:[function(t,e,n){var r=t("ee").get("mutation"),o=t("wrap-function")(r),i=NREUM.o.MO;e.exports=r,i&&(window.MutationObserver=function(t){return this instanceof i?new i(o(t,"fn-")):i.apply(this,arguments)},MutationObserver.prototype=i.prototype)},{}],12:[function(t,e,n){function r(t){var e=i.context(),n=s(t,"executor-",e,null,!1),r=new f(n);return i.context(r).getCtx=function(){return e},r}var o=t("wrap-function"),i=t("ee").get("promise"),a=t("ee").getOrSetContext,s=o(i),c=t(32),f=NREUM.o.PR;e.exports=i,f&&(window.Promise=r,["all","race"].forEach(function(t){var e=f[t];f[t]=function(n){function r(t){return function(){i.emit("propagate",[null,!o],a,!1,!1),o=o||!t}}var o=!1;c(n,function(e,n){Promise.resolve(n).then(r("all"===t),r(!1))});var a=e.apply(f,arguments),s=f.resolve(a);return s}}),["resolve","reject"].forEach(function(t){var e=f[t];f[t]=function(t){var n=e.apply(f,arguments);return t!==n&&i.emit("propagate",[t,!0],n,!1,!1),n}}),f.prototype["catch"]=function(t){return this.then(null,t)},f.prototype=Object.create(f.prototype,{constructor:{value:r}}),c(Object.getOwnPropertyNames(f),function(t,e){try{r[e]=f[e]}catch(n){}}),o.wrapInPlace(f.prototype,"then",function(t){return function(){var e=this,n=o.argsToArray.apply(this,arguments),r=a(e);r.promise=e,n[0]=s(n[0],"cb-",r,null,!1),n[1]=s(n[1],"cb-",r,null,!1);var c=t.apply(this,n);return r.nextPromise=c,i.emit("propagate",[e,!0],c,!1,!1),c}}),i.on("executor-start",function(t){t[0]=s(t[0],"resolve-",this,null,!1),t[1]=s(t[1],"resolve-",this,null,!1)}),i.on("executor-err",function(t,e,n){t[1](n)}),i.on("cb-end",function(t,e,n){i.emit("propagate",[n,!0],this.nextPromise,!1,!1)}),i.on("propagate",function(t,e,n){this.getCtx&&!e||(this.getCtx=function(){if(t instanceof Promise)var e=i.context(t);return e&&e.getCtx?e.getCtx():this})}),r.toString=function(){return""+f})},{}],13:[function(t,e,n){var r=t("ee").get("raf"),o=t("wrap-function")(r),i="equestAnimationFrame";e.exports=r,o.inPlace(window,["r"+i,"mozR"+i,"webkitR"+i,"msR"+i],"raf-"),r.on("raf-start",function(t){t[0]=o(t[0],"fn-")})},{}],14:[function(t,e,n){function r(t,e,n){t[0]=a(t[0],"fn-",null,n)}function o(t,e,n){this.method=n,this.timerDuration=isNaN(t[1])?0:+t[1],t[0]=a(t[0],"fn-",this,n)}var i=t("ee").get("timer"),a=t("wrap-function")(i),s="setTimeout",c="setInterval",f="clearTimeout",u="-start",d="-";e.exports=i,a.inPlace(window,[s,"setImmediate"],s+d),a.inPlace(window,[c],c+d),a.inPlace(window,[f,"clearImmediate"],f+d),i.on(c+u,r),i.on(s+u,o)},{}],15:[function(t,e,n){function r(t,e){d.inPlace(e,["onreadystatechange"],"fn-",s)}function o(){var t=this,e=u.context(t);t.readyState>3&&!e.resolved&&(e.resolved=!0,u.emit("xhr-resolved",[],t)),d.inPlace(t,y,"fn-",s)}function i(t){x.push(t),m&&(E?E.then(a):w?w(a):(R=-R,O.data=R))}function a(){for(var t=0;t<x.length;t++)r([],x[t]);x.length&&(x=[])}function s(t,e){return e}function c(t,e){for(var n in t)e[n]=t[n];return e}t(7);var f=t("ee"),u=f.get("xhr"),d=t("wrap-function")(u),p=t(23),l=NREUM.o,h=l.XHR,m=l.MO,v=l.PR,w=l.SI,g="readystatechange",y=["onload","onerror","onabort","onloadstart","onloadend","onprogress","ontimeout"],x=[];e.exports=u;var b=window.XMLHttpRequest=function(t){var e=new h(t);try{u.emit("new-xhr",[e],e),e.addEventListener(g,o,p(!1))}catch(n){try{u.emit("internal-error",[n])}catch(r){}}return e};if(c(h,b),b.prototype=h.prototype,d.inPlace(b.prototype,["open","send"],"-xhr-",s),u.on("send-xhr-start",function(t,e){r(t,e),i(e)}),u.on("open-xhr-start",r),m){var E=v&&v.resolve();if(!w&&!v){var R=1,O=document.createTextNode(R);new m(a).observe(O,{characterData:!0})}}else f.on("fn-end",function(t){t[0]&&t[0].type===g||a()})},{}],16:[function(t,e,n){function r(t){if(!s(t))return null;var e=window.NREUM;if(!e.loader_config)return null;var n=(e.loader_config.accountID||"").toString()||null,r=(e.loader_config.agentID||"").toString()||null,f=(e.loader_config.trustKey||"").toString()||null;if(!n||!r)return null;var h=l.generateSpanId(),m=l.generateTraceId(),v=Date.now(),w={spanId:h,traceId:m,timestamp:v};return(t.sameOrigin||c(t)&&p())&&(w.traceContextParentHeader=o(h,m),w.traceContextStateHeader=i(h,v,n,r,f)),(t.sameOrigin&&!u()||!t.sameOrigin&&c(t)&&d())&&(w.newrelicHeader=a(h,m,v,n,r,f)),w}function o(t,e){return"00-"+e+"-"+t+"-01"}function i(t,e,n,r,o){var i=0,a="",s=1,c="",f="";return o+"@nr="+i+"-"+s+"-"+n+"-"+r+"-"+t+"-"+a+"-"+c+"-"+f+"-"+e}function a(t,e,n,r,o,i){var a="btoa"in window&&"function"==typeof window.btoa;if(!a)return null;var s={v:[0,1],d:{ty:"Browser",ac:r,ap:o,id:t,tr:e,ti:n}};return i&&r!==i&&(s.d.tk=i),btoa(JSON.stringify(s))}function s(t){return f()&&c(t)}function c(t){var e=!1,n={};if("init"in NREUM&&"distributed_tracing"in NREUM.init&&(n=NREUM.init.distributed_tracing),t.sameOrigin)e=!0;else if(n.allowed_origins instanceof Array)for(var r=0;r<n.allowed_origins.length;r++){var o=h(n.allowed_origins[r]);if(t.hostname===o.hostname&&t.protocol===o.protocol&&t.port===o.port){e=!0;break}}return e}function f(){return"init"in NREUM&&"distributed_tracing"in NREUM.init&&!!NREUM.init.distributed_tracing.enabled}function u(){return"init"in NREUM&&"distributed_tracing"in NREUM.init&&!!NREUM.init.distributed_tracing.exclude_newrelic_header}function d(){return"init"in NREUM&&"distributed_tracing"in NREUM.init&&NREUM.init.distributed_tracing.cors_use_newrelic_header!==!1}function p(){return"init"in NREUM&&"distributed_tracing"in NREUM.init&&!!NREUM.init.distributed_tracing.cors_use_tracecontext_headers}var l=t(29),h=t(18);e.exports={generateTracePayload:r,shouldGenerateTrace:s}},{}],17:[function(t,e,n){function r(t){var e=this.params,n=this.metrics;if(!this.ended){this.ended=!0;for(var r=0;r<p;r++)t.removeEventListener(d[r],this.listener,!1);e.aborted||(n.duration=a.now()-this.startTime,this.loadCaptureCalled||4!==t.readyState?null==e.status&&(e.status=0):i(this,t),n.cbTime=this.cbTime,s("xhr",[e,n,this.startTime,this.endTime,"xhr"],this))}}function o(t,e){var n=c(e),r=t.params;r.hostname=n.hostname,r.port=n.port,r.protocol=n.protocol,r.host=n.hostname+":"+n.port,r.pathname=n.pathname,t.parsedOrigin=n,t.sameOrigin=n.sameOrigin}function i(t,e){t.params.status=e.status;var n=v(e,t.lastSize);if(n&&(t.metrics.rxSize=n),t.sameOrigin){var r=e.getResponseHeader("X-NewRelic-App-Data");r&&(t.params.cat=r.split(", ").pop())}t.loadCaptureCalled=!0}var a=t("loader");if(a.xhrWrappable&&!a.disabled){var s=t("handle"),c=t(18),f=t(16).generateTracePayload,u=t("ee"),d=["load","error","abort","timeout"],p=d.length,l=t("id"),h=t(24),m=t(22),v=t(19),w=t(23),g=NREUM.o.REQ,y=window.XMLHttpRequest;a.features.xhr=!0,t(15),t(8),u.on("new-xhr",function(t){var e=this;e.totalCbs=0,e.called=0,e.cbTime=0,e.end=r,e.ended=!1,e.xhrGuids={},e.lastSize=null,e.loadCaptureCalled=!1,e.params=this.params||{},e.metrics=this.metrics||{},t.addEventListener("load",function(n){i(e,t)},w(!1)),h&&(h>34||h<10)||t.addEventListener("progress",function(t){e.lastSize=t.loaded},w(!1))}),u.on("open-xhr-start",function(t){this.params={method:t[0]},o(this,t[1]),this.metrics={}}),u.on("open-xhr-end",function(t,e){"loader_config"in NREUM&&"xpid"in NREUM.loader_config&&this.sameOrigin&&e.setRequestHeader("X-NewRelic-ID",NREUM.loader_config.xpid);var n=f(this.parsedOrigin);if(n){var r=!1;n.newrelicHeader&&(e.setRequestHeader("newrelic",n.newrelicHeader),r=!0),n.traceContextParentHeader&&(e.setRequestHeader("traceparent",n.traceContextParentHeader),n.traceContextStateHeader&&e.setRequestHeader("tracestate",n.traceContextStateHeader),r=!0),r&&(this.dt=n)}}),u.on("send-xhr-start",function(t,e){var n=this.metrics,r=t[0],o=this;if(n&&r){var i=m(r);i&&(n.txSize=i)}this.startTime=a.now(),this.listener=function(t){try{"abort"!==t.type||o.loadCaptureCalled||(o.params.aborted=!0),("load"!==t.type||o.called===o.totalCbs&&(o.onloadCalled||"function"!=typeof e.onload))&&o.end(e)}catch(n){try{u.emit("internal-error",[n])}catch(r){}}};for(var s=0;s<p;s++)e.addEventListener(d[s],this.listener,w(!1))}),u.on("xhr-cb-time",function(t,e,n){this.cbTime+=t,e?this.onloadCalled=!0:this.called+=1,this.called!==this.totalCbs||!this.onloadCalled&&"function"==typeof n.onload||this.end(n)}),u.on("xhr-load-added",function(t,e){var n=""+l(t)+!!e;this.xhrGuids&&!this.xhrGuids[n]&&(this.xhrGuids[n]=!0,this.totalCbs+=1)}),u.on("xhr-load-removed",function(t,e){var n=""+l(t)+!!e;this.xhrGuids&&this.xhrGuids[n]&&(delete this.xhrGuids[n],this.totalCbs-=1)}),u.on("xhr-resolved",function(){this.endTime=a.now()}),u.on("addEventListener-end",function(t,e){e instanceof y&&"load"===t[0]&&u.emit("xhr-load-added",[t[1],t[2]],e)}),u.on("removeEventListener-end",function(t,e){e instanceof y&&"load"===t[0]&&u.emit("xhr-load-removed",[t[1],t[2]],e)}),u.on("fn-start",function(t,e,n){e instanceof y&&("onload"===n&&(this.onload=!0),("load"===(t[0]&&t[0].type)||this.onload)&&(this.xhrCbStart=a.now()))}),u.on("fn-end",function(t,e){this.xhrCbStart&&u.emit("xhr-cb-time",[a.now()-this.xhrCbStart,this.onload,e],e)}),u.on("fetch-before-start",function(t){function e(t,e){var n=!1;return e.newrelicHeader&&(t.set("newrelic",e.newrelicHeader),n=!0),e.traceContextParentHeader&&(t.set("traceparent",e.traceContextParentHeader),e.traceContextStateHeader&&t.set("tracestate",e.traceContextStateHeader),n=!0),n}var n,r=t[1]||{};"string"==typeof t[0]?n=t[0]:t[0]&&t[0].url?n=t[0].url:window.URL&&t[0]&&t[0]instanceof URL&&(n=t[0].href),n&&(this.parsedOrigin=c(n),this.sameOrigin=this.parsedOrigin.sameOrigin);var o=f(this.parsedOrigin);if(o&&(o.newrelicHeader||o.traceContextParentHeader))if("string"==typeof t[0]||window.URL&&t[0]&&t[0]instanceof URL){var i={};for(var a in r)i[a]=r[a];i.headers=new Headers(r.headers||{}),e(i.headers,o)&&(this.dt=o),t.length>1?t[1]=i:t.push(i)}else t[0]&&t[0].headers&&e(t[0].headers,o)&&(this.dt=o)}),u.on("fetch-start",function(t,e){this.params={},this.metrics={},this.startTime=a.now(),this.dt=e,t.length>=1&&(this.target=t[0]),t.length>=2&&(this.opts=t[1]);var n,r=this.opts||{},i=this.target;"string"==typeof i?n=i:"object"==typeof i&&i instanceof g?n=i.url:window.URL&&"object"==typeof i&&i instanceof URL&&(n=i.href),o(this,n);var s=(""+(i&&i instanceof g&&i.method||r.method||"GET")).toUpperCase();this.params.method=s,this.txSize=m(r.body)||0}),u.on("fetch-done",function(t,e){this.endTime=a.now(),this.params||(this.params={}),this.params.status=e?e.status:0;var n;"string"==typeof this.rxSize&&this.rxSize.length>0&&(n=+this.rxSize);var r={txSize:this.txSize,rxSize:n,duration:a.now()-this.startTime};s("xhr",[this.params,r,this.startTime,this.endTime,"fetch"],this)})}},{}],18:[function(t,e,n){var r={};e.exports=function(t){if(t in r)return r[t];var e=document.createElement("a"),n=window.location,o={};e.href=t,o.port=e.port;var i=e.href.split("://");!o.port&&i[1]&&(o.port=i[1].split("/")[0].split("@").pop().split(":")[1]),o.port&&"0"!==o.port||(o.port="https"===i[0]?"443":"80"),o.hostname=e.hostname||n.hostname,o.pathname=e.pathname,o.protocol=i[0],"/"!==o.pathname.charAt(0)&&(o.pathname="/"+o.pathname);var a=!e.protocol||":"===e.protocol||e.protocol===n.protocol,s=e.hostname===document.domain&&e.port===n.port;return o.sameOrigin=a&&(!e.hostname||s),"/"===o.pathname&&(r[t]=o),o}},{}],19:[function(t,e,n){function r(t,e){var n=t.responseType;return"json"===n&&null!==e?e:"arraybuffer"===n||"blob"===n||"json"===n?o(t.response):"text"===n||""===n||void 0===n?o(t.responseText):void 0}var o=t(22);e.exports=r},{}],20:[function(t,e,n){function r(){}function o(t,e,n,r){return function(){return u.recordSupportability("API/"+e+"/called"),i(t+e,[f.now()].concat(s(arguments)),n?null:this,r),n?void 0:this}}var i=t("handle"),a=t(32),s=t(33),c=t("ee").get("tracer"),f=t("loader"),u=t(25),d=NREUM;"undefined"==typeof window.newrelic&&(newrelic=d);var p=["setPageViewName","setCustomAttribute","setErrorHandler","finished","addToTrace","inlineHit","addRelease"],l="api-",h=l+"ixn-";a(p,function(t,e){d[e]=o(l,e,!0,"api")}),d.addPageAction=o(l,"addPageAction",!0),d.setCurrentRouteName=o(l,"routeName",!0),e.exports=newrelic,d.interaction=function(){return(new r).get()};var m=r.prototype={createTracer:function(t,e){var n={},r=this,o="function"==typeof e;return i(h+"tracer",[f.now(),t,n],r),function(){if(c.emit((o?"":"no-")+"fn-start",[f.now(),r,o],n),o)try{return e.apply(this,arguments)}catch(t){throw c.emit("fn-err",[arguments,this,t],n),t}finally{c.emit("fn-end",[f.now()],n)}}}};a("actionText,setName,setAttribute,save,ignore,onEnd,getContext,end,get".split(","),function(t,e){m[e]=o(h,e)}),newrelic.noticeError=function(t,e){"string"==typeof t&&(t=new Error(t)),u.recordSupportability("API/noticeError/called"),i("err",[t,f.now(),!1,e])}},{}],21:[function(t,e,n){function r(t){if(NREUM.init){for(var e=NREUM.init,n=t.split("."),r=0;r<n.length-1;r++)if(e=e[n[r]],"object"!=typeof e)return;return e=e[n[n.length-1]]}}e.exports={getConfiguration:r}},{}],22:[function(t,e,n){e.exports=function(t){if("string"==typeof t&&t.length)return t.length;if("object"==typeof t){if("undefined"!=typeof ArrayBuffer&&t instanceof ArrayBuffer&&t.byteLength)return t.byteLength;if("undefined"!=typeof Blob&&t instanceof Blob&&t.size)return t.size;if(!("undefined"!=typeof FormData&&t instanceof FormData))try{return JSON.stringify(t).length}catch(e){return}}}},{}],23:[function(t,e,n){var r=!1;try{var o=Object.defineProperty({},"passive",{get:function(){r=!0}});window.addEventListener("testPassive",null,o),window.removeEventListener("testPassive",null,o)}catch(i){}e.exports=function(t){return r?{passive:!0,capture:!!t}:!!t}},{}],24:[function(t,e,n){var r=0,o=navigator.userAgent.match(/Firefox[\/\s](\d+\.\d+)/);o&&(r=+o[1]),e.exports=r},{}],25:[function(t,e,n){function r(t,e){var n=[a,t,{name:t},e];return i("storeMetric",n,null,"api"),n}function o(t,e){var n=[s,t,{name:t},e];return i("storeEventMetrics",n,null,"api"),n}var i=t("handle"),a="sm",s="cm";e.exports={constants:{SUPPORTABILITY_METRIC:a,CUSTOM_METRIC:s},recordSupportability:r,recordCustom:o}},{}],26:[function(t,e,n){function r(){return s.exists&&performance.now?Math.round(performance.now()):(i=Math.max((new Date).getTime(),i))-a}function o(){return i}var i=(new Date).getTime(),a=i,s=t(34);e.exports=r,e.exports.offset=a,e.exports.getLastTimestamp=o},{}],27:[function(t,e,n){function r(t){return!(!t||!t.protocol||"file:"===t.protocol)}e.exports=r},{}],28:[function(t,e,n){function r(t,e){var n=t.getEntries();n.forEach(function(t){"first-paint"===t.name?p("timing",["fp",Math.floor(t.startTime)]):"first-contentful-paint"===t.name&&p("timing",["fcp",Math.floor(t.startTime)])})}function o(t,e){var n=t.getEntries();if(n.length>0){var r=n[n.length-1];if(c&&c<r.startTime)return;p("lcp",[r])}}function i(t){t.getEntries().forEach(function(t){t.hadRecentInput||p("cls",[t])})}function a(t){if(t instanceof v&&!g){var e=Math.round(t.timeStamp),n={type:t.type};e<=l.now()?n.fid=l.now()-e:e>l.offset&&e<=Date.now()?(e-=l.offset,n.fid=l.now()-e):e=l.now(),g=!0,p("timing",["fi",e,n])}}function s(t){"hidden"===t&&(c=l.now(),p("pageHide",[c]))}if(!("init"in NREUM&&"page_view_timing"in NREUM.init&&"enabled"in NREUM.init.page_view_timing&&NREUM.init.page_view_timing.enabled===!1)){var c,f,u,d,p=t("handle"),l=t("loader"),h=t(31),m=t(23),v=NREUM.o.EV;if("PerformanceObserver"in window&&"function"==typeof window.PerformanceObserver){f=new PerformanceObserver(r);try{f.observe({entryTypes:["paint"]})}catch(w){}u=new PerformanceObserver(o);try{u.observe({entryTypes:["largest-contentful-paint"]})}catch(w){}d=new PerformanceObserver(i);try{d.observe({type:"layout-shift",buffered:!0})}catch(w){}}if("addEventListener"in document){var g=!1,y=["click","keydown","mousedown","pointerdown","touchstart"];y.forEach(function(t){document.addEventListener(t,a,m(!1))})}h(s)}},{}],29:[function(t,e,n){function r(){function t(){return e?15&e[n++]:16*Math.random()|0}var e=null,n=0,r=window.crypto||window.msCrypto;r&&r.getRandomValues&&(e=r.getRandomValues(new Uint8Array(31)));for(var o,i="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",a="",s=0;s<i.length;s++)o=i[s],"x"===o?a+=t().toString(16):"y"===o?(o=3&t()|8,a+=o.toString(16)):a+=o;return a}function o(){return a(16)}function i(){return a(32)}function a(t){function e(){return n?15&n[r++]:16*Math.random()|0}var n=null,r=0,o=window.crypto||window.msCrypto;o&&o.getRandomValues&&Uint8Array&&(n=o.getRandomValues(new Uint8Array(31)));for(var i=[],a=0;a<t;a++)i.push(e().toString(16));return i.join("")}e.exports={generateUuid:r,generateSpanId:o,generateTraceId:i}},{}],30:[function(t,e,n){function r(t,e){if(!o)return!1;if(t!==o)return!1;if(!e)return!0;if(!i)return!1;for(var n=i.split("."),r=e.split("."),a=0;a<r.length;a++)if(r[a]!==n[a])return!1;return!0}var o=null,i=null,a=/Version\/(\S+)\s+Safari/;if(navigator.userAgent){var s=navigator.userAgent,c=s.match(a);c&&s.indexOf("Chrome")===-1&&s.indexOf("Chromium")===-1&&(o="Safari",i=c[1])}e.exports={agent:o,version:i,match:r}},{}],31:[function(t,e,n){function r(t){function e(){t(s&&document[s]?document[s]:document[i]?"hidden":"visible")}"addEventListener"in document&&a&&document.addEventListener(a,e,o(!1))}var o=t(23);e.exports=r;var i,a,s;"undefined"!=typeof document.hidden?(i="hidden",a="visibilitychange",s="visibilityState"):"undefined"!=typeof document.msHidden?(i="msHidden",a="msvisibilitychange"):"undefined"!=typeof document.webkitHidden&&(i="webkitHidden",a="webkitvisibilitychange",s="webkitVisibilityState")},{}],32:[function(t,e,n){function r(t,e){var n=[],r="",i=0;for(r in t)o.call(t,r)&&(n[i]=e(r,t[r]),i+=1);return n}var o=Object.prototype.hasOwnProperty;e.exports=r},{}],33:[function(t,e,n){function r(t,e,n){e||(e=0),"undefined"==typeof n&&(n=t?t.length:0);for(var r=-1,o=n-e||0,i=Array(o<0?0:o);++r<o;)i[r]=t[e+r];return i}e.exports=r},{}],34:[function(t,e,n){e.exports={exists:"undefined"!=typeof window.performance&&window.performance.timing&&"undefined"!=typeof window.performance.timing.navigationStart}},{}],ee:[function(t,e,n){function r(){}function o(t){function e(t){return t&&t instanceof r?t:t?f(t,c,a):a()}function n(n,r,o,i,a){if(a!==!1&&(a=!0),!l.aborted||i){t&&a&&t(n,r,o);for(var s=e(o),c=m(n),f=c.length,u=0;u<f;u++)c[u].apply(s,r);var p=d[y[n]];return p&&p.push([x,n,r,s]),s}}function i(t,e){g[t]=m(t).concat(e)}function h(t,e){var n=g[t];if(n)for(var r=0;r<n.length;r++)n[r]===e&&n.splice(r,1)}function m(t){return g[t]||[]}function v(t){return p[t]=p[t]||o(n)}function w(t,e){l.aborted||u(t,function(t,n){e=e||"feature",y[n]=e,e in d||(d[e]=[])})}var g={},y={},x={on:i,addEventListener:i,removeEventListener:h,emit:n,get:v,listeners:m,context:e,buffer:w,abort:s,aborted:!1};return x}function i(t){return f(t,c,a)}function a(){return new r}function s(){(d.api||d.feature)&&(l.aborted=!0,d=l.backlog={})}var c="nr@context",f=t("gos"),u=t(32),d={},p={},l=e.exports=o();e.exports.getOrSetContext=i,l.backlog=d},{}],gos:[function(t,e,n){function r(t,e,n){if(o.call(t,e))return t[e];var r=n();if(Object.defineProperty&&Object.keys)try{return Object.defineProperty(t,e,{value:r,writable:!0,enumerable:!1}),r}catch(i){}return t[e]=r,r}var o=Object.prototype.hasOwnProperty;e.exports=r},{}],handle:[function(t,e,n){function r(t,e,n,r){o.buffer([t],r),o.emit(t,e,n)}var o=t("ee").get("handle");e.exports=r,r.ee=o},{}],id:[function(t,e,n){function r(t){var e=typeof t;return!t||"object"!==e&&"function"!==e?-1:t===window?0:a(t,i,function(){return o++})}var o=1,i="nr@id",a=t("gos");e.exports=r},{}],loader:[function(t,e,n){function r(){if(!P++){var t=T.info=NREUM.info,e=v.getElementsByTagName("script")[0];if(setTimeout(f.abort,3e4),!(t&&t.licenseKey&&t.applicationID&&e))return f.abort();c(R,function(e,n){t[e]||(t[e]=n)});var n=a();s("mark",["onload",n+T.offset],null,"api"),s("timing",["load",n]);var r=v.createElement("script");0===t.agent.indexOf("http://")||0===t.agent.indexOf("https://")?r.src=t.agent:r.src=h+"://"+t.agent,e.parentNode.insertBefore(r,e)}}function o(){"complete"===v.readyState&&i()}function i(){s("mark",["domContent",a()+T.offset],null,"api")}var a=t(26),s=t("handle"),c=t(32),f=t("ee"),u=t(30),d=t(27),p=t(21),l=t(23),h=p.getConfiguration("ssl")===!1?"http":"https",m=window,v=m.document,w="addEventListener",g="attachEvent",y=m.XMLHttpRequest,x=y&&y.prototype,b=!d(m.location);NREUM.o={ST:setTimeout,SI:m.setImmediate,CT:clearTimeout,XHR:y,REQ:m.Request,EV:m.Event,PR:m.Promise,MO:m.MutationObserver};var E=""+location,R={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net",agent:"js-agent.newrelic.com/nr-spa-1212.min.js"},O=y&&x&&x[w]&&!/CriOS/.test(navigator.userAgent),T=e.exports={offset:a.getLastTimestamp(),now:a,origin:E,features:{},xhrWrappable:O,userAgent:u,disabled:b};if(!b){t(20),t(28),v[w]?(v[w]("DOMContentLoaded",i,l(!1)),m[w]("load",r,l(!1))):(v[g]("onreadystatechange",o),m[g]("onload",r)),s("mark",["firstbyte",a.getLastTimestamp()],null,"api");var P=0}},{}],"wrap-function":[function(t,e,n){function r(t,e){function n(e,n,r,c,f){function nrWrapper(){var i,a,u,p;try{a=this,i=d(arguments),u="function"==typeof r?r(i,a):r||{}}catch(l){o([l,"",[i,a,c],u],t)}s(n+"start",[i,a,c],u,f);try{return p=e.apply(a,i)}catch(h){throw s(n+"err",[i,a,h],u,f),h}finally{s(n+"end",[i,a,p],u,f)}}return a(e)?e:(n||(n=""),nrWrapper[p]=e,i(e,nrWrapper,t),nrWrapper)}function r(t,e,r,o,i){r||(r="");var s,c,f,u="-"===r.charAt(0);for(f=0;f<e.length;f++)c=e[f],s=t[c],a(s)||(t[c]=n(s,u?c+r:r,o,c,i))}function s(n,r,i,a){if(!h||e){var s=h;h=!0;try{t.emit(n,r,i,e,a)}catch(c){o([c,n,r,i],t)}h=s}}return t||(t=u),n.inPlace=r,n.flag=p,n}function o(t,e){e||(e=u);try{e.emit("internal-error",t)}catch(n){}}function i(t,e,n){if(Object.defineProperty&&Object.keys)try{var r=Object.keys(t);return r.forEach(function(n){Object.defineProperty(e,n,{get:function(){return t[n]},set:function(e){return t[n]=e,e}})}),e}catch(i){o([i],n)}for(var a in t)l.call(t,a)&&(e[a]=t[a]);return e}function a(t){return!(t&&t instanceof Function&&t.apply&&!t[p])}function s(t,e){var n=e(t);return n[p]=t,i(t,n,u),n}function c(t,e,n){var r=t[e];t[e]=s(r,n)}function f(){for(var t=arguments.length,e=new Array(t),n=0;n<t;++n)e[n]=arguments[n];return e}var u=t("ee"),d=t(33),p="nr@original",l=Object.prototype.hasOwnProperty,h=!1;e.exports=r,e.exports.wrapFunction=s,e.exports.wrapInPlace=c,e.exports.argsToArray=f},{}]},{},["loader",2,17,5,3,4]);
+  ;NREUM.loader_config={accountID:"804283",trustKey:"804283",agentID:"402703674",licenseKey:"cf99e8d2a3",applicationID:"402703674"}
+  ;NREUM.info={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net",licenseKey:"cf99e8d2a3",
+    // Modified this value from the generated script, to pass prod vs dev
+    applicationID: window.location.hostname.includes('journals.plos.org') ? "402703674" : "402694889",
+    sa:1}
+</script>
+<!-- End New Relic -->
+
+
+
+<header>
+  <div id="topslot" class="head-top">
+  <a id="skip-to-content" tabindex="0" class="button" href="#main-content">
+    Skip to main content
+  </a>
+
+<div class="center">
+<div class="title">Advertisement</div>
+<!-- DoubleClick Ad Zone -->
+  <div class='advertisement' id='div-gpt-ad-1458247671871-0' style='width:728px; height:90px;'>
+    <script type='text/javascript'>
+      googletag.cmd.push(function() { googletag.display('div-gpt-ad-1458247671871-0'); });
+    </script>
+  </div>
+</div>
+  </div>
+
+  <div id="user" class="nav" data-user-management-url="https://community.plos.org">
+  </div>
+  <div id="pagehdr">
+
+    <nav class="nav-main">
+
+
+
+
+<h1 class="logo">
+  <a href="/plosone/.">PLOS One</a>
+</h1>
+
+<section class="top-bar-section"> 
+
+<ul class="nav-elements">
+
+
+    <li class="multi-col-parent menu-section-header has-dropdown" id="publish">
+    Publish
+      <div class="dropdown mega ">
+        <ul class="multi-col" id="publish-dropdown-list">
+
+  <li class="menu-section-header " id="submissions">
+    <span class="menu-section-header-title">  Submissions </span>
+
+    <ul class="menu-section "
+        id="submissions-dropdown-list">
+      <li>
+    <a href="/plosone/s/getting-started" >Getting Started</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/submission-guidelines" >Submission Guidelines</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/figures" >Figures</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/tables" >Tables</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/supporting-information" >Supporting Information</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/latex" >LaTeX</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/what-we-publish" >What We Publish</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/preprints" >Preprints</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/revising-your-manuscript" >Revising Your Manuscript</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/submit-now" >Submit Now</a>
+  </li>
+
+      <li>
+    <a href="https://collections.plos.org/s/calls-for-papers" >Calls for Papers</a>
+  </li>
+
+    </ul>
+
+  </li>
+
+
+  <li class="menu-section-header " id="policies">
+    <span class="menu-section-header-title">  Policies </span>
+
+    <ul class="menu-section "
+        id="policies-dropdown-list">
+      <li>
+    <a href="/plosone/s/best-practices-in-research-reporting" >Best Practices in Research Reporting</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/human-subjects-research" >Human Subjects Research</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/animal-research" >Animal Research</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/competing-interests" >Competing Interests</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/disclosure-of-funding-sources" >Disclosure of Funding Sources</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/licenses-and-copyright" >Licenses and Copyright</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/data-availability" >Data Availability</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/complementary-research" >Complementary Research</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/materials-software-and-code-sharing" >Materials, Software and Code Sharing</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/ethical-publishing-practice" >Ethical Publishing Practice</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/authorship" >Authorship</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/corrections-expressions-of-concern-and-retractions" >Corrections, Expressions of Concern, and Retractions</a>
+  </li>
+
+    </ul>
+
+  </li>
+
+
+  <li class="menu-section-header " id="manuscript-review-and-publication">
+    <span class="menu-section-header-title">  Manuscript Review and Publication </span>
+
+    <ul class="menu-section "
+        id="manuscript-review-and-publication-dropdown-list">
+      <li>
+    <a href="/plosone/s/criteria-for-publication" >Criteria for Publication</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/editorial-and-peer-review-process" >Editorial and Peer Review Process</a>
+  </li>
+
+      <li>
+    <a href="https://explore.plos.org/editor-resources" >Editor Center</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/reviewer-guidelines" >Guidelines for Reviewers</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/accepted-manuscripts" >Accepted Manuscripts</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/comments" >Comments</a>
+  </li>
+
+    </ul>
+
+  </li>
+        </ul>
+          <div class="calloutcontainer">
+
+
+
+  <h3 class="callout-headline">Submit Your Manuscript</h3>
+
+  <div class="action-contain">
+  <p class="callout-content">
+  Discover a faster, simpler path to publishing in a high-quality journal. <em>PLOS ONE</em> promises fair, rigorous peer review,
+  broad scope, and wide readership – a perfect fit for your research every time.
+  </p>
+
+  <p class="button-contain special">
+    <a class="button button-default" href="/plosone/static/publish">
+     Learn More
+    </a>
+    <a class="button-link" href="https://www.editorialmanager.com/pone/default.asp">
+      Submit Now
+    </a>
+  </p>
+  </div>  <!-- opens in siteMenuCalloutDescription -->
+
+
+          </div>
+      </div>
+    </li>
+
+
+
+  <li class="menu-section-header has-dropdown " id="about">
+    <span class="menu-section-header-title">  About </span>
+
+    <ul class="menu-section dropdown "
+        id="about-dropdown-list">
+      <li>
+    <a href="/plosone/static/publish" >Why Publish with PLOS ONE</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/journal-information" >Journal Information</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/staff-editors" >Staff Editors</a>
+  </li>
+
+      <li>
+    <a href="/plosone/static/editorial-board" >Editorial Board</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/section-editors" >Section Editors</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/advisory-groups" >Advisory Groups</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/find-and-read-articles" >Find and Read Articles</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/publishing-information" >Publishing Information</a>
+  </li>
+
+      <li>
+    <a href="https://plos.org/publication-fees" >Publication Fees</a>
+  </li>
+
+      <li>
+    <a href="https://plos.org/press-and-media" >Press and Media</a>
+  </li>
+
+      <li>
+    <a href="/plosone/s/contact" >Contact</a>
+  </li>
+
+    </ul>
+
+  </li>
+
+  <li data-js-tooltip-hover="trigger" class="subject-area menu-section-header">
+  Browse
+  </li>
+
+<script src="/resource/js/vendor/jquery.hoverIntent.js" type="text/javascript"></script>
+<script src="/resource/js/components/menu_drop.js" type="text/javascript"></script>
+<script src="/resource/js/components/hover_delay.js" type="text/javascript"></script>
+      <li id="navsearch" class="head-search">
+
+
+    <form name="searchForm" action="/plosone/search" method="get">
+      <fieldset>
+        <legend>Search</legend>
+        <label for="search">Search</label>
+        <div class="search-contain">
+          <input id="search" type="text" name="q" placeholder="SEARCH" required/>
+          <button id="headerSearchButton" type="submit" aria-label="Submit search">
+            <i title="Submit search" class="search-icon"></i>
+          </button>
+        </div>
+      </fieldset>
+      <input type="hidden" name="filterJournals" value="PLoSONE"/>
+    </form>
+
+    <a id="advSearch"
+       href="/plosone/search">
+      advanced search
+    </a>
+
+
+
+
+<script src="/resource/js/components/placeholder_style.js" type="text/javascript"></script>
+      </li>
+
+      </ul>     
+      </section>  
+    </nav>
+  </div>
+
+</header>
+<section id="taxonomyContainer">
+
+<script src="/resource/js/taxonomy-browser.js" type="text/javascript"></script>
+<div id="taxonomy-browser" class="areas" data-search-url="/plosone/browse">
+  <div class="wrapper">
+    <div class="taxonomy-header">
+      Browse Subject Areas
+      <div id="subjInfo">?</div>
+      <div id="subjInfoText">
+        <p>Click through the PLOS taxonomy to find articles in your field.</p>
+        <p>For more information about PLOS Subject Areas, click
+          <a href="https://github.com/PLOS/plos-thesaurus/blob/master/README.md" target="_blank" title="Link opens in new window">here</a>.
+        </p>
+      </div>
+    </div>
+    <div class="levels">
+      <div class="levels-container cf">
+        <div class="levels-position"></div>
+      </div>
+      <a href="#" class="prev"></a>
+      <a href="#" class="next active"></a>
+    </div>
+  </div>
+  <div class="taxonomy-browser-border-bottom"></div>
+</div>
+</section>
+<main id="main-content"> <div class="set-grid">
+
+<header class="title-block">
+
+
+
+<script src="/resource/js/components/signposts.js" type="text/javascript"></script>
+
+<ul id="almSignposts" class="signposts">
+  <li id="loadingMetrics">
+    <p>Loading metrics</p>
+  </li>
+</ul>
+
+<script type="text/template" id="signpostsGeneralErrorTemplate">
+  <li id="metricsError">Article metrics are unavailable at this time. Please try again later.</li>
+</script>
+
+<script type="text/template" id="signpostsNewArticleErrorTemplate">
+  <li></li><li></li><li id="tooSoon">Article metrics are unavailable for recently published articles.</li>
+</script>
+
+<script type="text/template" id="signpostsTemplate">
+    <li id="almSaves">
+      <%= s.numberFormat(saveCount, 0) %>
+      <div class="tools" data-js-tooltip-hover="trigger">
+        <a class="metric-term" href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#savedHeader">Save</a>
+        <p class="saves-tip" data-js-tooltip-hover="target"><a href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#savedHeader">Total Mendeley and Citeulike bookmarks.</a></p>
+      </div>
+    </li>
+
+    <li id="almCitations">
+      <%= s.numberFormat(citationCount, 0) %>
+      <div class="tools" data-js-tooltip-hover="trigger">
+        <a class="metric-term" href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#citedHeader">Citation</a>
+        <p class="citations-tip" data-js-tooltip-hover="target"><a href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#citedHeader">Paper's citation count computed by Dimensions.</a></p>
+      </div>
+    </li>
+
+    <li id="almViews">
+      <%= s.numberFormat(viewCount, 0) %>
+      <div class="tools" data-js-tooltip-hover="trigger">
+        <a class="metric-term" href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#viewedHeader">View</a>
+        <p class="views-tip" data-js-tooltip-hover="target"><a href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#viewedHeader">PLOS views and downloads.</a></p>
+      </div>
+    </li>
+
+    <li id="almShares">
+      <%= s.numberFormat(shareCount, 0) %>
+      <div class="tools" data-js-tooltip-hover="trigger">
+        <a class="metric-term" href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#discussedHeader">Share</a>
+        <p class="shares-tip" data-js-tooltip-hover="target"><a href="/plosone/article/metrics?id=10.1371/journal.pone.0289493#discussedHeader">Sum of Facebook, Twitter, Reddit and Wikipedia activity.</a></p>
+      </div>
+    </li>
+</script>
+
+    <div class="article-meta">
+
+<div class="classifications">
+  <p class="license-short" id="licenseShort">Open Access</p>
+  <p class="peer-reviewed" id="peerReviewed">Peer-reviewed</p>
+
+<div class="article-type" >
+  <p class="type-article" id="artType">Research Article</p>
+</div>
+
+
+</div>
+    </div>
+    <div class="article-title-etc">
+
+
+
+<div class="title-authors">
+  <h1 id="artTitle"><?xml version="1.0" encoding="UTF-8"?>Sniffer worm, <i>C</i>. <i>elegans</i>, as a toxicity evaluation model organism with sensing and locomotion abilities</h1>
+
+<ul class="author-list clearfix"  data-js-tooltip="tooltip_container" id="author-list">
+
+
+
+<li
+  data-js-tooltip="tooltip_trigger"
+  
+>
+   <a  data-author-id="0" class="author-name" >
+Jun Sung Kim,</a>    <div id="author-meta-0" class="author-info" data-js-tooltip="tooltip_target">
+
+  
+  <p class="roles" id="authRoles">
+    <span class="type">Roles</span>
+    Investigation,
+
+    Methodology,
+
+    Visualization,
+
+    Writing – original draft
+  </p>
+  
+  <p id="authAffiliations-0"><span class="type">Affiliation</span>
+    Department of Chemistry KAIST, Daejeon, Republic of Korea
+  </p>
+
+      <a data-js-tooltip="tooltip_close" class="close" id="tooltipClose0"> &#x02A2F; </a>
+    </div>
+</li>
+
+<li
+  data-js-tooltip="tooltip_trigger"
+  
+>
+   <a  data-author-id="1" class="author-name" >
+Sang-Kyu Park,</a>    <div id="author-meta-1" class="author-info" data-js-tooltip="tooltip_target">
+
+  
+  <p class="roles" id="authRoles">
+    <span class="type">Roles</span>
+    Resources
+  </p>
+  
+  <p id="authAffiliations-1"><span class="type">Affiliation</span>
+    Department of Medical Biotechnology, College of Medical Science, Soonchunhyang University, Asan, Chungnam, Korea
+  </p>
+
+      <a data-js-tooltip="tooltip_close" class="close" id="tooltipClose1"> &#x02A2F; </a>
+    </div>
+</li>
+
+<li
+  data-js-tooltip="tooltip_trigger"
+  
+>
+   <a  data-author-id="2" class="author-name" >
+Haeshin Lee <span class="email">  </span></a>    <div id="author-meta-2" class="author-info" data-js-tooltip="tooltip_target">
+
+  
+  <p class="roles" id="authRoles">
+    <span class="type">Roles</span>
+    Project administration,
+
+    Supervision,
+
+    Validation,
+
+    Writing – review & editing
+  </p>
+  <p id="authCorresponding-2"> <span class="email">* E-mail:</span> <a href="mailto:haeshin@kaist.ac.kr">haeshin@kaist.ac.kr</a></p>
+  <p id="authAffiliations-2"><span class="type">Affiliation</span>
+    Department of Chemistry KAIST, Daejeon, Republic of Korea
+  </p>
+  <div>
+  <p class="orcid" id="authOrcid-2">
+    <span>
+      <a id="connect-orcid-link" href="https://orcid.org/0000-0003-3961-9727" target="_blank" title="ORCID Registry">
+        <img id="orcid-id-logo" src="/resource/img/orcid_16x16.png" width="16" height="16" alt="ORCID logo"/>
+        https://orcid.org/0000-0003-3961-9727
+      </a>
+    </span>
+  </p>
+  </div>
+
+      <a data-js-tooltip="tooltip_close" class="close" id="tooltipClose2"> &#x02A2F; </a>
+    </div>
+</li>
+
+</ul>
+<script src="/resource/js/components/tooltip.js" type="text/javascript"></script>
+
+</div>
+
+
+<div id="floatTitleTop" data-js-floater="title_author" class="float-title" role="presentation">
+  <div class="set-grid">
+    <div class="float-title-inner">
+      <h1><?xml version="1.0" encoding="UTF-8"?>Sniffer worm, <i>C</i>. <i>elegans</i>, as a toxicity evaluation model organism with sensing and locomotion abilities</h1>
+
+<ul id="floatAuthorList" data-js-floater="floated_authors">
+
+  <li data-float-index="1">Jun Sung Kim,&nbsp;
+
+  </li>
+  <li data-float-index="2">Sang-Kyu Park,&nbsp;
+
+  </li>
+  <li data-float-index="3">Haeshin Lee
+
+  </li>
+
+</ul>
+
+
+
+    </div>
+    <div class="logo-close" id="titleTopCloser">
+      <img src="/resource/img/logo-plos-full-color.svg" style="height: 2em" alt="PLOS" />
+      <div class="close-floater" title="close">x</div>
+    </div>
+  </div>
+</div>
+
+      <ul class="date-doi">
+        <li id="artPubDate">Published: August 2, 2023</li>
+        <li id="artDoi">
+<a   href="https://doi.org/10.1371/journal.pone.0289493">https://doi.org/10.1371/journal.pone.0289493</a>
+        </li>
+        <li class="flex-spacer"></li>
+      </ul>
+
+    </div>
+  <div>
+
+  </div>
+</header>
+  <section class="article-body">
+
+
+
+<ul class="article-tabs">
+
+          <li class="tab-title active" id="tabArticle">
+            <a href="/plosone/article?id=10.1371/journal.pone.0289493" class="article-tab-1">Article</a>
+        </li>
+
+
+              <li class="tab-title " id="tabAuthors">
+            <a href="/plosone/article/authors?id=10.1371/journal.pone.0289493" class="article-tab-2">Authors</a>
+        </li>
+
+
+          <li class="tab-title " id="tabMetrics">
+            <a href="/plosone/article/metrics?id=10.1371/journal.pone.0289493" class="article-tab-3">Metrics</a>
+        </li>
+
+
+          <li class="tab-title " id="tabComments">
+            <a href="/plosone/article/comments?id=10.1371/journal.pone.0289493" class="article-tab-4">Comments</a>
+        </li>
+
+  <li class="tab-title" id="tabRelated">
+    <a class="article-tab-5" id="tabRelated-link" target="_blank" href="http://plos.altmetric.com/details/doi/10.1371/journal.pone.0289493">Media Coverage</a>
+  </li>
+            <li class="tab-title " id="tabPeerReview">
+            <a href="/plosone/article/peerReview?id=10.1371/journal.pone.0289493" class="article-tab-6">Peer Review</a>
+        </li>
+
+</ul>
+
+    <div class="article-container">
+
+
+<div id="nav-article">
+  <ul class="nav-secondary">
+
+    <li class="nav-comments" id="nav-comments">
+      <a href="article/comments?id=10.1371/journal.pone.0289493">Reader Comments</a>
+    </li>
+
+    <li id="nav-figures"><a href="#" data-doi="10.1371/journal.pone.0289493">Figures</a></li>
+  </ul>
+  <div id="nav-data-linking" data-data-url="">
+  </div>
+</div>
+<script src="/resource/js/components/scroll.js" type="text/javascript"></script>
+<script src="/resource/js/components/nav_builder.js" type="text/javascript"></script>
+<script src="/resource/js/components/floating_nav.js" type="text/javascript"></script>
+
+<div id="figure-lightbox-container"></div>
+
+<script id="figure-lightbox-template" type="text/template">
+  <div id="figure-lightbox" class="reveal-modal full" data-reveal aria-hidden="true"
+       role="dialog">
+    <div class="lb-header">
+      <h1 id="lb-title"><%= articleTitle %></h1>
+
+      <div id="lb-authors">
+            <span>Jun Sung Kim</span>
+            <span>Sang-Kyu Park</span>
+            <span>Haeshin Lee</span>
+      </div>
+
+      <div class="lb-close" title="close">&nbsp;</div>
+    </div>
+    <div class="img-container">
+      <div class="loader"> <i class="fa-spinner"></i> </div>
+      <img class="main-lightbox-image" src=""/>
+      <aside id="figures-list">
+        <% figureList.each(function (ix, figure) { %>
+        <div class="change-img" data-doi="<%= figure.getAttribute('data-doi') %>">
+          <img class="aside-figure" src="/plosone/article/figure/image?size=inline&id=<%= figure.getAttribute('data-doi') %>" />
+        </div>
+        <% }) %>
+        <div class="dummy-figure">
+        </div>
+      </aside>
+    </div>
+    <div id="lightbox-footer">
+
+      <div id="btns-container" class="lightbox-row <% if(figureList.length <= 1) { print('one-figure-only') } %>">
+        <div class="fig-btns-container reset-zoom-wrapper left">
+          <span class="fig-btn reset-zoom-btn">Reset zoom</span>
+        </div>
+        <div class="zoom-slider-container">
+          <div class="range-slider-container">
+            <span id="lb-zoom-min"></span>
+            <div class="range-slider round" data-slider data-options="start: 20; end: 200; initial: 20;">
+              <span class="range-slider-handle" role="slider" tabindex="0"></span>
+              <span class="range-slider-active-segment"></span>
+              <input type="hidden">
+            </div>
+            <span id="lb-zoom-max"></span>
+          </div>
+        </div>
+        <% if(figureList.length > 1) { %>
+        <div class="fig-btns-container">
+          <span class="fig-btn all-fig-btn"><i class="icon icon-all"></i> All Figures</span>
+          <span class="fig-btn next-fig-btn"><i class="icon icon-next"></i> Next</span>
+          <span class="fig-btn prev-fig-btn"><i class="icon icon-prev"></i> Previous</span>
+        </div>
+        <% } %>
+      </div>
+      <div id="image-context">
+      </div>
+    </div>
+  </div>
+</script>
+
+<script id="image-context-template" type="text/template">
+  <div class="footer-text">
+    <div id="figure-description-wrapper">
+      <div id="view-more-wrapper" style="<% descriptionExpanded? print('display:none;') : '' %>">
+        <span id="figure-title"><%= title %></span>
+        <p id="figure-description">
+          <%= description %>&nbsp;&nbsp;
+        </p>
+        <span id="view-more">show more<i class="icon-arrow-right"></i></span>
+
+      </div>
+      <div id="view-less-wrapper" style="<% descriptionExpanded? print('display:inline-block;') : '' %>" >
+        <span id="figure-title"><%= title %></span>
+        <p id="full-figure-description">
+          <%= description %>&nbsp;&nbsp;
+          <span id="view-less">show less<i class="icon-arrow-left"></i></span>
+        </p>
+      </div>
+    </div>
+  </div>
+  <div id="show-context-container">
+    <a class="btn show-context" href="<%= showInContext(strippedDoi) %>">Show in Context</a>
+  </div>
+  <div id="download-buttons">
+    <h3>Download:</h3>
+    <div class="item">
+      <a href="/plosone/article/figure/image?size=original&download=&id=<%= doi %>" title="original image">
+        <span class="download-btn">TIFF</span>
+      </a>
+      <span class="file-size"><%= fileSizes.original %></span>
+    </div>
+    <div class="item">
+      <a href="/plosone/article/figure/image?size=large&download=&id=<%= doi %>" title="large image">
+        <span class="download-btn">PNG</span>
+      </a>
+      <span class="file-size"><%= fileSizes.large %></span>
+    </div>
+
+  </div>
+</script>
+      <div class="article-content">
+
+
+
+
+
+
+<div id="figure-carousel-section">
+  <h2>Figures</h2>
+
+  <div id="figure-carousel">
+
+    <div class="carousel-wrapper">
+      <div class="slider">
+
+          <div class="carousel-item lightbox-figure" data-doi="10.1371/journal.pone.0289493.t001">
+
+                <img src="/plosone/article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.t001"
+                     loading="lazy"
+                     alt="Table 1"
+                />
+
+            </div>
+
+          <div class="carousel-item lightbox-figure" data-doi="10.1371/journal.pone.0289493.g001">
+
+                <img src="/plosone/article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g001"
+                     loading="lazy"
+                     alt="Fig 1"
+                />
+
+            </div>
+
+          <div class="carousel-item lightbox-figure" data-doi="10.1371/journal.pone.0289493.t002">
+
+                <img src="/plosone/article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.t002"
+                     loading="lazy"
+                     alt="Table 2"
+                />
+
+            </div>
+
+          <div class="carousel-item lightbox-figure" data-doi="10.1371/journal.pone.0289493.g002">
+
+                <img src="/plosone/article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g002"
+                     loading="lazy"
+                     alt="Fig 2"
+                />
+
+            </div>
+
+          <div class="carousel-item lightbox-figure" data-doi="10.1371/journal.pone.0289493.g003">
+
+                <img src="/plosone/article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g003"
+                     loading="lazy"
+                     alt="Fig 3"
+                />
+
+            </div>
+
+          <div class="carousel-item lightbox-figure" data-doi="10.1371/journal.pone.0289493.g004">
+
+                <img src="/plosone/article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g004"
+                     loading="lazy"
+                     alt="Fig 4"
+                />
+
+            </div>
+      </div>
+    </div>
+
+    <div class="carousel-control">
+      <span class="button previous"></span>
+      <span class="button next"></span>
+    </div>
+    <div class="carousel-page-buttons">
+
+    </div>
+  </div>
+</div>
+<script src="/resource/js/vendor/jquery.touchswipe.js" type="text/javascript"></script>
+<script src="/resource/js/components/figure_carousel.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/jquery.dotdotdot.js" type="text/javascript"></script>
+
+
+        <div class="article-text" id="artText">
+          
+
+
+
+<div xmlns:plos="http://plos.org" class="abstract toc-section abstract-type-"><a id="abstract0" name="abstract0" data-toc="abstract0" class="link-target" title="Abstract"></a><h2>Abstract</h2><div class="abstract-content"><a id="article1.front1.article-meta1.abstract1.p1" name="article1.front1.article-meta1.abstract1.p1" class="link-target"></a><p>Additive manufacturing, or 3D printing, has revolutionized the way we create objects. However, its layer-by-layer process may lead to an increased incidence of local defects compared to traditional casting-based methods. Factors such as light intensity, depth of light penetration, component inhomogeneity, and fluctuations in nozzle temperature all contribute to defect formations. These defective regions can become sources of toxic component leakage, but pinpointing their locations in 3D printed materials remains a challenge. Traditional toxicological assessments rely on the extraction and subsequent exposure of living organisms to these harmful agents, thus only offering a passive detection approach. Therefore, the development of an active system to both identify and locate sources of toxicity is essential in the realm of 3D printing technologies. Herein, we introduce the use of the nematode model organism, <em>Caenorhabditis elegans</em> (<em>C</em>. <em>elegans</em>), for toxicity evaluation. <em>C</em>. <em>elegans</em> exhibits distinctive ’sensing’ and ’locomotion’ capabilities that enable it to actively navigate toward safe zones while steering clear of hazardous areas. This active behavior sets <em>C</em>. <em>elegans</em> apart from other aquatic and animal models, making it an exceptional choice for immediate and precise identification and localization of toxicity sources in 3D printed materials.</p>
+</div></div>
+
+
+<div xmlns:plos="http://plos.org" class="articleinfo"><p><strong>Citation: </strong>Kim JS, Park S-K, Lee H (2023) Sniffer worm, <em>C</em>. <em>elegans</em>, as a toxicity evaluation model organism with sensing and locomotion abilities. PLoS ONE 18(8):
+           e0289493.
+        
+        https://doi.org/10.1371/journal.pone.0289493</p><p><strong>Editor: </strong>Myon-Hee Lee, East Carolina University, UNITED STATES</p><p><strong>Received: </strong>February 14, 2023; <strong>Accepted: </strong>July 19, 2023; <strong>Published: </strong> August 2, 2023</p><p><strong>Copyright: </strong> © 2023 Kim et al. This is an open access article distributed under the terms of the <a href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution License</a>, which permits unrestricted use, distribution, and reproduction in any medium, provided the original author and source are credited.</p><p><strong>Data Availability: </strong>All relevant data are within the manuscript and its <a href="#sec020">Supporting information</a> files.</p><p><strong>Funding: </strong>This work was supported by a National Research Foundation of Korea (NRF) grant funded by the Korea government (MSIT) (No. 2018R1A5A1025208) and the Disaster and Safety Management Institute (MPSS-CG-2016-02) from The Ministry of Public Safety and Security of the Republic of Korea (JSK). The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript.</p><p><strong>Competing interests: </strong> The authors have declared that no competing interests exist.</p></div>
+
+
+
+
+
+<div xmlns:plos="http://plos.org" id="section1" class="section toc-section"><a id="sec001" name="sec001" data-toc="sec001" class="link-target" title="Introduction"></a><h2>Introduction</h2><a id="article1.body1.sec1.p1" name="article1.body1.sec1.p1" class="link-target"></a><p>A critical and indispensable step in developing new materials for biomedical applications is the toxicological evaluation of novel materials [<a href="#pone.0289493.ref001" class="ref-tip">1</a>]. Assessment of material toxicity fundamentally requires testing on living organisms. Early toxicological studies employed plant species, such as <em>Lemna gibba</em> [<a href="#pone.0289493.ref002" class="ref-tip">2</a>]. <em>Lemna gibba</em>’s small size, simple cultivation process, and short life cycle render it a practical candidate for toxicity assessments [<a href="#pone.0289493.ref003" class="ref-tip">3</a>, <a href="#pone.0289493.ref004" class="ref-tip">4</a>]. The primary advantage of utilizing this plant model resides in the observation of growth inhibition induced by toxic elements. However, the outcomes obtained from <em>Lemna gibba</em> growth inhibition studies do not directly parallel the toxicological impacts on humans.</p>
+<a id="article1.body1.sec1.p2" name="article1.body1.sec1.p2" class="link-target"></a><p>Due to the discrepancies between plant-based toxicity models and human toxicity outcomes, subsequent research has embraced the use of animal models. These models can be broadly categorized into two groups. One involves aquatic organisms, such as <em>Daphnia</em> [<a href="#pone.0289493.ref005" class="ref-tip">5</a>, <a href="#pone.0289493.ref006" class="ref-tip">6</a>] or <em>Danio rerio</em> (zebrafish) [<a href="#pone.0289493.ref007" class="ref-tip">7</a>, <a href="#pone.0289493.ref008" class="ref-tip">8</a>] and the other is terrestrial animals, including rats or mice [<a href="#pone.0289493.ref009" class="ref-tip">9</a>]. Toxicological effects observed in aquatic animals are assessed by various factors, such as acute immobilization, mobility, survival, developmental disorder, and/or embryo hatching [<a href="#pone.0289493.ref006" class="ref-tip">6</a>]. However, the findings from aquatic settings vary significantly from those observed in terrestrial conditions, thus inclining researchers towards the use of terrestrial animal models. Rats and mice have been dominantly chosen as animal models due to small size, affordability, and high reproductive rates. Nonetheless, the recent enforcement of rigorous and comprehensive ethical regulations has introduced considerable challenges to the employment of these model systems [<a href="#pone.0289493.ref010" class="ref-tip">10</a>]. Consequently, organ-on-a-chip technologies have been introduced as alternative approaches [<a href="#pone.0289493.ref011" class="ref-tip">11</a>]. Additionally, cosmetic science has started to find new methods for assessing the toxicity of novel components.</p>
+<a id="article1.body1.sec1.p3" name="article1.body1.sec1.p3" class="link-target"></a><p>The challenges associated with current model systems have motivated researchers to develop convenient and ethically sound methods for toxicity evaluation. Importantly, additive manufacturing technologies known as 3D printing also necessitate the development of new toxicity assessment systems [<a href="#pone.0289493.ref012" class="ref-tip">12</a>]. Compared with objects manufactured through a conventional casting-based method, ones produced by 3D printing inherently exhibit increased defective regions. This is primarily due to the intrinsic layer-by-layer deposition processes in additive manufacturing, which inherently involve multiple iterations, during which the generation of defects is inescapable. In stereolithography (SLA) methods, variances in factors such as light intensity, penetration depth, and the concentration and dispersion inhomogeneity of polymers can arise [<a href="#pone.0289493.ref013" class="ref-tip">13</a>]. Furthermore, UV-light irradiation triggers a homolytic bond cleavage, resulting in the creation of highly reactive radical species, which serve as the roots of chemical toxicity. In fused deposition modeling (FDM), fluctuations in nozzle temperature significantly contribute to the development of local defects during the printing process [<a href="#pone.0289493.ref014" class="ref-tip">14</a>]. Given that 3D printing techniques are optimally suited for small-scale prototype production, each product may exhibit distinctive defect sites, thereby leading to disparate levels of toxicity.</p>
+<a id="article1.body1.sec1.p4" name="article1.body1.sec1.p4" class="link-target"></a><p>Consequently, it becomes imperative to develop a novel animal model capable of detecting variations in toxicity sources between individual products. Unfortunately, the existing plant and animal models are insufficient for this purpose (<a href="#pone-0289493-t001">Table 1</a>). Plant models, lacking locomotive capabilities, fail to discern toxicological sources within printed materials. Although zebrafish, an aquatic model used in toxicity evaluations, possess locomotive abilities, the diffusion of leached toxic compounds in water impedes their effectiveness in accurately locating toxicity sources within printed materials. Additionally, foreign body reactions to implanted materials in mice and rats further complicate identifying toxicity sources.</p>
+<a class="link-target" id="pone-0289493-t001" name="pone-0289493-t001"></a><div class="figure" data-doi="10.1371/journal.pone.0289493.t001"><div class="img-box"><a title="Click for larger image" href="article/figure/image?size=medium&amp;id=10.1371/journal.pone.0289493.t001" data-doi="10.1371/journal.pone.0289493" data-uri="10.1371/journal.pone.0289493.t001"><img src="article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.t001" alt="thumbnail" class="thumbnail" loading="lazy"></a><div class="expand"></div></div><div class="figure-inline-download">
+          Download:
+          <ul><li><a href="article/figure/image?download&amp;size=large&amp;id=10.1371/journal.pone.0289493.t001"><div class="definition-label">PNG</div><div class="definition-description">larger image</div></a></li><li><a href="article/figure/image?download&amp;size=original&amp;id=10.1371/journal.pone.0289493.t001"><div class="definition-label">TIFF</div><div class="definition-description">original image</div></a></li></ul></div><div class="figcaption"><span>Table 1. </span> Typical model organism list and their chemical detection ability and locomotion.</div><p class="caption_target"></p><p class="caption_object"><a href="https://doi.org/10.1371/journal.pone.0289493.t001">
+              https://doi.org/10.1371/journal.pone.0289493.t001</a></p></div><a id="article1.body1.sec1.p5" name="article1.body1.sec1.p5" class="link-target"></a><p>Given these challenges, it becomes critical to introduce a toxicity model that unifies both sensing and locomotion capabilities. We propose the employment of <em>Caenorhabditis elegans</em> (<em>C</em>. <em>elegans</em>), a model endowed with the capacity to discern both the overall toxicity and specific toxic sites within printed materials. <em>C</em>. <em>elegans</em> was chosen due to its inherent chemotactic behavior [<a href="#pone.0289493.ref015" class="ref-tip">15</a>]. The crawling activity of the nematode serves as phenotypic indicators pivotal for pinpointing the sources of toxicity within test materials. Furthermore, the lifespan of <em>C</em>. <em>elegans</em> is short from two to four weeks, making it a suitable model system [<a href="#pone.0289493.ref016" class="ref-tip">16</a>]. As one of the few organisms with a fully sequenced genome [<a href="#pone.0289493.ref017" class="ref-tip">17</a>], the adult worm measures approximately 1 mm in length, with well-documented differentiation pathways for all 959 cells originating from a single germinal cell [<a href="#pone.0289493.ref018" class="ref-tip">18</a>]. This feature makes <em>C</em>. <em>elegans</em> an ideal candidate for evaluating toxicity effects. This attractive animal has already been studied in various fields, including aging, new drug development, and neurobiology [<a href="#pone.0289493.ref019" class="ref-tip">19</a>–<a href="#pone.0289493.ref023" class="ref-tip">23</a>]. Yet, the potential of <em>C</em>. <em>elegans</em> as an ’active’ toxicological model, integrating both sensing and locomotion capabilities, has been unexplored.</p>
+</div>
+
+<div xmlns:plos="http://plos.org" id="section2" class="section toc-section"><a id="sec002" name="sec002" data-toc="sec002" class="link-target" title="Materials and methods"></a><h2>Materials and methods</h2>
+<div id="section1" class="section toc-section"><a id="sec003" name="sec003" class="link-target" title="Materials"></a>
+<h3>Materials</h3>
+<a id="article1.body1.sec2.sec1.p1" name="article1.body1.sec2.sec1.p1" class="link-target"></a><p>A stereo-lithographic 3D printer (Master Plus J) and its resin (Arario 410) containing diglycidyl ether of bisphenol (20–40%), acryloyl morpholine (10–20%), tripropylene glycol diacrylate (20–40%), 1-hydroxycyclohexyl phenyl ketone (3–7%), diphenylphosphine oxide (1–3%), and 2-methyl-4-2-morpholinopropiophenone (1–3%) were purchased from Carima CO, Korea. A dissecting microscope was purchased from Olympus (SZ61, Tokyo, Japan). The 3D-printed blocks in this study were designed using the commercial 3D modeling program Rhino 3D (Rhinoceros version 5 SR 12, USA). Except those reported above, all chemical agents were purchased from Sigma-Aldrich CO. St. Louis, MO, USA.</p>
+</div>
+
+<div id="section2" class="section toc-section"><a id="sec004" name="sec004" class="link-target" title="Preparation of 3D-printed blocks, extracts and food sources"></a>
+<h3>Preparation of 3D-printed blocks, extracts and food sources</h3>
+<a id="article1.body1.sec2.sec2.p1" name="article1.body1.sec2.sec2.p1" class="link-target"></a><p>3D-printed products were printed in dimensions of 10 mm by 10 mm with a height of 1 mm. The 80 printed blocks and magnetic stirrer were added to 400 mL of Luria-Bertani broth (LB) media, and extraction was carried out for 72 hours at room temperature. During the extraction, the bottle was protected from light. Then, the mixture was filtered by a bottle top filter (Sartolab<sup>®</sup> BT vacuum filter 180C5E, pore size of 0.22 μm). After all the steps mentioned above, Escherichia coli OP50 (uracil auxotroph) was grown in 20 ml of extracted LB media at 37°C with shaking (220 rpm) for 16 hours.</p>
+</div>
+
+<div id="section3" class="section toc-section"><a id="sec005" name="sec005" class="link-target" title="C. elegans maintenance"></a>
+<h3><em>C</em>. <em>elegans</em> maintenance</h3>
+<a id="article1.body1.sec2.sec3.p1" name="article1.body1.sec2.sec3.p1" class="link-target"></a><p>The N2 CGCb strain was used as a wild-type control. The CL2070 (hsp-16.2::gfp) and CF1553 (sod-3::gfp) strains were kindly given to us by Sang-Kyu Park (Department of Medical Biotechnology, SoonChunHyang Univ.). Nematode growth medium (NGM) containing 25 mM NaCl, 1.7% agar, 2.5 mg/ml peptone, 5 μg/mL cholesterol, 1 mM CaCl<sub>2</sub>, 1 mM MgSO<sub>4</sub>, and 50 mM KH<sub>2</sub>PO<sub>4</sub> (pH 6.0) was used as a growth medium. All experiments were conducted at 20 °C unless otherwise mentioned. <em>E</em>. <em>coli</em> OP50 was added to each NGM plate as a food source.</p>
+</div>
+
+<div id="section4" class="section toc-section"><a id="sec006" name="sec006" class="link-target" title="Lifespan assay"></a>
+<h3>Lifespan assay</h3>
+<a id="article1.body1.sec2.sec4.p1" name="article1.body1.sec2.sec4.p1" class="link-target"></a><p>Sixty age-synchronized 3-day-old worms were transferred to fresh NGM plates, and 5-fluoro-2’-deoxyruridine (FUdR) was added to prevent internal hatching. Thereafter, worms were transferred to fresh NGM plates with FUdR every other day until all worms were dead. The number of living and dead worms was scored every day. Three independent replicate experiments were performed. Statistical analysis was performed using the log-rank test [<a href="#pone.0289493.ref024" class="ref-tip">24</a>].</p>
+</div>
+
+<div id="section5" class="section toc-section"><a id="sec007" name="sec007" class="link-target" title="GFP expression of stress-response genes"></a>
+<h3>GFP expression of stress-response genes</h3>
+<a id="article1.body1.sec2.sec5.p1" name="article1.body1.sec2.sec5.p1" class="link-target"></a><p>Age-synchronized CL2070 (hsp-16.2::gfp) and CF1553 (sod-3::gfp) worms were placed in NGM plates seeded with contaminated OP50 at 20 °C for 5 days. Then, the worms were mounted on a slide glass coated with 2% agarose and anaesthetized with 1 M sodium azide. After covering the slide with a coverslip, the expression of each reporter gene was observed using a confocal microscope (Nikon FV10i, Nikon, Tokyo, Japan). The fluorescence intensity of a randomly selected single worm was quantified with a fluorescence multiplate reader (Synergy MX, BioTek, Winooski, America).</p>
+</div>
+
+<div id="section6" class="section toc-section"><a id="sec008" name="sec008" class="link-target" title="Fertility assay"></a>
+<h3>Fertility assay</h3>
+<a id="article1.body1.sec2.sec6.p1" name="article1.body1.sec2.sec6.p1" class="link-target"></a><p>For the fertility assay, five late L4 or early young adult stage worms were transferred to a fresh NGM plates seeded with contaminated OP50 and permitted to lay eggs for 5 hrs. The eggs were maintained at 20 °C for 2 days. A single worm was transferred to a fresh NGM plates seeded with contaminated OP50 every day until it laid no eggs. Eggs spawned by a single worm were incubated at 20 °C for 48 hours, and the number of progeny produced was recorded each day. The average number of progeny produced by 5 worms treated with 3D-printed block extract was compared to that produced by control worms.</p>
+</div>
+
+<div id="section7" class="section toc-section"><a id="sec009" name="sec009" class="link-target" title="Body bending assay"></a>
+<h3>Body bending assay</h3>
+<a id="article1.body1.sec2.sec7.p1" name="article1.body1.sec2.sec7.p1" class="link-target"></a><p>This experiment was performed with a slight modification of the previously known <em>C</em>. <em>elegans</em> body bending assay [<a href="#pone.0289493.ref021" class="ref-tip">21</a>]. First, this experiment was carried out by using the result of extraction of 3D-printed blocks with double distilled water (DDW) instead of LB. The 8 3D-printed blocks and magnetic stirrers were added to 40 mL of DDW, and extraction was carried out for 72 hours at room temperature (Fig 2C). During the extraction, the bottle was protected from light. Then, the mixture was filtered by a syringe filter (Satorius Minisart<sup>®</sup> syringe filter, pore size of 0.2 μm). Upon completion of the extraction, 100 μl of NGM was spread evenly, and OP50 was seeded. After that, we transferred a 3-day-old nematode (i.e., the 3<sup>rd</sup> day from egg laying, corresponding to L4/young adult stage) to the prepared NGM. Before the start of this assay, 5-day-old worms (i.e., the 5<sup>th</sup> day from egg laying, corresponding to adult stage) were put on a sterile fresh NGM agar plate without OP50 and allowed to crawl freely to remove the agglomerated bacteria from them. After visually examining whether the bacteria were removed, a worm was put into a 96-well plate (SPL 30096, SPL life science CO., Korea) with M9 buffer and allowed to swim freely for 1 min for acclimatization to the environment. Then, the number of thrashes was counted for 1 min. We monitored at least 6 worms for each assay. A worm movement that swings its head and/or tail to the same side is counted as one thrash.</p>
+</div>
+
+<div id="section8" class="section toc-section"><a id="sec010" name="sec010" class="link-target" title="3D-printed block extract analysis using X-ray photoelectron spectroscopy"></a>
+<h3>3D-printed block extract analysis using X-ray photoelectron spectroscopy</h3>
+<a id="article1.body1.sec2.sec8.p1" name="article1.body1.sec2.sec8.p1" class="link-target"></a><p>The 3D-printed block was extracted with DDW, and 10 μl of the resultant extracted was dropped on a 10 mm by 10 mm Si wafer. Then, the DDW was evaporated naturally. X-ray photoelectron spectroscopy was performed with a Thermo Scientific<sup>™</sup> K-Alpha<sup>™</sup> X-ray photoelectron spectrometer (XPS) system.</p>
+</div>
+
+<div id="section9" class="section toc-section"><a id="sec011" name="sec011" class="link-target" title="Dead-zone detection assay"></a>
+<h3>Dead-zone detection assay</h3>
+<a id="article1.body1.sec2.sec9.p1" name="article1.body1.sec2.sec9.p1" class="link-target"></a><p>The 3D-printed block was further cured using a piece of aluminum foil, as shown in Fig 4A, as a photomask covering only half of the block, followed by additional UV irradiation. After that, we put the produced block in the center of the testing plate and put <em>C</em>. <em>elegans</em> worms at the same age of 3-day-old (i.e., the 3<sup>rd</sup> day from egg laying, corresponding to L4/young adult stage) in four places 20 mm away from the center (Fig 4C). After incubation at room temperature for 1 hr, we counted the worms that were found within 3 mm, 6 mm and 10 mm from the surface of the block. The following equation was used to quantify the distribution of worms (ⓐ &amp; ⓑ are shown in Fig 4C).</p>
+<a name="pone.0289493.e001" id="pone.0289493.e001" class="link-target"></a><span class="equation"><img src="article/file?type=thumbnail&amp;id=10.1371/journal.pone.0289493.e001" loading="lazy" class="inline-graphic"></span></div>
+</div>
+
+<div xmlns:plos="http://plos.org" id="section3" class="section toc-section"><a id="sec012" name="sec012" data-toc="sec012" class="link-target" title="Results and discussion"></a><h2>Results and discussion</h2>
+<div id="section1" class="section toc-section"><a id="sec013" name="sec013" class="link-target" title="Toxic substance effects on C. elegans’ lifespan"></a>
+<h3>Toxic substance effects on <em>C</em>. <em>elegans</em>’ lifespan</h3>
+<a id="article1.body1.sec3.sec1.p1" name="article1.body1.sec3.sec1.p1" class="link-target"></a><p>Release of toxic compounds released from the 3D-printed cuboids was monitored by observing the lifespan of <em>C</em>.<em>elegans</em>. <a href="#pone-0289493-g001">Fig 1B</a> shows the differences in the maximal lifespan of <em>C</em>. <em>elegans</em>. When <em>C</em>.<em>elegans</em> was exposed to the toxic compounds through the <em>Escherichia</em>. <em>Coli</em> (OP50) supplemented with toxic compounds extracted from the cuboids in Luria-Bertani broth (LB) media, the lifespan was reduced from 24 (black) to 20 (red) days. We hypothesized that toxic compounds released from the 3D-printed cuboids are absorbed by OP50 during the growth in LB media. A control experiment was carried out with the OP50 grown in LB media without the toxic compounds extracted from the cuboids. The mean lifespan, defined by 50% survival of <em>C</em>. <em>elegans</em>, was 15 days for the control, which was decreased to 13 days for the treatment group (dotted lines, <a href="#pone-0289493-g001">Fig 1B</a>). Three independent experiments were performed, and all detailed lifespan parameters are listed in <a href="#pone-0289493-t002">Table 2</a>. The decrease in longevity caused by the toxic compounds released from the 3D-printed cuboid was 15.8% (p&lt;0.05). FUdR has been known to affect the differential expression of various genes. However, negligible effects of FUdR on the lifespan of wild-type has been reported [<a href="#pone.0289493.ref025" class="ref-tip">25</a>–<a href="#pone.0289493.ref028" class="ref-tip">28</a>].</p>
+<a class="link-target" id="pone-0289493-g001" name="pone-0289493-g001"></a><div class="figure" data-doi="10.1371/journal.pone.0289493.g001"><div class="img-box"><a title="Click for larger image" href="article/figure/image?size=medium&amp;id=10.1371/journal.pone.0289493.g001" data-doi="10.1371/journal.pone.0289493" data-uri="10.1371/journal.pone.0289493.g001"><img src="article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g001" alt="thumbnail" class="thumbnail" loading="lazy"></a><div class="expand"></div></div><div class="figure-inline-download">
+          Download:
+          <ul><li><a href="article/figure/image?download&amp;size=large&amp;id=10.1371/journal.pone.0289493.g001"><div class="definition-label">PNG</div><div class="definition-description">larger image</div></a></li><li><a href="article/figure/image?download&amp;size=original&amp;id=10.1371/journal.pone.0289493.g001"><div class="definition-label">TIFF</div><div class="definition-description">original image</div></a></li></ul></div><div class="figcaption"><span>Fig 1. </span> Procedure of 3D-printed cuboids in LB and the effect of extracts on <em>C</em>. <em>elegans</em> health.</div><p class="caption_target"><a id="article1.body1.sec3.sec1.fig1.caption1.p1" name="article1.body1.sec3.sec1.fig1.caption1.p1" class="link-target"></a><p>(A) Schematic description of extracting toxic compounds from the 3D-printed cuboids. (B) Lifespan reduction of <em>C</em>. <em>elegans</em> by 3D-printed cuboid extracts (red line). Dotted lines indicate 50% survival of <em>C</em>. <em>elegans</em>. (C) Stress-response gene expression levels: HSP-16.2::GFP (upper panels) SOD-3::GFP (lower panels) in response to LB extract with or without released toxic compounds. (D) Quantitative analysis of the stress-responsive protein expression levels shown in Fig 1C. The black bars are the results obtained using uncontaminated LB supplementation, and the red bars are the results obtained using the LB contaminated with released toxic compounds. The asterisks indicate p-values less than 0.05 compared with the control.</p>
+</p><p class="caption_object"><a href="https://doi.org/10.1371/journal.pone.0289493.g001">
+              https://doi.org/10.1371/journal.pone.0289493.g001</a></p></div><a class="link-target" id="pone-0289493-t002" name="pone-0289493-t002"></a><div class="figure" data-doi="10.1371/journal.pone.0289493.t002"><div class="img-box"><a title="Click for larger image" href="article/figure/image?size=medium&amp;id=10.1371/journal.pone.0289493.t002" data-doi="10.1371/journal.pone.0289493" data-uri="10.1371/journal.pone.0289493.t002"><img src="article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.t002" alt="thumbnail" class="thumbnail" loading="lazy"></a><div class="expand"></div></div><div class="figure-inline-download">
+          Download:
+          <ul><li><a href="article/figure/image?download&amp;size=large&amp;id=10.1371/journal.pone.0289493.t002"><div class="definition-label">PNG</div><div class="definition-description">larger image</div></a></li><li><a href="article/figure/image?download&amp;size=original&amp;id=10.1371/journal.pone.0289493.t002"><div class="definition-label">TIFF</div><div class="definition-description">original image</div></a></li></ul></div><div class="figcaption"><span>Table 2. </span> Reduction in the lifespan of <em>C</em>. <em>elegans</em> by 3D-printed block extract.</div><p class="caption_target"></p><p class="caption_object"><a href="https://doi.org/10.1371/journal.pone.0289493.t002">
+              https://doi.org/10.1371/journal.pone.0289493.t002</a></p></div></div>
+
+<div id="section2" class="section toc-section"><a id="sec014" name="sec014" class="link-target" title="Relative expression levels of a stress-response gene"></a>
+<h3>Relative expression levels of a stress-response gene</h3>
+<a id="article1.body1.sec3.sec2.p1" name="article1.body1.sec3.sec2.p1" class="link-target"></a><p>The lifespan reduction of <em>C</em>. <em>elegans</em> exposed to the extract of a 3D-printed cuboid indicates that there might be a gene indicator to provide further evidences at a molecular level. We selected <em>hsp-16</em>.<em>2</em> and <em>sod-3</em>. <em>Hsp-16</em>.<em>2</em>, a stress-responsive reporter gene, has been known to predict longevity in <em>C</em>. <em>elegans</em>, and its expression correlates with increased resistance to heat-shock stress and enhanced lifespan [<a href="#pone.0289493.ref022" class="ref-tip">22</a>, <a href="#pone.0289493.ref029" class="ref-tip">29</a>]. <em>Sod-3</em>, on the other hand, plays a role in the cellular enzymatic defense system against reactive oxygen species [<a href="#pone.0289493.ref030" class="ref-tip">30</a>]. When the worms were exposed to the 3D-printed cuboid extracts for 2 days post-adulthood, we observed a significant downregulation of <em>hsp-16</em>.<em>2</em> in the worms treated with 3D-printed cuboid extract (<a href="#pone-0289493-g001">Fig 1C</a> upper panels and 1D left bars). The observation was made with the green fluorescent images due to the expression of the fusion protein HSP-16.2-GFP (<a href="#pone-0289493-g001">Fig 1C</a>). The qualitative analysis showed a considerable decrease in overall green fluorescence. In addition, quantitative analysis (n = 20 for each group) was also performed. The relative expression level of hsp-16.2 decreased to 52.96 ± 6.37% for the group supplemented with the 3D-printed cuboid extracts (<a href="#pone-0289493-g001">Fig 1D</a>, left bars). A comparable result was obtained with SOD-3-GFP expression (74.92 ± 6.34% for the 3D cuboid extract group) (<a href="#pone-0289493-g001">Fig 1C</a> lower panels and 1D right bars). These findings suggest that the nematodes exposed to 3D-printed cuboid extracts have diminished the stress resistance capabilities, supporting our previous findings regarding the reduction in lifespan.</p>
+</div>
+
+<div id="section3" class="section toc-section"><a id="sec015" name="sec015" class="link-target" title="Toxic substance effects on C. elegans’ fertility"></a>
+<h3>Toxic substance effects on <em>C</em>. <em>elegans</em>’ fertility</h3>
+<a id="article1.body1.sec3.sec3.p1" name="article1.body1.sec3.sec3.p1" class="link-target"></a><p>We thought that the toxic substances released from the cuboids could impact the fertility of <em>C</em>. <em>elegans</em>. Normally, healthy nematode can hatch approximately 300 eggs throughout its lifetime [<a href="#pone.0289493.ref031" class="ref-tip">31</a>], resulting in the presence of tens of eggs even after one day of culturing a single <em>C</em>. <em>elegans</em> organism [<a href="#pone.0289493.ref032" class="ref-tip">32</a>]. Exposure to the toxic substances in LB medium can adversely affect the fertility of <em>C</em>. <em>elegans</em>. Thus, we designed an experiment to investigate the influence of these toxic effects on their fertility. Firstly, all <em>C</em>. <em>elegans</em> nematodes were synchronized in their age. Second, a single worm was transferred to one plate of nematode growth medium (NGM). Third, incubation at 20 °C was carried out for 24 hrs, and then the incubated <em>C</em>. <em>elegans</em> was transferred again to a new NGM plate. The empty plate incubated for 24 hrs (<a href="#pone-0289493-g002">Fig 2A</a>) was not discarded but rather placed in the same incubator (20 °C) to observe the <em>C</em>. <em>elegans</em> offspring hatched from the remaining eggs (# marked plates in <a href="#pone-0289493-g002">Fig 2A</a>). The transfer process of the single <em>C</em>. <em>elegans</em> worm was continued for 6 days until no hatched <em>C</em>. <em>elegans</em> offspring were found. We checked the number of offspring at two days after each transfer. <a href="#pone-0289493-g002">Fig 2B</a> shows the mean number of progeny hatched by 5 individual worms on each day. The overall trend regarding the number of offspring per day showed a decreased number of offspring from the <em>C</em>. <em>elegans</em> exposed to the toxic compound LB extract: 8 at 2 days, 34 at 3 days, 11 at 4 days, and 4 at 5 days. Asterisks indicate p-values less than 0.05 compared with the control. Assessing the total progeny produced by the worms is a more appropriate measure of fertility compared to daily egg production. Fertility experiments typically focus on the ability of worms to produce viable offspring, while fecundity experiments are often used to assess simply egg hatching-related effects. We observed a decreasing trend in the total number of progeny upon exposure of 3D cuboid extracts (<a href="#pone.0289493.s001">S1 Fig</a>).</p>
+<a class="link-target" id="pone-0289493-g002" name="pone-0289493-g002"></a><div class="figure" data-doi="10.1371/journal.pone.0289493.g002"><div class="img-box"><a title="Click for larger image" href="article/figure/image?size=medium&amp;id=10.1371/journal.pone.0289493.g002" data-doi="10.1371/journal.pone.0289493" data-uri="10.1371/journal.pone.0289493.g002"><img src="article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g002" alt="thumbnail" class="thumbnail" loading="lazy"></a><div class="expand"></div></div><div class="figure-inline-download">
+          Download:
+          <ul><li><a href="article/figure/image?download&amp;size=large&amp;id=10.1371/journal.pone.0289493.g002"><div class="definition-label">PNG</div><div class="definition-description">larger image</div></a></li><li><a href="article/figure/image?download&amp;size=original&amp;id=10.1371/journal.pone.0289493.g002"><div class="definition-label">TIFF</div><div class="definition-description">original image</div></a></li></ul></div><div class="figcaption"><span>Fig 2. </span> Extraction procedure of 3D-printed cuboids in DDW and mobility decreases.</div><p class="caption_target"><a id="article1.body1.sec3.sec3.fig1.caption1.p1" name="article1.body1.sec3.sec3.fig1.caption1.p1" class="link-target"></a><p>(A) Fertility assay procedure for <em>C</em>. <em>elegans</em>. (B) 3D-printed object extracts decrease fertility on day 3. Mean number of progeny produced by 5 individual worms each day. (C) Schematic description of extracting (72 hrs) toxic compounds from the 3D-printed cuboids in DDW (previously LB media). (D) The total number of observed body bending during 1 minute. The <em>C</em>. <em>elegans</em> exposed by 3DP extracts are red, and the ones by no exposure are black (n = 6). (E) Representative time-lapse photo arrays of body bending. The <em>C</em>. <em>elegans</em> exposed by 3DP extracts are shown in the lower raw, and the ones by no exposure are located in the upper raw. Asterisks indicate p-values less than 0.05 compared with the control, and the error bar indicates standard error.</p>
+</p><p class="caption_object"><a href="https://doi.org/10.1371/journal.pone.0289493.g002">
+              https://doi.org/10.1371/journal.pone.0289493.g002</a></p></div></div>
+
+<div id="section4" class="section toc-section"><a id="sec016" name="sec016" class="link-target" title="C. elegans motility test: Effect of using 3D-printed cuboid-extracted water"></a>
+<h3><em>C</em>. <em>elegans</em> motility test: Effect of using 3D-printed cuboid-extracted water</h3>
+<a id="article1.body1.sec3.sec4.p1" name="article1.body1.sec3.sec4.p1" class="link-target"></a><p>The overall negative effects on lifespan, stress-response genes, and fertility were attributed to the toxic substances released into the media which contaminated <em>E</em>. <em>coli</em> bacteria. To investigate a different mode of toxicity effect, we employed a different extraction method by replacing LB media with distilled water (<a href="#pone-0289493-g002">Fig 2C</a>). This change in the extraction method provides a difference in the toxicity mode of action. The presence of toxic substances in water rather than in the food (i.e., <em>E</em>. <em>coli</em>) may induce the change of <em>C</em>. <em>elegans’</em> bending mobility. To test this, we selected approximately ten nematodes, all of which were age-synchronized to 3 days. They were then placed in either standard NGM or contaminated NGM by using the cuboid-extracted water. <em>C</em>. <em>elegans</em> is known to exhibit unique swimming behavior characterized by body bending in an aqueous environment. Therefore, any potential toxicity in the contaminated water might affects this behavior. After the exposure, the nematodes were removed from the NGM, rinsed with M9 buffer, and transferred to a 96-well plate. This setup allowed us to analyze the bending speeds of the two groups of <em>C</em>. <em>elegans</em>. We counted the number of body bends for 1 minute. <a href="#pone-0289493-g002">Fig 2E</a> shows time-lapse photo arrays representing body bending. For a healthy <em>C</em>. <em>elegans</em> worm, it takes approximately 1.6 sec to bend its body to an opposite position (upper photos). However, we observed that twice the time was required for the same bending motion in the case of the exposed worms (lower photos). Quantitative analysis showed that the unexposed worms (control) bent 53.2 times per minute (n = 6), which was decreased to 24 bends per minute for the exposed <em>C</em>. <em>elegans</em> (n = 6) (<a href="#pone-0289493-g002">Fig 2D</a>). Although we cannot exclude the possibility of the OP50 taking up the toxins from the NGM media, these results show the adverse effect of contaminated water with the cuboid extracts on <em>C</em>. <em>elegans</em> motility.</p>
+</div>
+
+<div id="section5" class="section toc-section"><a id="sec017" name="sec017" class="link-target" title="Identification of toxicity origin by X-ray photoelectron spectroscopy (XPS)"></a>
+<h3>Identification of toxicity origin by X-ray photoelectron spectroscopy (XPS)</h3>
+<a id="article1.body1.sec3.sec5.p1" name="article1.body1.sec3.sec5.p1" class="link-target"></a><p>Biological toxicity of the photocurable resins comes from the photoinitiators [<a href="#pone.0289493.ref033" class="ref-tip">33</a>]. However, the detailed information of the resin composition used in this study is quite limited due to the company’s proprietary right. Nevertheless, we thought that the resin contains certain amount of photoinitiators. We hypothesized that unreacted photoinitiators would remain within the 3D-printed products until they leach out over time, potentially causing adverse effect on the health of <em>C</em>. <em>elegans</em>. <a href="#pone-0289493-g003">Fig 3A</a> illustrates the chemical structures of widely used UV-curable photoinitiators: 2-benzyl-2-(dimethylamino)-4’-morpholinobutyrophenone, 4-(dimethylamino)benzophenone, azobisisobutyronitrile, and 2-methyl-4-2-morpholinopropiophenone. These compounds have nitrogen atoms, which undergo homolytic cleavage upon exposure to light energy [<a href="#pone.0289493.ref034" class="ref-tip">34</a>]. Consequently, the extracted solution contains the nitrogen-containing compounds. In fact, XPS analysis revealed that the nitrogen 1s signal was detected at 400.2 eV (<a href="#pone-0289493-g003">Fig 3B</a>), indicating that the observed toxicity of the extracted solution might originate from the nitrogen-containing photoinitiators. Further, we investigated the toxic effects of 2-methyl-4′-(methylthio)-2-morpholinopropiophenone, a widely used photoinitiator in 3D printing resins, on the developmental stage of <em>C</em>. <em>elegans</em>. The results showed that abnormal development began at the L3 stage, becoming more pronounced at the L4 stage, with smaller nematode sizes (red arrows) and unhealthy body shape (blue arrow) (<a href="#pone.0289493.s002">S2 Fig</a>). The concentration-dependent toxicity behavior showed that overall behavioral toxicity was barely observed at a 0.5 mM concentration, while toxicity onset occurred at 5 mM. This finding emphasizes the importance of considering local concentration of toxic compounds leaching out from a particular defect point of 3D printed solid materials when assessing toxicity as the effective concentration affecting toxicity in a homogeneously distributed solution may differ. This further highlights the utility of <em>C</em>. <em>elegans</em> as a unique model organism for detecting toxic compounds due to its combination of locomotion and sensing abilities.</p>
+<a class="link-target" id="pone-0289493-g003" name="pone-0289493-g003"></a><div class="figure" data-doi="10.1371/journal.pone.0289493.g003"><div class="img-box"><a title="Click for larger image" href="article/figure/image?size=medium&amp;id=10.1371/journal.pone.0289493.g003" data-doi="10.1371/journal.pone.0289493" data-uri="10.1371/journal.pone.0289493.g003"><img src="article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g003" alt="thumbnail" class="thumbnail" loading="lazy"></a><div class="expand"></div></div><div class="figure-inline-download">
+          Download:
+          <ul><li><a href="article/figure/image?download&amp;size=large&amp;id=10.1371/journal.pone.0289493.g003"><div class="definition-label">PNG</div><div class="definition-description">larger image</div></a></li><li><a href="article/figure/image?download&amp;size=original&amp;id=10.1371/journal.pone.0289493.g003"><div class="definition-label">TIFF</div><div class="definition-description">original image</div></a></li></ul></div><div class="figcaption"><span>Fig 3. </span> Commonly used photoinitiators and XPS data of 3D-printed cuboid extracts.</div><p class="caption_target"><a id="article1.body1.sec3.sec5.fig1.caption1.p1" name="article1.body1.sec3.sec5.fig1.caption1.p1" class="link-target"></a><p>(A) Chemical structures of commonly used photoinitiators. Clockwise from the top-left, 2-benzyl-2-(dimethylamino)-4’-morpholinobutyrophenone, 4-(dimethylamino)benzophenone, azobisisobutyronitrile, and 2-methyl-4-2-morpholinopropiophenone. Amine groups are marked in red. (B) XPS data of 3D-printed cuboid extracts. The inset plot is an enlargement of the N1s peak. XPS analysis showed the presence of nitrogen.</p>
+</p><p class="caption_object"><a href="https://doi.org/10.1371/journal.pone.0289493.g003">
+              https://doi.org/10.1371/journal.pone.0289493.g003</a></p></div></div>
+
+<div id="section6" class="section toc-section"><a id="sec018" name="sec018" class="link-target" title="C. elegans is a unique animal model system with sensing and locomotion abilities"></a>
+<h3><em>C</em>. <em>elegans</em> is a unique animal model system with sensing and locomotion abilities</h3>
+<a id="article1.body1.sec3.sec6.p1" name="article1.body1.sec3.sec6.p1" class="link-target"></a><p>As mentioned in the introduction section, <em>C</em>. <em>elegans</em> possesses the ability to detect and move away from locations where harmful toxic compounds are present or being released, while maintaining its locomotion in non-toxic environments [<a href="#pone.0289493.ref015" class="ref-tip">15</a>]. The chemotactic behavior displayed by <em>C</em>. <em>elegans</em> can be leveraged to identify the source of toxic compound release. In the context of the experiments described in Figs <a href="#pone-0289493-g001">1</a>–<a href="#pone-0289493-g003">3</a>, which demonstrated that photoinitiators and other toxic compounds could be released from the 3D cuboids up to a certain toxicity level. Thus, we designed an experiment when fabricating a 3D cuboid. A cuboid with identical dimensions (1 x 1 x 0.1 cm<sup>3</sup>) was printed, followed by UV light illumination for post-curing to minimize the release of toxic compounds. Simultaneously, during the post-curing step, we wrapped a piece of Al foil around one half of the cuboid (<a href="#pone-0289493-g004">Fig 4A</a>). Our hypothesis was that majority of toxic compounds would be released from the half block without post-UV curing. Indeed, the non-post-cured cuboid exhibited slight bending upon applying external force (<a href="#pone-0289493-g004">Fig 4B</a>).</p>
+<a class="link-target" id="pone-0289493-g004" name="pone-0289493-g004"></a><div class="figure" data-doi="10.1371/journal.pone.0289493.g004"><div class="img-box"><a title="Click for larger image" href="article/figure/image?size=medium&amp;id=10.1371/journal.pone.0289493.g004" data-doi="10.1371/journal.pone.0289493" data-uri="10.1371/journal.pone.0289493.g004"><img src="article/figure/image?size=inline&amp;id=10.1371/journal.pone.0289493.g004" alt="thumbnail" class="thumbnail" loading="lazy"></a><div class="expand"></div></div><div class="figure-inline-download">
+          Download:
+          <ul><li><a href="article/figure/image?download&amp;size=large&amp;id=10.1371/journal.pone.0289493.g004"><div class="definition-label">PNG</div><div class="definition-description">larger image</div></a></li><li><a href="article/figure/image?download&amp;size=original&amp;id=10.1371/journal.pone.0289493.g004"><div class="definition-label">TIFF</div><div class="definition-description">original image</div></a></li></ul></div><div class="figcaption"><span>Fig 4. </span> Half area-cured 3D-printed material monitored in the presence of <em>C</em>. <em>elegans</em>.</div><p class="caption_target"><a id="article1.body1.sec3.sec6.fig1.caption1.p1" name="article1.body1.sec3.sec6.fig1.caption1.p1" class="link-target"></a><p>(A) Schematic procedure for additional curing of the 3D-printed cuboid using aluminum foil masking (blue). (B) The picture of the additionally cured 3D-printed cuboid. (C) Experimental scheme of testing attraction or avoidance behavior of <em>C</em>. <em>elegans</em> toward either the additionally cured area or not. The cuboid experienced in the procedure (A) was placed at the center of the testing plate, and the worm was placed 20 mm aside from the center. (D) Representative time-lapse photo arrays of locomotion at 3 mm and 6 mm away from the 3D-printed cuboid. (E) Result of the additionally cured area detection assay using <em>C</em>. <em>elegans</em>. The proportion of worms in the unmasked area was higher than in the masked area, with statistical significance for the 0–3 mm area (p-value &lt; 0.001). Asterisks indicate p-values less than 0.05 compared with the control, and the error bar shows standard error.</p>
+</p><p class="caption_object"><a href="https://doi.org/10.1371/journal.pone.0289493.g004">
+              https://doi.org/10.1371/journal.pone.0289493.g004</a></p></div><a id="article1.body1.sec3.sec6.p2" name="article1.body1.sec3.sec6.p2" class="link-target"></a><p>We observed distinct behavioral patterns in individual <em>C</em>. <em>elegans</em> worms when they closely approached the non-post-cured side of the cuboid, rapidly turning away from the cuboid within less than 14 sec. (<a href="#pone-0289493-g004">Fig 4D</a>, upper photos). This ’turn-away’ motion may be attributed to the formation of a gradient of toxic compounds released from the cuboid. We frequently observed this ’turn-away’ action within a 3 mm distance from the edge of the cuboid. It is noteworthy that some <em>C</em>. <em>elegans</em> worms initially crossed over the 3 mm distance while approaching the cuboid, but then quickly turned away from it (lower photos). However, in contrast to the turning-away behavior observed on the non-post-cured side, <em>C</em>. <em>elegans</em> approaching the cured side (control) showed a different response. They moved closer to the cured side without displaying the rapid turning-away motion observed on the non-cured side. While occasional turns might still occur on the cured side, they were not as frequent as the ones observed on the uncured side.</p>
+<a id="article1.body1.sec3.sec6.p3" name="article1.body1.sec3.sec6.p3" class="link-target"></a><p>Alongside these observations of the individual <em>C</em>. <em>elegans</em>, we also examined the overall population behavior. We monitored the geometrical distributions of all <em>C</em>. <em>elegans</em> organisms centered on the cuboid, one hour after worm introduction at the designated four points (<a href="#pone-0289493-g004">Fig 4C</a>). We opted for the 1 hr setting time to allow the release and gradient formation of toxic substances from the cuboids. We found that <em>C</em>. <em>elegans</em> worms were evenly distributed across both the Al foil masked or unmasked regions within a distance range from zero to 10 mm (<a href="#pone-0289493-g004">Fig 4E</a>, left bars, <a href="#pone.0289493.s003">S1 Table</a>). In other words, approximately 50% of the population of <em>C</em>. <em>elegans</em> was found in the masked region, with the remaining 50% located in the unmasked region. Upon further examination of the region from zero to 6 mm, however, we noticed differences in the geometrical distributions. Approximately 61% of the <em>C</em>. <em>elegans</em> were found in the photocured region, with 39% located in the masked region (the middle bars) (p-value = 0.0531). This difference in chemotactic behavior became more pronounced when we observed the crawling worms within a range from zero to 3 mm from the cuboid. Approximately 70% of the <em>C</em>. <em>elegans</em> worms were located in the photocured region, and 30% in the masked region (the right bars) (p-value &lt; 0.001). The results indicate that <em>C</em>. <em>elegans</em> can serve as a unique model organism for detecting toxic compounds because of its combination of locomotion and sensing abilities.</p>
+</div>
+</div>
+
+<div xmlns:plos="http://plos.org" id="section4" class="section toc-section"><a id="sec019" name="sec019" data-toc="sec019" class="link-target" title="Conclusions"></a><h2>Conclusions</h2><a id="article1.body1.sec4.p1" name="article1.body1.sec4.p1" class="link-target"></a><p>Conventional model organisms have played a significant role in past toxicity assessments of various substances. However, these typical models lack the capability to accurately determine the direction of chemical diffusion from leachable materials. In this study, we employed 3D-printed products as representative leachable materials and utilized the small nematode <em>C</em>. <em>elegans</em>, which measures approximately 1 mm in body length, for our toxicity test. This approach enabled us to conduct a toxicity assessment that would have been challenging with traditional model organisms. Our findings showed that the extract obtained from the 3D-printed block had detrimental effects on the health of <em>C</em>. <em>elegans</em>, resulting in a shortened lifespan, reduced physical activity, decreased offspring count, and diminished expression levels of stress-response genes. Moreover, by tracking the movement of the worms in the vicinity of the substance, we were able to observe the leaching point and ascertain the direction of chemical diffusion of the toxic components. This research demonstrates the utility of <em>C</em>. <em>elegans</em> as a model organism, providing insights into the understanding and evaluation of material toxicity in a dynamic manner. Consequently, material toxicity assessments that were previously impractical with conventional model organisms can now be performed by monitoring the distribution and behavior of <em>C</em>. <em>elegans</em>.</p>
+</div>
+
+<div xmlns:plos="http://plos.org" id="section5" class="section toc-section"><a id="sec020" name="sec020" data-toc="sec020" class="link-target" title="Supporting information"></a><h2>Supporting information</h2><div class="figshare_widget" doi="10.1371/journal.pone.0289493"></div><div class="supplementary-material"><a name="pone.0289493.s001" id="pone.0289493.s001" class="link-target"></a><h3 class="siTitle title-small"><a href="article/file?type=supplementary&amp;id=10.1371/journal.pone.0289493.s001">S1 Fig. </a>Total number of progeny.</h3><a id="article1.body1.sec5.supplementary-material1.caption1.p1" name="article1.body1.sec5.supplementary-material1.caption1.p1" class="link-target"></a><p class="preSiDOI">The control group produced an average of 196 offspring, while <em>C</em>. <em>elegans</em> exposed to 3D-printed (3DP) extracts produced 138 offspring on average. Error bars represent standard error.</p>
+<p class="siDoi"><a href="https://doi.org/10.1371/journal.pone.0289493.s001">https://doi.org/10.1371/journal.pone.0289493.s001</a></p><a id="article1.body1.sec5.supplementary-material1.caption1.p2" name="article1.body1.sec5.supplementary-material1.caption1.p2" class="link-target"></a><p class="postSiDOI">(PDF)</p>
+</div><div class="supplementary-material"><a name="pone.0289493.s002" id="pone.0289493.s002" class="link-target"></a><h3 class="siTitle title-small"><a href="article/file?type=supplementary&amp;id=10.1371/journal.pone.0289493.s002">S2 Fig. </a>Effects of photoinitiators on early stage development of <em>C</em>. <em>elegans</em>.</h3><a id="article1.body1.sec5.supplementary-material2.caption1.p1" name="article1.body1.sec5.supplementary-material2.caption1.p1" class="link-target"></a><p class="preSiDOI">“5 mM-M” represents 5 mM of 2-methyl-4′-(methylthio)-2-morpholinopropiophenone, and “0.5 mM-M” represents 0.5 mM of it. After L3 stage, “5 mM-M” showed abnormality of development. There were no significant differences observed between control and “0.5 mM-M” groups. Red bars indicate size of 1 mm.</p>
+<p class="siDoi"><a href="https://doi.org/10.1371/journal.pone.0289493.s002">https://doi.org/10.1371/journal.pone.0289493.s002</a></p><a id="article1.body1.sec5.supplementary-material2.caption1.p2" name="article1.body1.sec5.supplementary-material2.caption1.p2" class="link-target"></a><p class="postSiDOI">(PDF)</p>
+</div><div class="supplementary-material"><a name="pone.0289493.s003" id="pone.0289493.s003" class="link-target"></a><h3 class="siTitle title-small"><a href="article/file?type=supplementary&amp;id=10.1371/journal.pone.0289493.s003">S1 Table. </a><em>C</em>. <em>elegans</em> distribution in each area.</h3><p class="siDoi"><a href="https://doi.org/10.1371/journal.pone.0289493.s003">https://doi.org/10.1371/journal.pone.0289493.s003</a></p><a id="article1.body1.sec5.supplementary-material3.caption1.p1" name="article1.body1.sec5.supplementary-material3.caption1.p1" class="link-target"></a><p class="postSiDOI">(PDF)</p>
+</div></div>
+
+
+
+
+
+<div xmlns:plos="http://plos.org" class="section toc-section"><a id="ack" name="ack" data-toc="ack" title="Acknowledgments" class="link-target"></a><h2>Acknowledgments</h2>
+<a id="article1.back1.ack1.p1" name="article1.back1.ack1.p1" class="link-target"></a><p>All <em>C</em>. <em>elegans</em> strains were provided by Sang-Kyu Park (Department of Medical Biotechnology, College of Medical Science, Soonchunhyang University).</p>
+</div><div xmlns:plos="http://plos.org" class="toc-section"><a id="references" name="references" class="link-target" data-toc="references" title="References"></a><h2>References</h2><ol class="references"><li id="ref1"><span class="order">1.
+            </span><a name="pone.0289493.ref001" id="pone.0289493.ref001" class="link-target"></a>Thrivikraman G, Madras G, Basu B. In vitro/in vivo assessment and mechanisms of toxicity of bioceramic materials and its wear particulates. RSC Adv. 2014;4: 12763–12781. <ul class="reflinks"><li><a href="#" data-author="Thrivikraman" data-cit="ThrivikramanG%2C%20MadrasG%2C%20BasuB.%20In%20vitro%2Fin%20vivo%20assessment%20and%20mechanisms%20of%20toxicity%20of%20bioceramic%20materials%20and%20its%20wear%20particulates.%20RSC%20Adv.%202014%3B4%3A%2012763%E2%80%9312781." data-title="In%20vitro%2Fin%20vivo%20assessment%20and%20mechanisms%20of%20toxicity%20of%20bioceramic%20materials%20and%20its%20wear%20particulates" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=In+vitro%2Fin+vivo+assessment+and+mechanisms+of+toxicity+of+bioceramic+materials+and+its+wear+particulates+Thrivikraman+2014" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref2"><span class="order">2.
+            </span><a name="pone.0289493.ref002" id="pone.0289493.ref002" class="link-target"></a>Wang W. Literature review on duckweed toxicity testing. Environ Res. 1990;52: 7–22.  pmid:2190824 <ul class="reflinks" data-doi="10.1016/s0013-9351(05)80147-1"><li><a href="https://doi.org/10.1016/s0013-9351(05)80147-1" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/2190824" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Literature+review+on+duckweed+toxicity+testing+Wang+1990" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref3"><span class="order">3.
+            </span><a name="pone.0289493.ref003" id="pone.0289493.ref003" class="link-target"></a>Böcük H, Yakar A, Türker OC. Assessment of Lemna gibba L.(duckweed) as a potential ecological indicator for contaminated aquatic ecosystem by boron mine effluent. Ecol Indic. 2013;29: 538–548. <ul class="reflinks"><li><a href="#" data-author="B%C3%B6c%C3%BCk" data-cit="B%C3%B6c%C3%BCkH%2C%20YakarA%2C%20T%C3%BCrkerOC.%20Assessment%20of%20Lemna%20gibba%20L.%28duckweed%29%20as%20a%20potential%20ecological%20indicator%20for%20contaminated%20aquatic%20ecosystem%20by%20boron%20mine%20effluent.%20Ecol%20Indic.%202013%3B29%3A%20538%E2%80%93548." data-title="Assessment%20of%20Lemna%20gibba%20L.%28duckweed%29%20as%20a%20potential%20ecological%20indicator%20for%20contaminated%20aquatic%20ecosystem%20by%20boron%20mine%20effluent" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Assessment+of+Lemna+gibba+L.%28duckweed%29+as+a+potential+ecological+indicator+for+contaminated+aquatic+ecosystem+by+boron+mine+effluent+B%C3%B6c%C3%BCk+2013" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref4"><span class="order">4.
+            </span><a name="pone.0289493.ref004" id="pone.0289493.ref004" class="link-target"></a>ISO. Water quality—Determination of the toxic effect of water constituents and waste water to duckweed (Lemna minor)—Duckweed growth inhibition test. 2001. <ul class="find-nolinks"></ul></li><li id="ref5"><span class="order">5.
+            </span><a name="pone.0289493.ref005" id="pone.0289493.ref005" class="link-target"></a>Khangarot B, Ray P, Chandr H. Daphnia magna as a model to assess heavy metal toxicity: comparative assessment with mouse system. Acta Hydrochim Hydrobiol. 1987;15: 427–432. <ul class="reflinks"><li><a href="#" data-author="Khangarot" data-cit="KhangarotB%2C%20RayP%2C%20ChandrH.%20Daphnia%20magna%20as%20a%20model%20to%20assess%20heavy%20metal%20toxicity%3A%20comparative%20assessment%20with%20mouse%20system.%20Acta%20Hydrochim%20Hydrobiol.%201987%3B15%3A%20427%E2%80%93432." data-title="Daphnia%20magna%20as%20a%20model%20to%20assess%20heavy%20metal%20toxicity%3A%20comparative%20assessment%20with%20mouse%20system" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Daphnia+magna+as+a+model+to+assess+heavy+metal+toxicity%3A+comparative+assessment+with+mouse+system+Khangarot+1987" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref6"><span class="order">6.
+            </span><a name="pone.0289493.ref006" id="pone.0289493.ref006" class="link-target"></a>Collard HJ, Ji K, Lee S, Liu X, Kang S, Kho Y, et al. Toxicity and endocrine disruption in zebrafish (Danio rerio) and two freshwater invertebrates (Daphnia magna and Moina macrocopa) after chronic exposure to mefenamic acid. Ecotoxicol Environ Saf. 2013;94: 80–86.  pmid:23725676 <ul class="reflinks" data-doi="10.1016/j.ecoenv.2013.04.027"><li><a href="https://doi.org/10.1016/j.ecoenv.2013.04.027" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/23725676" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Toxicity+and+endocrine+disruption+in+zebrafish+%28Danio+rerio%29+and+two+freshwater+invertebrates+%28Daphnia+magna+and+Moina+macrocopa%29+after+chronic+exposure+to+mefenamic+acid+Collard+2013" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref7"><span class="order">7.
+            </span><a name="pone.0289493.ref007" id="pone.0289493.ref007" class="link-target"></a>Lele Z, Krone P. The zebrafish as a model system in developmental, toxicological and transgenic research. Biotechnol Adv. 1996;14: 57–72.  pmid:14536924 <ul class="reflinks" data-doi="10.1016/0734-9750(96)00004-3"><li><a href="https://doi.org/10.1016/0734-9750(96)00004-3" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/14536924" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=The+zebrafish+as+a+model+system+in+developmental%2C+toxicological+and+transgenic+research+Lele+1996" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref8"><span class="order">8.
+            </span><a name="pone.0289493.ref008" id="pone.0289493.ref008" class="link-target"></a>Oskui SM, Diamante G, Liao C, Shi W, Gan J, Schlenk D, et al. Assessing and reducing the toxicity of 3D-printed parts. Environ Sci Technol Lett. 2016;3: 1–6. <ul class="reflinks"><li><a href="#" data-author="Oskui" data-cit="OskuiSM%2C%20DiamanteG%2C%20LiaoC%2C%20ShiW%2C%20GanJ%2C%20SchlenkD%2C%20et%20al.%20Assessing%20and%20reducing%20the%20toxicity%20of%203D-printed%20parts.%20Environ%20Sci%20Technol%20Lett.%202016%3B3%3A%201%E2%80%936." data-title="Assessing%20and%20reducing%20the%20toxicity%20of%203D-printed%20parts" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Assessing+and+reducing+the+toxicity+of+3D-printed+parts+Oskui+2016" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref9"><span class="order">9.
+            </span><a name="pone.0289493.ref009" id="pone.0289493.ref009" class="link-target"></a>Parasuraman S. Toxicological screening. J Pharmacol Pharmacother. 2011;2: 74.  pmid:21772764 <ul class="reflinks" data-doi="10.4103/0976-500X.81895"><li><a href="https://doi.org/10.4103/0976-500X.81895" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/21772764" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Toxicological+screening+Parasuraman+2011" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref10"><span class="order">10.
+            </span><a name="pone.0289493.ref010" id="pone.0289493.ref010" class="link-target"></a>Morrison RJ, Kashlan KN, Flanangan CL, Wright JK, Green GE, Hollister SJ, et al. Regulatory considerations in the design and manufacturing of implantable 3D-printed medical devices. Clin Transl Sci. 2015;8: 594–600.  pmid:26243449 <ul class="reflinks" data-doi="10.1111/cts.12315"><li><a href="https://doi.org/10.1111/cts.12315" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/26243449" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Regulatory+considerations+in+the+design+and+manufacturing+of+implantable+3D-printed+medical+devices+Morrison+2015" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref11"><span class="order">11.
+            </span><a name="pone.0289493.ref011" id="pone.0289493.ref011" class="link-target"></a>Kodzius R, Schulze F, Gao X, Schneider MR. Organ-on-chip technology: Current state and future developments. Genes. 2017;8: 266.  pmid:29019963 <ul class="reflinks" data-doi="10.3390/genes8100266"><li><a href="https://doi.org/10.3390/genes8100266" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/29019963" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Organ-on-chip+technology%3A+Current+state+and+future+developments+Kodzius+2017" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref12"><span class="order">12.
+            </span><a name="pone.0289493.ref012" id="pone.0289493.ref012" class="link-target"></a>Zhu F, Skommer J, Friedrich T, Kaslin J, Wlodkowic D. 3D printed polymers toxicity profiling: A caution for biodevice applications. SPIE; 2015. pp. 82–88. <ul class="find-nolinks"></ul></li><li id="ref13"><span class="order">13.
+            </span><a name="pone.0289493.ref013" id="pone.0289493.ref013" class="link-target"></a>Karimi M. Diffusion in polymer solids and solutions. Mass Transf Chem Eng Process. 2011;25: 17. <ul class="find-nolinks"></ul></li><li id="ref14"><span class="order">14.
+            </span><a name="pone.0289493.ref014" id="pone.0289493.ref014" class="link-target"></a>Hernandez DD. Factors affecting dimensional precision of consumer 3D printing. Int J Aviat Aeronaut Aerosp. 2015;2: 2. <ul class="reflinks"><li><a href="#" data-author="Hernandez" data-cit="HernandezDD.%20Factors%20affecting%20dimensional%20precision%20of%20consumer%203D%20printing.%20Int%20J%20Aviat%20Aeronaut%20Aerosp.%202015%3B2%3A%202." data-title="Factors%20affecting%20dimensional%20precision%20of%20consumer%203D%20printing" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Factors+affecting+dimensional+precision+of+consumer+3D+printing+Hernandez+2015" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref15"><span class="order">15.
+            </span><a name="pone.0289493.ref015" id="pone.0289493.ref015" class="link-target"></a>Tomioka M, Adachi T, Suzuki H, Kunitomo H, Schafer WR, Iino Y. The insulin/PI 3-kinase pathway regulates salt chemotaxis learning in Caenorhabditis elegans. Neuron. 2006;51: 613–625.  pmid:16950159 <ul class="reflinks" data-doi="10.1016/j.neuron.2006.07.024"><li><a href="https://doi.org/10.1016/j.neuron.2006.07.024" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/16950159" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=The+insulin%2FPI+3-kinase+pathway+regulates+salt+chemotaxis+learning+in+Caenorhabditis+elegans+Tomioka+2006" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref16"><span class="order">16.
+            </span><a name="pone.0289493.ref016" id="pone.0289493.ref016" class="link-target"></a>Hope IA. C. elegans: a practical approach. OUP Oxford; 1999. <ul class="find-nolinks"></ul></li><li id="ref17"><span class="order">17.
+            </span><a name="pone.0289493.ref017" id="pone.0289493.ref017" class="link-target"></a>Hillier LW, Coulson A, Murray JI, Bao Z, Sulston JE, Waterston RH. Genomics in C. elegans: so many genes, such a little worm. Genome Res. 2005;15: 1651–1660.  pmid:16339362 <ul class="reflinks" data-doi="10.1101/gr.3729105"><li><a href="https://doi.org/10.1101/gr.3729105" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/16339362" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Genomics+in+C.+elegans%3A+so+many+genes%2C+such+a+little+worm+Hillier+2005" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref18"><span class="order">18.
+            </span><a name="pone.0289493.ref018" id="pone.0289493.ref018" class="link-target"></a>Strange K. An overview of C. elegans biology. C Elegans Methods Appl. 2006; 1–11.  pmid:16988422 <ul class="reflinks" data-doi="10.1385/1-59745-151-7:1"><li><a href="https://doi.org/10.1385/1-59745-151-7:1" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/16988422" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=An+overview+of+C.+elegans+biology+Strange+2006" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref19"><span class="order">19.
+            </span><a name="pone.0289493.ref019" id="pone.0289493.ref019" class="link-target"></a>Kim J-S, Kim S-H, Park S-K. Selenocysteine modulates resistance to environmental stress and confers anti-aging effects in C. elegans. Clinics. 2017;72: 491–498.  pmid:28954009 <ul class="reflinks" data-doi="10.6061/clinics/2017(08)07"><li><a href="https://doi.org/10.6061/clinics/2017(08)07" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/28954009" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Selenocysteine+modulates+resistance+to+environmental+stress+and+confers+anti-aging+effects+in+C.+elegans+Kim+2017" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref20"><span class="order">20.
+            </span><a name="pone.0289493.ref020" id="pone.0289493.ref020" class="link-target"></a>Kim J-S, Park S-K. Supplementation of S-allyl cysteine improves health span in Caenorhabditis elegans. Biosci J. 2017;33: 411–421. <ul class="reflinks"><li><a href="#" data-author="Kim" data-cit="KimJ-S%2C%20ParkS-K.%20Supplementation%20of%20S-allyl%20cysteine%20improves%20health%20span%20in%20Caenorhabditis%20elegans.%20Biosci%20J.%202017%3B33%3A%20411%E2%80%93421." data-title="Supplementation%20of%20S-allyl%20cysteine%20improves%20health%20span%20in%20Caenorhabditis%20elegans" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Supplementation+of+S-allyl+cysteine+improves+health+span+in+Caenorhabditis+elegans+Kim+2017" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref21"><span class="order">21.
+            </span><a name="pone.0289493.ref021" id="pone.0289493.ref021" class="link-target"></a>Nawa M, Matsuoka M. The method of the body bending assay using Caenorhabditis elegans. Bio-Protoc. 2012;2: e253–e253. <ul class="reflinks"><li><a href="#" data-author="Nawa" data-cit="NawaM%2C%20MatsuokaM.%20The%20method%20of%20the%20body%20bending%20assay%20using%20Caenorhabditis%20elegans.%20Bio-Protoc.%202012%3B2%3A%20e253%E2%80%93e253." data-title="The%20method%20of%20the%20body%20bending%20assay%20using%20Caenorhabditis%20elegans" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=The+method+of+the+body+bending+assay+using+Caenorhabditis+elegans+Nawa+2012" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref22"><span class="order">22.
+            </span><a name="pone.0289493.ref022" id="pone.0289493.ref022" class="link-target"></a>Zhang L, Jie G, Zhang J, Zhao B. Significant longevity-extending effects of EGCG on Caenorhabditis elegans under stress. Free Radic Biol Med. 2009;46: 414–421.  pmid:19061950 <ul class="reflinks" data-doi="10.1016/j.freeradbiomed.2008.10.041"><li><a href="https://doi.org/10.1016/j.freeradbiomed.2008.10.041" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/19061950" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Significant+longevity-extending+effects+of+EGCG+on+Caenorhabditis+elegans+under+stress+Zhang+2009" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref23"><span class="order">23.
+            </span><a name="pone.0289493.ref023" id="pone.0289493.ref023" class="link-target"></a>Leung MC, Williams PL, Benedetto A, Au C, Helmcke KJ, Aschner M, et al. Caenorhabditis elegans: an emerging model in biomedical and environmental toxicology. Toxicol Sci. 2008;106: 5–28.  pmid:18566021 <ul class="reflinks" data-doi="10.1093/toxsci/kfn121"><li><a href="https://doi.org/10.1093/toxsci/kfn121" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/18566021" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Caenorhabditis+elegans%3A+an+emerging+model+in+biomedical+and+environmental+toxicology+Leung+2008" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref24"><span class="order">24.
+            </span><a name="pone.0289493.ref024" id="pone.0289493.ref024" class="link-target"></a>Peto R, Peto J. Asymptotically efficient rank invariant test procedures. J R Stat Soc Ser Gen. 1972;135: 185–198. <ul class="reflinks"><li><a href="#" data-author="Peto" data-cit="PetoR%2C%20PetoJ.%20Asymptotically%20efficient%20rank%20invariant%20test%20procedures.%20J%20R%20Stat%20Soc%20Ser%20Gen.%201972%3B135%3A%20185%E2%80%93198." data-title="Asymptotically%20efficient%20rank%20invariant%20test%20procedures" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Asymptotically+efficient+rank+invariant+test+procedures+Peto+1972" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref25"><span class="order">25.
+            </span><a name="pone.0289493.ref025" id="pone.0289493.ref025" class="link-target"></a>Gandhi S, Santelli J, Mitchell DH, Wesley Stiles J, Rao Sanadi D. A simple method for maintaining large, aging populations of Caenorhabditis elegans. Mech Ageing Dev. 1980;12: 137–150.  pmid:6445025 <ul class="reflinks" data-doi="10.1016/0047-6374(80)90090-1"><li><a href="https://doi.org/10.1016/0047-6374(80)90090-1" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/6445025" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=A+simple+method+for+maintaining+large%2C+aging+populations+of+Caenorhabditis+elegans+Gandhi+1980" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref26"><span class="order">26.
+            </span><a name="pone.0289493.ref026" id="pone.0289493.ref026" class="link-target"></a>Hosono R, Mitsui Y, Sato Y, Aizawa S, Miwa J. Life span of the wild and mutant nematode Caenorhabditis elegans. Exp Gerontol. 1982;17: 163–172.  pmid:6213421 <ul class="reflinks" data-doi="10.1016/0531-5565(82)90052-3"><li><a href="https://doi.org/10.1016/0531-5565(82)90052-3" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/6213421" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Life+span+of+the+wild+and+mutant+nematode+Caenorhabditis+elegans+Hosono+1982" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref27"><span class="order">27.
+            </span><a name="pone.0289493.ref027" id="pone.0289493.ref027" class="link-target"></a>Van Raamsdonk JM, Hekimi S. FUdR causes a twofold increase in the lifespan of the mitochondrial mutant gas-1. Mech Ageing Dev. 2011;132: 519–521.  pmid:21893079 <ul class="reflinks" data-doi="10.1016/j.mad.2011.08.006"><li><a href="https://doi.org/10.1016/j.mad.2011.08.006" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/21893079" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=FUdR+causes+a+twofold+increase+in+the+lifespan+of+the+mitochondrial+mutant+gas-1+Van+Raamsdonk+2011" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref28"><span class="order">28.
+            </span><a name="pone.0289493.ref028" id="pone.0289493.ref028" class="link-target"></a>Aitlhadj L, Stürzenbaum SR. The use of FUdR can cause prolonged longevity in mutant nematodes. Mech Ageing Dev. 2010;131: 364–365.  pmid:20236608 <ul class="reflinks" data-doi="10.1016/j.mad.2010.03.002"><li><a href="https://doi.org/10.1016/j.mad.2010.03.002" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/20236608" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=The+use+of+FUdR+can+cause+prolonged+longevity+in+mutant+nematodes+Aitlhadj+2010" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref29"><span class="order">29.
+            </span><a name="pone.0289493.ref029" id="pone.0289493.ref029" class="link-target"></a>Rea SL, Wu D, Cypser JR, Vaupel JW, Johnson TE. A stress-sensitive reporter predicts longevity in isogenic populations of Caenorhabditis elegans. Nat Genet. 2005;37: 894–898.  pmid:16041374 <ul class="reflinks" data-doi="10.1038/ng1608"><li><a href="https://doi.org/10.1038/ng1608" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/16041374" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=A+stress-sensitive+reporter+predicts+longevity+in+isogenic+populations+of+Caenorhabditis+elegans+Rea+2005" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref30"><span class="order">30.
+            </span><a name="pone.0289493.ref030" id="pone.0289493.ref030" class="link-target"></a>Sánchez-Blanco A, Kim SK. Variable Pathogenicity Determines Individual Lifespan in Caenorhabditis elegans. PLOS Genet. 2011;7: e1002047.  pmid:21533182 <ul class="reflinks" data-doi="10.1371/journal.pgen.1002047"><li><a href="https://doi.org/10.1371/journal.pgen.1002047" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/21533182" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Variable+Pathogenicity+Determines+Individual+Lifespan+in+Caenorhabditis+elegans+S%C3%A1nchez-Blanco+2011" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref31"><span class="order">31.
+            </span><a name="pone.0289493.ref031" id="pone.0289493.ref031" class="link-target"></a>Stiernagle T. Maintenance of C. elegans. 1999. <ul class="find-nolinks"></ul></li><li id="ref32"><span class="order">32.
+            </span><a name="pone.0289493.ref032" id="pone.0289493.ref032" class="link-target"></a>Schafer WR. Genetics of Egg-Laying in Worms. Annu Rev Genet. 2006;0.  pmid:17094742 <ul class="reflinks" data-doi="10.1146/annurev.genet.40.110405.090527"><li><a href="https://doi.org/10.1146/annurev.genet.40.110405.090527" data-author="doi-provided" data-cit="doi-provided" data-title="doi-provided" target="_new" title="Go to article">
+                      View Article
+                    </a></li><li><a href="http://www.ncbi.nlm.nih.gov/pubmed/17094742" target="_new" title="Go to article in PubMed">
+                        PubMed/NCBI
+                      </a></li><li><a href="http://scholar.google.com/scholar?q=Genetics+of+Egg-Laying+in+Worms+Schafer+2006" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref33"><span class="order">33.
+            </span><a name="pone.0289493.ref033" id="pone.0289493.ref033" class="link-target"></a>Bail R, Patel A, Yang H, Rogers C, Rose F, Segal J, et al. The effect of a type I photoinitiator on cure kinetics and cell toxicity in projection-microstereolithography. Procedia CIRP. 2013;5: 222–225. <ul class="reflinks"><li><a href="#" data-author="Bail" data-cit="BailR%2C%20PatelA%2C%20YangH%2C%20RogersC%2C%20RoseF%2C%20SegalJ%2C%20et%20al.%20The%20effect%20of%20a%20type%20I%20photoinitiator%20on%20cure%20kinetics%20and%20cell%20toxicity%20in%20projection-microstereolithography.%20Procedia%20CIRP.%202013%3B5%3A%20222%E2%80%93225." data-title="The%20effect%20of%20a%20type%20I%20photoinitiator%20on%20cure%20kinetics%20and%20cell%20toxicity%20in%20projection-microstereolithography" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=The+effect+of+a+type+I+photoinitiator+on+cure+kinetics+and+cell+toxicity+in+projection-microstereolithography+Bail+2013" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li><li id="ref34"><span class="order">34.
+            </span><a name="pone.0289493.ref034" id="pone.0289493.ref034" class="link-target"></a>Li Z, Shen W, Liu X, Liu R. Efficient unimolecular photoinitiators for simultaneous hybrid thiol–yne–epoxy photopolymerization under visible LED light irradiation. Polym Chem. 2017;8: 1579–1588. <ul class="reflinks"><li><a href="#" data-author="Li" data-cit="LiZ%2C%20ShenW%2C%20LiuX%2C%20LiuR.%20Efficient%20unimolecular%20photoinitiators%20for%20simultaneous%20hybrid%20thiol%E2%80%93yne%E2%80%93epoxy%20photopolymerization%20under%20visible%20LED%20light%20irradiation.%20Polym%20Chem.%202017%3B8%3A%201579%E2%80%931588." data-title="Efficient%20unimolecular%20photoinitiators%20for%20simultaneous%20hybrid%20thiol%E2%80%93yne%E2%80%93epoxy%20photopolymerization%20under%20visible%20LED%20light%20irradiation" target="_new" title="Go to article in CrossRef">
+                      View Article
+                    </a></li><li><a href="http://scholar.google.com/scholar?q=Efficient+unimolecular+photoinitiators+for+simultaneous+hybrid+thiol%E2%80%93yne%E2%80%93epoxy+photopolymerization+under+visible+LED+light+irradiation+Li+2017" target="_new" title="Go to article in Google Scholar">
+                      Google Scholar
+                    </a></li></ul></li></ol></div>
+
+
+
+          <div class="ref-tooltip">
+            <div class="ref_tooltip-content">
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </section>
+  <aside class="article-aside">
+
+
+<!--[if IE 9]>
+<style>
+.dload-xml {margin-top: 38px}
+</style>
+<![endif]-->
+<div class="dload-menu">
+  <div class="dload-pdf">
+    <a href="/plosone/article/file?id=10.1371/journal.pone.0289493&type=printable"
+       id="downloadPdf" target="_blank">Download PDF</a>
+  </div>
+  <div data-js-tooltip-hover="trigger" class="dload-hover">&nbsp;
+    <ul class="dload-xml" data-js-tooltip-hover="target">
+      <li><a href="/plosone/article/citation?id=10.1371/journal.pone.0289493"
+             id="downloadCitation">Citation</a></li>
+      <li><a href="/plosone/article/file?id=10.1371/journal.pone.0289493&type=manuscript"
+             id="downloadXml">XML</a>
+      </li>
+    </ul>
+
+  </div>
+</div>
+
+<div class="aside-container">
+  <div class="print-article" id="printArticle" data-js-tooltip-hover="trigger">
+    <a href="#" onclick="window.print(); return false;" class="preventDefault" id="printBrowser">Print</a>
+  </div>
+  <div class="share-article" id="shareArticle" data-js-tooltip-hover="trigger">
+    Share
+    <ul data-js-tooltip-hover="target" class="share-options" id="share-options">
+
+      <li><a href="https://www.reddit.com/submit?url=https%3A%2F%2Fdx.plos.org%2F10.1371%2Fjournal.pone.0289493" id="shareReddit" target="_blank" title="Submit to Reddit"><img src="/resource/img/icon.reddit.16.png" width="16" height="16" alt="Reddit">Reddit</a></li>
+
+      <li><a href="https://www.facebook.com/share.php?u=https%3A%2F%2Fdx.plos.org%2F10.1371%2Fjournal.pone.0289493&t=Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities" id="shareFacebook" target="_blank" title="Share on Facebook"><img src="/resource/img/icon.fb.16.png" width="16" height="16" alt="Facebook">Facebook</a></li>
+
+      <li><a href="https://www.linkedin.com/shareArticle?url=https%3A%2F%2Fdx.plos.org%2F10.1371%2Fjournal.pone.0289493&title=Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities&summary=Checkout this article I found at PLOS"  id="shareLinkedIn" target="_blank" title="Add to LinkedIn"><img src="/resource/img/icon.linkedin.16.png" width="16" height="16" alt="LinkedIn">LinkedIn</a></li>
+
+      <li><a href="https://www.mendeley.com/import/?url=https%3A%2F%2Fdx.plos.org%2F10.1371%2Fjournal.pone.0289493"  id="shareMendeley" target="_blank" title="Add to Mendeley"><img src="/resource/img/icon.mendeley.16.png" width="16" height="16" alt="Mendeley">Mendeley</a></li>
+
+      <li><a href="https://bsky.app/intent/compose?text=Checkout%20this%20article%20I%20found%20at%20PLOS:%20https%3A%2F%2Fdx.plos.org%2F10.1371%2Fjournal.pone.0289493"  id="shareBluesky" target="_blank" title="Share on Bluesky"><img src="/resource/img/icon.bluesky.light.png" width="16" height="16" alt="Bluesky">Bluesky</a></li>
+
+      <li><a href="mailto:?subject=Sniffer worm, C. elegans, as a toxicity evaluation model organism with sensing and locomotion abilities&body=I%20thought%20you%20would%20find%20this%20article%20interesting.%20From%20PLOS ONE:%20https%3A%2F%2Fdx.plos.org%2F10.1371%2Fjournal.pone.0289493"  id="shareEmail" rel="noreferrer" aria-label="Email"><img src="/resource/img/icon.email.16.png" width="16" height="16" alt="Email">Email</a></li>
+    </ul>
+  </div>
+</div>
+
+
+     <!-- Crossmark 2.0 widget -->
+    <script src="https://crossmark-cdn.crossref.org/widget/v2.0/widget.js"></script>
+    <a aria-label="Check for updates via CrossMark" data-target="crossmark">
+      <img alt="Check for updates via CrossMark" width="150" src="https://crossmark-cdn.crossref.org/widget/v2.0/logos/CROSSMARK_BW_horizontal.svg">
+    </a>
+    <!-- End Crossmark 2.0 widget -->
+
+
+
+<div class="aside-container collections-aside-container"><!-- React Magic --></div>
+
+
+<div class="skyscraper-container">
+  <div class="title">Advertisement</div>
+<!-- DoubleClick Ad Zone -->
+  <div class='advertisement' id='div-gpt-ad-1458247671871-1' style='width:160px; height:600px;'>
+    <script type='text/javascript'>
+      googletag.cmd.push(function() { googletag.display('div-gpt-ad-1458247671871-1'); });
+    </script>
+  </div>
+</div>
+
+
+
+
+<div class="subject-areas-container">
+  <h3>Subject Areas <div id="subjInfo">?</div>
+    <div id="subjInfoText">
+      <p>For more information about PLOS Subject Areas, click
+        <a href="https://github.com/PLOS/plos-thesaurus/blob/master/README.md" target="_blank" title="Link opens in new window">here</a>.</p>
+      <span class="inline-intro">We want your feedback.</span> Do these Subject Areas make sense for this article? Click the target next to the incorrect Subject Area and let us know. Thanks for your help!
+
+
+    </div>
+  </h3>
+  <ul id="subjectList">
+      <li>
+              <a class="taxo-term" title="Search for articles about Caenorhabditis elegans"
+                 href="/plosone/search?filterSubjects=Caenorhabditis+elegans&filterJournals=PLoSONE&q=">Caenorhabditis elegans</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="Caenorhabditis elegans"><p class="taxo-explain">Is the Subject Area <strong>"Caenorhabditis elegans"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about 3D printing"
+                 href="/plosone/search?filterSubjects=3D+printing&filterJournals=PLoSONE&q=">3D printing</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="3D printing"><p class="taxo-explain">Is the Subject Area <strong>"3D printing"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about Toxicity"
+                 href="/plosone/search?filterSubjects=Toxicity&filterJournals=PLoSONE&q=">Toxicity</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="Toxicity"><p class="taxo-explain">Is the Subject Area <strong>"Toxicity"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about Hazardous materials"
+                 href="/plosone/search?filterSubjects=Hazardous+materials&filterJournals=PLoSONE&q=">Hazardous materials</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="Hazardous materials"><p class="taxo-explain">Is the Subject Area <strong>"Hazardous materials"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about Eggs"
+                 href="/plosone/search?filterSubjects=Eggs&filterJournals=PLoSONE&q=">Eggs</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="Eggs"><p class="taxo-explain">Is the Subject Area <strong>"Eggs"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about Animal behavior"
+                 href="/plosone/search?filterSubjects=Animal+behavior&filterJournals=PLoSONE&q=">Animal behavior</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="Animal behavior"><p class="taxo-explain">Is the Subject Area <strong>"Animal behavior"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about Biological locomotion"
+                 href="/plosone/search?filterSubjects=Biological+locomotion&filterJournals=PLoSONE&q=">Biological locomotion</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="Biological locomotion"><p class="taxo-explain">Is the Subject Area <strong>"Biological locomotion"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+      <li>
+              <a class="taxo-term" title="Search for articles about X-ray photoelectron spectroscopy"
+                 href="/plosone/search?filterSubjects=X-ray+photoelectron+spectroscopy&filterJournals=PLoSONE&q=">X-ray photoelectron spectroscopy</a>
+        <span class="taxo-flag">&nbsp;</span>
+        <div class="taxo-tooltip" data-categoryname="X-ray photoelectron spectroscopy"><p class="taxo-explain">Is the Subject Area <strong>"X-ray photoelectron spectroscopy"</strong> applicable to this article?
+          <button id="noFlag" data-action="remove">Yes</button>
+          <button id="flagIt" value="flagno" data-action="add">No</button></p>
+          <p class="taxo-confirm">Thanks for your feedback.</p>
+        </div>
+      </li>
+  </ul>
+</div>
+<div id="subjectErrors"></div>
+  </aside>
+</div>
+
+
+
+
+</main>
+<footer id="pageftr">
+  <div class="row">
+    <div class="block x-small">
+
+<ul class="nav nav-secondary">
+    <li class="ftr-header"><a href="https://plos.org/our-journals/">Publications</a></li>
+    <li><a href="/agingandhealth/" id="ftr-age">PLOS Aging and Health</a></li>
+    <li><a href="/plosbiology/" id="ftr-bio">PLOS Biology</a></li>
+    <li><a href="/climate/" id="ftr-climate">PLOS Climate</a></li>
+    <li><a href="/complexsystems/" id="ftr-complex-systems">PLOS Complex Systems</a></li>
+    <li><a href="/ploscompbiol/" id="ftr-compbio">PLOS Computational Biology</a></li>
+    <li><a href="/digitalhealth/" id="ftr-digitalhealth">PLOS Digital Health</a></li>
+    <li><a href="/ecosystems/" id="ftr-eco">PLOS Ecosystems</a></li>
+    <li><a href="/plosgenetics/" id="ftr-gen">PLOS Genetics</a></li>
+  </ul>
+    </div>
+    <div class="block x-small">
+
+<ul class="nav nav-secondary">
+    <li class="ftr-header">&nbsp;</li>
+    <li><a href="/globalpublichealth/" id="ftr-globalpublichealth">PLOS Global Public Health</a></li>
+    <li><a href="/plosmedicine/" id="ftr-med">PLOS Medicine</a></li>
+    <li><a href="/mentalhealth/" id="ftr-mental-health">PLOS Mental Health</a></li>
+    <li><a href="/plosntds/" id="ftr-ntds">PLOS Neglected Tropical Diseases</a></li>
+    <li><a href="/plosone/" id="ftr-one">PLOS One</a></li>
+    <li><a href="/plospathogens/" id="ftr-path">PLOS Pathogens</a></li>
+    <li><a href="/sustainabilitytransformation/" id="ftr-sustainabilitytransformation">PLOS Sustainability and Transformation</a></li>
+    <li><a href="/water/" id="ftr-water">PLOS Water</a></li>
+</ul>
+    </div>
+    <div class="block xx-small">	
+
+
+<ul class="nav nav-tertiary">
+  <li>
+    <a href="https://plos.org" id="ftr-home">Home</a>
+  </li>
+  <li>
+    <a href="https://blogs.plos.org" id="ftr-blog">Blogs</a>
+  </li>
+  <li>
+    <a href="https://collections.plos.org/" id="ftr-collections">Collections</a>
+  </li>
+  <li>
+    <a href="mailto:customercare@plos.org" id="ftr-feedback">Give feedback</a>
+  </li>
+  <li>
+    <a href="/plosone/lockss-manifest" id="ftr-lockss">LOCKSS</a>
+  </li>
+</ul>
+    </div>
+    <div class="block xx-small">
+
+<ul class="nav nav-primary">
+  <li><a href="https://plos.org/privacy-policy" id="ftr-privacy">Privacy Policy</a></li>
+  <li><a href="https://plos.org/terms-of-use" id="ftr-terms">Terms of Use</a></li>
+  <li><a href="https://plos.org/advertise/" id="ftr-advertise">Advertise</a></li>
+  <li><a href="https://plos.org/media-inquiries" id="ftr-media">Media Inquiries</a></li>
+  <li><a href="https://plos.org/contact" id="ftr-contact">Contact</a></li>
+</ul>
+    </div>
+  </div>
+  <div class="row">
+    <p>
+
+<img src="/resource/img/logo-plos-footer.png" alt="PLOS" class="logo-footer"/>
+
+
+<span class="footer-non-profit-statement">PLOS is a nonprofit 501(c)(3) corporation, #C2354500, based in California, US</span>    </p>
+    <div class="block">
+    </div>
+  </div>
+ 
+<script src="/resource/js/global.js" type="text/javascript"></script>
+</footer>
+
+
+
+
+<script type="text/javascript">
+  var ArticleData = {
+    doi: '10.1371/journal.pone.0289493',
+    title: '<article-title xmlns:mml=\"http://www.w3.org/1998/Math/MathML\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">Sniffer worm, <italic>C<\/italic>. <italic>elegans<\/italic>, as a toxicity evaluation model organism with sensing and locomotion abilities<\/article-title>',
+    date: 'Aug 02, 2023'
+  };
+</script>
+<script src="/resource/js/components/show_onscroll.js" type="text/javascript"></script>
+<script src="/resource/js/components/pagination.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/spin.js" type="text/javascript"></script>
+<script src="/resource/js/pages/article.js" type="text/javascript"></script>
+<script src="/resource/js/pages/article_references.js" type="text/javascript"></script>
+<script src="/resource/js/pages/article_sidebar.js" type="text/javascript"></script>
+<script src="/resource/js/vendor/foundation/foundation.dropdown.js" type="text/javascript"></script>
+  <script src="/resource/js/components/table_open.js" type="text/javascript"></script>
+
+        <script src="/resource/js/components/figshare.js" type="text/javascript"></script>
+  <script src="/resource/js/vendor/jquery.panzoom.min.js" type="text/javascript"></script>
+  <script src="/resource/js/vendor/jquery.mousewheel.js" type="text/javascript"></script>
+
+  <script src="/resource/js/components/lightbox.js" type="text/javascript"></script>
+
+  <script src="/resource/js/pages/article_body.js" type="text/javascript"></script>
+
+
+<!-- This file should be loaded before the renderJs, to avoid conflicts with the FigShare, that implements the MathJax also. -->
+
+<!--  mathjax configuration options  -->
+<!-- more can be found at http://docs.mathjax.org/en/latest/ -->
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  "HTML-CSS": {
+    scale: 100,
+    availableFonts: ["STIX","TeX"],
+    preferredFont: "STIX",
+    webFont: "STIX-Web",
+    linebreaks: { automatic: false }
+  },
+  jax: ["input/MathML", "output/HTML-CSS"]
+});
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=MML_HTMLorMML"></script>
+
+<div class="reveal-modal-bg"></div>
+</body>
+</html>

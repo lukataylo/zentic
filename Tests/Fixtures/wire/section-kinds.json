@@ -1,0 +1,12 @@
+{
+  "code" : false,
+  "embed" : false,
+  "figure" : false,
+  "footnotes" : false,
+  "heading" : true,
+  "list" : true,
+  "math" : false,
+  "paragraph" : true,
+  "quote" : true,
+  "table" : false
+}

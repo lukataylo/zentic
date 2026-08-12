@@ -1,0 +1,213 @@
+! Title: Zentic Seed
+! Description: First-run protection. Small enough to convert and compile in
+!   well under a second, so a cold launch is never blocked waiting for the full
+!   EasyList set to download and compile in the background.
+! Version: 1
+!
+! Scope rules for anything added here:
+!   - Only endpoints whose sole purpose is advertising, tracking or session
+!     replay. This list ships without the community review EasyList gets, so a
+!     false positive here is entirely our fault.
+!   - No CDN, font, captcha or payment host, ever.
+!   - No googletagmanager.com: sites load real functionality through GTM
+!     containers, so blocking it breaks pages. EasyPrivacy makes a more careful
+!     per-path judgement; wait for it.
+!   - No consent-manager scripts. Many sites keep content behind the wall until
+!     the CMP answers, so killing the CMP leaves a permanently walled page.
+!     Cookie walls are dismissed by autoconsent in the injected bundle instead.
+
+! ---------------------------------------------------------------- ad serving
+||doubleclick.net^$third-party
+||googlesyndication.com^$third-party
+||googleadservices.com^$third-party
+||googletagservices.com^$third-party
+||adservice.google.com^
+||pagead2.googlesyndication.com^
+||amazon-adsystem.com^$third-party
+||adnxs.com^$third-party
+||adnxs-simple.com^$third-party
+||adsrvr.org^$third-party
+||adform.net^$third-party
+||adsafeprotected.com^$third-party
+||adcolony.com^$third-party
+||adcash.com^$third-party
+||adroll.com^$third-party
+||advertising.com^$third-party
+||criteo.com^$third-party
+||criteo.net^$third-party
+||casalemedia.com^$third-party
+||pubmatic.com^$third-party
+||openx.net^$third-party
+||rubiconproject.com^$third-party
+||smartadserver.com^$third-party
+||sharethrough.com^$third-party
+||3lift.com^$third-party
+||33across.com^$third-party
+||teads.tv^$third-party
+||yieldmo.com^$third-party
+||media.net^$third-party
+||bidswitch.net^$third-party
+||indexww.com^$third-party
+||districtm.io^$third-party
+||sonobi.com^$third-party
+||gumgum.com^$third-party
+||spotxchange.com^$third-party
+||spotx.tv^$third-party
+||zedo.com^$third-party
+||servedbyadbutler.com^$third-party
+||serving-sys.com^$third-party
+||flashtalking.com^$third-party
+||doubleverify.com^$third-party
+||moatads.com^$third-party
+||sizmek.com^$third-party
+||smaato.net^$third-party
+||inmobi.com^$third-party
+||applovin.com^$third-party
+||unityads.unity3d.com^
+||propellerads.com^$third-party
+||popads.net^$third-party
+||popcash.net^$third-party
+||exoclick.com^$third-party
+||juicyads.com^$third-party
+||trafficjunky.net^$third-party
+
+! ------------------------------------------------------- content recommendation
+||taboola.com^$third-party
+||outbrain.com^$third-party
+||revcontent.com^$third-party
+||mgid.com^$third-party
+||zergnet.com^$third-party
+||content-ad.net^$third-party
+||plista.com^$third-party
+
+! ------------------------------------------------------------------- analytics
+||google-analytics.com^
+||analytics.google.com^
+||stats.g.doubleclick.net^
+||ssl.google-analytics.com^
+||scorecardresearch.com^$third-party
+||quantserve.com^$third-party
+||quantcount.com^$third-party
+||comscore.com^$third-party
+||imrworldwide.com^$third-party
+||chartbeat.com^$third-party
+||chartbeat.net^$third-party
+||parsely.com^$third-party
+||parse.ly^$third-party
+||newrelic.com^$third-party,script
+||nr-data.net^$third-party
+||segment.com/analytics.js
+||segment.io^$third-party
+||cdn.segment.com^
+||mixpanel.com^$third-party
+||amplitude.com^$third-party
+||api.amplitude.com^
+||heapanalytics.com^$third-party
+||statcounter.com^$third-party
+||histats.com^$third-party
+||sitemeter.com^$third-party
+||clicky.com^$third-party
+||matomo.cloud^$third-party
+||kissmetrics.com^$third-party
+||kissmetrics.io^$third-party
+||branch.io^$third-party
+||appsflyer.com^$third-party
+||adjust.com^$third-party
+||kochava.com^$third-party
+||app-measurement.com^
+||googleadservices.com/pagead/conversion
+
+! -------------------------------------------------------------- session replay
+||hotjar.com^$third-party
+||hotjar.io^$third-party
+||fullstory.com^$third-party
+||mouseflow.com^$third-party
+||luckyorange.com^$third-party
+||luckyorange.net^$third-party
+||crazyegg.com^$third-party
+||inspectlet.com^$third-party
+||smartlook.com^$third-party
+||clarity.ms^$third-party
+||quantummetric.com^$third-party
+||contentsquare.net^$third-party
+||decibelinsight.net^$third-party
+||sessioncam.com^$third-party
+
+! ----------------------------------------------------------- data brokers / DMP
+||krxd.net^$third-party
+||bluekai.com^$third-party
+||demdex.net^$third-party
+||everesttech.net^$third-party
+||omtrdc.net^$third-party
+||2o7.net^$third-party
+||adobedtm.com^$third-party
+||exelator.com^$third-party
+||rlcdn.com^$third-party
+||liadm.com^$third-party
+||agkn.com^$third-party
+||tapad.com^$third-party
+||mathtag.com^$third-party
+||turn.com^$third-party
+||eyeota.net^$third-party
+||lotame.com^$third-party
+||crwdcntrl.net^$third-party
+||id5-sync.com^$third-party
+||sync.search.spotxchange.com^
+
+! ------------------------------------------------------------- social trackers
+||connect.facebook.net/*/fbevents.js
+||facebook.com/tr
+||facebook.com/tr/
+||analytics.tiktok.com^
+||ads.tiktok.com^
+||ads.linkedin.com^
+||px.ads.linkedin.com^
+||snap.licdn.com^
+||ads-twitter.com^
+||analytics.twitter.com^
+||static.ads-twitter.com^
+||ct.pinterest.com^
+||s.yimg.com/wi/ytc.js
+||sc-static.net/scevent.min.js
+||analytics.snapchat.com^
+
+! -------------------------------------------------------- newsletter / upsell
+||optimizely.com^$third-party
+||optimize.google.com^
+||sumo.com^$third-party
+||sumome.com^$third-party
+||privy.com^$third-party
+||exponea.com^$third-party
+||klaviyo.com/onsite^
+||static.klaviyo.com^
+||bounceexchange.com^$third-party
+||wisepops.com^$third-party
+||justuno.com^$third-party
+||sleeknote.com^$third-party
+||drip.com^$third-party
+||attn.tv^$third-party
+||postscript.io^$third-party
+
+! ------------------------------------------------------------ ad-frame paths
+/adsbygoogle$script
+/ad-manager/*$third-party
+/adserver/*$third-party
+/banner-ads/*$third-party
+/pagead/js/adsbygoogle.js
+/googlesyndication.com/safeframe/
+
+! ----------------------------------------------------------- generic cosmetic
+! Only ids and classes that are unambiguous across the whole web. Anything
+! site-specific waits for EasyList, which is reviewed. These are the cases where
+! the element loads from first-party markup, so no network rule can reach it.
+##.adsbygoogle
+##.google-auto-placed
+##ins.adsbygoogle
+##div[id^="google_ads_iframe"]
+##div[id^="taboola-"]
+##div[id^="outbrain_widget_"]
+##.OUTBRAIN
+##.trc_related_container
+##iframe[src*="doubleclick.net"]
+##iframe[src*="googlesyndication.com"]
+##iframe[src*="amazon-adsystem.com"]

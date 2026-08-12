@@ -1,0 +1,36 @@
+{
+  "payload" : {
+    "archetype" : "article",
+    "byline" : "A. Writer",
+    "confidence" : 0.92,
+    "isFidelitySensitive" : false,
+    "lang" : "en",
+    "publishedAt" : "2025-07-31T22:13:20Z",
+    "sections" : [
+      {
+        "id" : "s0",
+        "kind" : "heading",
+        "level" : 1,
+        "markdown" : "# Hello"
+      },
+      {
+        "id" : "s1",
+        "kind" : "paragraph",
+        "markdown" : "First paragraph."
+      },
+      {
+        "html" : "<pre><code class=\"language-swift\">let x = 1<\/code><\/pre>",
+        "id" : "s2",
+        "kind" : "code",
+        "markdown" : "```swift\nlet x = 1\n```"
+      }
+    ],
+    "siteName" : "Example",
+    "title" : "Hello",
+    "url" : "https:\/\/example.com\/posts\/123\/hello",
+    "usedRecipe" : "https:\/\/example.com|\/posts\/*",
+    "wordCount" : 812
+  },
+  "type" : "extracted",
+  "v" : 1
+}
