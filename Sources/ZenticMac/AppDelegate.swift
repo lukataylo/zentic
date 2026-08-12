@@ -148,7 +148,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu(title: "View")
         menu.addItem(item("Reload Page", #selector(BrowserViewController.reloadCommand(_:)), "r"))
         menu.addItem(
-            item("Toggle Original", #selector(BrowserViewController.toggleOriginalCommand(_:)), "\\")
+            item("Show Original Page", #selector(BrowserViewController.toggleOriginalCommand(_:)), "\\")
+        )
+        menu.addItem(.separator())
+        menu.addItem(
+            item("Simplify Page", #selector(BrowserViewController.simplifyCommand(_:)), "s", [.command, .shift])
+        )
+        menu.addItem(
+            item("Show Original Text", #selector(BrowserViewController.discardRewriteCommand(_:)), "")
         )
         menu.addItem(.separator())
         menu.addItem(
@@ -161,9 +168,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Focus Mode", #selector(BrowserViewController.toggleFocusModeCommand(_:)), "f", [.command, .shift])
         )
         menu.addItem(.separator())
+        menu.addItem(backgroundMenuItem())
+        menu.addItem(.separator())
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
 
         let holder = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+        holder.submenu = menu
+        return holder
+    }
+
+    /// Background: how much of the space's colour sits over the window's vibrancy,
+    /// and the space colour itself.
+    private func backgroundMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Background")
+        for (index, strength) in TintStrength.allCases.enumerated() {
+            menu.addItem(
+                item(
+                    strength.title,
+                    #selector(BrowserViewController.setTintStrengthCommand(_:)),
+                    "",
+                    .command,
+                    tag: index
+                )
+            )
+        }
+        menu.addItem(.separator())
+        menu.addItem(
+            item("Cycle Background", #selector(BrowserViewController.cycleTintCommand(_:)), "b", [.command, .option])
+        )
+        menu.addItem(
+            item("Space Colour…", #selector(BrowserViewController.pickSpaceColorCommand(_:)), "")
+        )
+
+        let holder = NSMenuItem(title: "Background", action: nil, keyEquivalent: "")
         holder.submenu = menu
         return holder
     }

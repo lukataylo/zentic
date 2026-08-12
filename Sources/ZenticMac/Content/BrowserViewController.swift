@@ -281,6 +281,13 @@ final class BrowserViewController: NSViewController {
         restoreSession()
     }
 
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        // The traffic lights only have a frame once there is a window, and the
+        // toolbar's row is measured from them. Cheap, and only on window show.
+        updateChromeLayout(animated: false)
+    }
+
     // MARK: - Session
 
     private func restoreSession() {
@@ -595,9 +602,37 @@ final class BrowserViewController: NSViewController {
         switchTo(space: space)
     }
 
+    private static let tintStrengthKey = "zentic.tintStrength"
+
+    /// How much of the space colour sits over the vibrancy. Persisted, because it
+    /// is a taste setting the user makes once, not something to relearn each launch.
+    private var tintStrength: TintStrength {
+        get {
+            UserDefaults.standard.string(forKey: Self.tintStrengthKey)
+                .flatMap(TintStrength.init(rawValue:)) ?? .glass
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.tintStrengthKey)
+            applyTint()
+        }
+    }
+
     private func applyTint() {
         let color = activeSpace.flatMap { NSColor(hex: $0.tintHex) } ?? .systemIndigo
         tint.setTint(color)
+        tint.setStrength(tintStrength)
+    }
+
+    /// Cycles the background through the tint presets — ⌥⌘B.
+    func cycleTintStrength() {
+        let all = TintStrength.allCases
+        let next = all[((all.firstIndex(of: tintStrength) ?? 0) + 1) % all.count]
+        tintStrength = next
+        trace("chrome", "background \(next.title)")
+    }
+
+    func setTintStrength(_ strength: TintStrength) {
+        tintStrength = strength
     }
 
     // MARK: - Sidebar model
@@ -665,7 +700,24 @@ final class BrowserViewController: NSViewController {
     }
 
     private func item(for tab: Tab) -> SidebarModel.TabItem {
-        .init(id: tab.id, title: tab.displayTitle, icon: icon(for: tab))
+        .init(
+            id: tab.id,
+            title: tab.displayTitle,
+            icon: icon(for: tab),
+            transform: transformState(for: tab.id)
+        )
+    }
+
+    /// What the tab's row should advertise. Only a resident tab can say — a
+    /// suspended one has no page to describe, so it shows nothing rather than a
+    /// stale claim.
+    private func transformState(for tabID: UUID) -> SidebarModel.TabTransformState {
+        guard let controller = controllers[tabID], controller.isResident else { return .original }
+        switch controller.rewriteState {
+        case .running: return .rewriting
+        case .shown: return .rewritten
+        case .none, .failed: return controller.isTransformed ? .transformed : .original
+        }
     }
 
     /// Decoded favicons, keyed by tab.
@@ -759,6 +811,14 @@ final class BrowserViewController: NSViewController {
             canGoForward: controller?.canGoForward ?? false,
             isLoading: controller?.isLoading ?? false
         )
+        toolbar.apply(
+            reader: ReaderControlState(
+                mode: controller?.readerMode ?? .restructured,
+                canTransform: controller?.didRestructure ?? false,
+                canRewrite: controller?.canRewrite ?? false,
+                rewrite: controller?.rewriteState ?? .none
+            )
+        )
         view.window?.title = controller?.title ?? "Zentic"
     }
 
@@ -800,6 +860,32 @@ final class BrowserViewController: NSViewController {
         updateChromeLayout(animated: true)
     }
 
+    /// Where the traffic lights actually are, measured rather than assumed.
+    ///
+    /// With the sidebar collapsed the toolbar shares their row, so "close to the
+    /// right place" is not good enough — a few points out and the address bar reads
+    /// as a second row rather than one continuous strip. AppKit positions the
+    /// buttons itself and the offsets differ by system version, so the only
+    /// reliable source is the buttons.
+    ///
+    /// Returns the distance from the top of the content view to their vertical
+    /// centre, and the x just past the rightmost one.
+    private var trafficLightMetrics: (centerFromTop: CGFloat, trailingX: CGFloat) {
+        guard
+            let window = view.window,
+            let close = window.standardWindowButton(.closeButton),
+            let zoom = window.standardWindowButton(.zoomButton)
+        else {
+            // Before the window exists. `updateChromeLayout` runs again from
+            // `viewDidAppear`, so this only ever shows for the first layout pass.
+            return (Chrome.trafficLightInset / 2, Chrome.trafficLightInset)
+        }
+        let closeInRoot = view.convert(close.bounds, from: close)
+        let zoomInRoot = view.convert(zoom.bounds, from: zoom)
+        let centerFromTop = view.bounds.height - closeInRoot.midY
+        return (centerFromTop, zoomInRoot.maxX)
+    }
+
     /// Resolves every chrome constraint from ``isSidebarPinned``,
     /// ``isToolbarPinned``, ``isFocusMode`` and the two reveal latches.
     ///
@@ -833,14 +919,21 @@ final class BrowserViewController: NSViewController {
             ? 0
             : -(restoredSidebarWidth + Chrome.glassShadowRadius + Chrome.contentInset)
 
+        let lights = trafficLightMetrics
+        // With no sidebar, the toolbar shares the traffic lights' row: centred on
+        // them, and starting just past the zoom button. That is the whole point of
+        // collapsing — the address bar moves up into space that was already spent
+        // on window furniture, instead of costing a row of its own.
+        let inlineTop = lights.centerFromTop - Chrome.toolbarHeight / 2
+
         if isToolbarPinned {
-            toolbarTop.constant = isSidebarPinned ? 0 : Chrome.trafficLightInset - Chrome.toolbarHeight
+            toolbarTop.constant = isSidebarPinned ? 0 : inlineTop
         } else {
             toolbarTop.constant = toolbarShowing
-                ? topClearance + Chrome.contentInset
+                ? (isSidebarPinned ? topClearance + Chrome.contentInset : inlineTop)
                 : -(Chrome.toolbarHeight + Chrome.findBarHeight + Chrome.glassShadowRadius)
         }
-        toolbarLeading.constant = isSidebarPinned ? 0 : Chrome.trafficLightInset - inset
+        toolbarLeading.constant = isSidebarPinned ? 0 : max(0, lights.trailingX + 10 - inset)
 
         // Glass only while floating. Pinned chrome already has the window's vibrancy
         // behind it, and stacking a second blur pass on top costs a frame for
@@ -1050,6 +1143,165 @@ extension BrowserViewController: ContentToolbarDelegate {
     func toolbarDidRequestDownloads(_ sender: NSView) {
         downloads.showPopover(relativeTo: sender)
     }
+
+    func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode) {
+        guard let controller = selectedController, controller.readerMode != mode else { return }
+        controller.toggleReaderMode()
+        updateToolbar()
+        rebuildSidebar()
+    }
+
+    func toolbarDidRequestRewrite(_ sender: NSView) {
+        guard let controller = selectedController, controller.canRewrite else { return }
+        presentRewriteMenu(from: sender, for: controller)
+    }
+
+    func toolbarDidRequestDiscardRewrite() {
+        selectedController?.discardRewrite()
+        updateToolbar()
+        rebuildSidebar()
+    }
+
+    /// The rewrite menu: one-click presets, then the axes spelled out.
+    private func presentRewriteMenu(from sender: NSView, for controller: TabController) {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Rewrite this page", action: nil, keyEquivalent: "").isEnabled = false
+        menu.addItem(.separator())
+
+        for preset in RewritePreset.allCases {
+            let item = NSMenuItem(
+                title: preset.title,
+                action: #selector(runRewritePreset(_:)),
+                keyEquivalent: preset.keyEquivalent
+            )
+            item.keyEquivalentModifierMask = [.command, .shift]
+            item.target = self
+            item.tag = preset.rawValue
+            item.toolTip = preset.detail
+            menu.addItem(item)
+        }
+
+        if case .shown = controller.rewriteState {
+            menu.addItem(.separator())
+            let restore = NSMenuItem(
+                title: "Show Original Text",
+                action: #selector(discardRewriteCommand(_:)),
+                keyEquivalent: ""
+            )
+            restore.target = self
+            menu.addItem(restore)
+        }
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
+    }
+
+    @objc private func runRewritePreset(_ sender: NSMenuItem) {
+        guard let preset = RewritePreset(rawValue: sender.tag),
+            let controller = selectedController,
+            controller.canRewrite
+        else { return }
+
+        // Invariant 6: news, medical, legal and financial pages need an explicit
+        // confirm, because on those a re-voiced sentence stops being a style
+        // choice and becomes a claim about what someone said.
+        if controller.needsFidelityConfirmation {
+            let alert = NSAlert()
+            alert.messageText = "Rewrite this page?"
+            alert.informativeText = """
+                This looks like news, medical, legal or financial content, where exact \
+                wording matters. A rewrite is generated by a model and can lose nuance.
+
+                The original stays one click away, and rewritten text is badged.
+                """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Rewrite")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+
+        controller.rewrite(
+            tone: preset.tone,
+            length: preset.length,
+            readingLevel: preset.readingLevel
+        )
+        updateToolbar()
+    }
+
+    @objc func discardRewriteCommand(_ sender: Any?) { toolbarDidRequestDiscardRewrite() }
+
+    /// ⌘⇧S — the headline action, straight to Simplify with no menu.
+    @objc func simplifyCommand(_ sender: Any?) {
+        guard let controller = selectedController, controller.canRewrite else { return }
+        let item = NSMenuItem()
+        item.tag = RewritePreset.simplify.rawValue
+        runRewritePreset(item)
+    }
+}
+
+/// The rewrite presets offered in the UI.
+///
+/// Presets rather than three separate pickers for tone, length and reading level:
+/// the axes are real and the API exposes them, but a menu of twelve combinations
+/// is a worse product than five that each answer a question someone actually has.
+enum RewritePreset: Int, CaseIterable {
+    case simplify
+    case concise
+    case bullets
+    case plainEnglish
+    case explain
+
+    var title: String {
+        switch self {
+        case .simplify: "Simplify"
+        case .concise: "Make Concise"
+        case .bullets: "Summarise as Bullets"
+        case .plainEnglish: "Plain English"
+        case .explain: "Explain More"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .simplify: "Shorter sentences, common words, same facts."
+        case .concise: "Cuts filler and repetition."
+        case .bullets: "Turns each passage into a short list."
+        case .plainEnglish: "Removes jargon without shortening."
+        case .explain: "Unpacks what is there — never adds facts."
+        }
+    }
+
+    var keyEquivalent: String {
+        switch self {
+        case .simplify: "s"
+        default: ""
+        }
+    }
+
+    var tone: Tone {
+        switch self {
+        case .simplify, .plainEnglish: .plain
+        case .concise, .bullets: .concise
+        case .explain: .neutral
+        }
+    }
+
+    var length: LengthPreference {
+        switch self {
+        case .simplify: .shorter
+        case .concise: .shorter
+        case .bullets: .bullets
+        case .plainEnglish: .asIs
+        case .explain: .expanded
+        }
+    }
+
+    var readingLevel: ReadingLevel? {
+        switch self {
+        case .simplify: .simple
+        case .plainEnglish: .general
+        default: nil
+        }
+    }
 }
 
 // MARK: - Tab controller delegate
@@ -1061,6 +1313,7 @@ extension BrowserViewController: TabControllerDelegate {
             title: controller.title,
             icon: controller.favicon
         )
+        sidebar.updateTransform(id: controller.id, state: transformState(for: controller.id))
         guard controller.id == selectedTabID else { return }
         updateToolbar()
         card.setStartPageVisible(controller.url == nil)
@@ -1163,6 +1416,40 @@ extension BrowserViewController {
     @objc func toggleOriginalCommand(_ sender: Any?) { selectedController?.toggleReaderMode() }
     @objc func findCommand(_ sender: Any?) { showFindBar() }
     @objc func paletteCommand(_ sender: Any?) { togglePalette() }
+    @objc func cycleTintCommand(_ sender: Any?) { cycleTintStrength() }
+
+    @objc func setTintStrengthCommand(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+            let strength = TintStrength.allCases[safe: item.tag]
+        else { return }
+        setTintStrength(strength)
+    }
+
+    /// Recolour the active space. The tint is the space's identity, so this edits
+    /// the record rather than a global preference.
+    @objc func pickSpaceColorCommand(_ sender: Any?) {
+        let panel = NSColorPanel.shared
+        panel.setTarget(self)
+        panel.setAction(#selector(spaceColorChanged(_:)))
+        panel.color = activeSpace.flatMap { NSColor(hex: $0.tintHex) } ?? .systemIndigo
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func spaceColorChanged(_ sender: NSColorPanel) {
+        guard let space = activeSpace,
+            let srgb = sender.color.usingColorSpace(.sRGB)
+        else { return }
+        space.tintHex = String(
+            format: "#%02X%02X%02X",
+            Int((srgb.redComponent * 255).rounded()),
+            Int((srgb.greenComponent * 255).rounded()),
+            Int((srgb.blueComponent * 255).rounded())
+        )
+        store.save()
+        applyTint()
+        rebuildSidebar()
+    }
+
     @objc func toggleSidebarCommand(_ sender: Any?) { toggleSidebar() }
     @objc func toggleToolbarCommand(_ sender: Any?) { toggleToolbar() }
     @objc func toggleFocusModeCommand(_ sender: Any?) { toggleFocusMode() }

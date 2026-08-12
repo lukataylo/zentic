@@ -31,6 +31,40 @@ struct SidebarModel {
         var id: UUID
         var title: String
         var icon: NSImage?
+        /// What the user would see on this tab: Zentic's rendering, the site's own
+        /// page, or a rewrite. Shown as a small glyph on the row, because with
+        /// twenty tabs open "is this one transformed?" is otherwise a question you
+        /// can only answer by switching to it.
+        var transform: TabTransformState = .original
+    }
+
+    /// The per-tab reader indicator.
+    enum TabTransformState: Equatable {
+        /// The site's own page — either not restructured, or toggled back.
+        case original
+        /// Zentic's reading view.
+        case transformed
+        /// Zentic's reading view, with model-rewritten prose.
+        case rewritten
+        case rewriting
+
+        var symbolName: String? {
+            switch self {
+            case .original: nil
+            case .transformed: "textformat"
+            case .rewritten: "wand.and.stars"
+            case .rewriting: "wand.and.stars.inverse"
+            }
+        }
+
+        var tip: String {
+            switch self {
+            case .original: "Showing the site's own page"
+            case .transformed: "Showing Zentic's transformed page"
+            case .rewritten: "Rewritten by a model"
+            case .rewriting: "Rewriting…"
+            }
+        }
     }
 
     struct GroupItem {
@@ -209,6 +243,13 @@ final class SidebarView: PointerTrackingView {
         pinnedGrid.setSelected(id)
     }
 
+    /// A tab's reader state changed. Patched in place rather than triggering a
+    /// rebuild: this fires on every reveal, and rebuilding the whole list for a
+    /// one-glyph change is what made the sidebar quadratic in the first place.
+    func updateTransform(id: UUID, state: SidebarModel.TabTransformState) {
+        tabRows[id]?.setTransform(state)
+    }
+
     func setContextMenu(for tabID: UUID, items: [(String, () -> Void)]) {
         tabRows[tabID]?.menuItems = items.map { (title: $0.0, action: $0.1) }
     }
@@ -244,7 +285,10 @@ final class SidebarView: PointerTrackingView {
         row.tintsIcon = item.icon == nil
         row.indent = indent
         row.isSelected = item.id == model.selectedTabID
-        row.toolTip = item.title
+        row.setTransform(item.transform)
+        row.toolTip = item.transform == .original
+            ? item.title
+            : "\(item.title) — \(item.transform.tip)"
         row.onClick = { [weak self] in
             guard let self else { return }
             delegate?.sidebar(self, didSelectTab: item.id)

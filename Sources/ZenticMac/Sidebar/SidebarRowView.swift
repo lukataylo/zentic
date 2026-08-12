@@ -33,6 +33,7 @@ final class SidebarRowView: ChromeView {
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let accessoryButton = NSButton()
+    private let transformBadge = NSImageView()
     private let pill = ChromeView(frame: .zero)
 
     private var accessory: Accessory = .none
@@ -89,6 +90,11 @@ final class SidebarRowView: ChromeView {
         accessoryButton.contentTintColor = .tertiaryLabelColor
         addSubview(accessoryButton)
 
+        transformBadge.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
+        transformBadge.isHidden = true
+        transformBadge.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(transformBadge)
+
         let leading = iconView.leadingAnchor.constraint(
             equalTo: leadingAnchor,
             constant: Chrome.sidebarHorizontalPadding + 6
@@ -111,9 +117,16 @@ final class SidebarRowView: ChromeView {
             titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
             titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.trailingAnchor.constraint(
-                lessThanOrEqualTo: accessoryButton.leadingAnchor,
+                lessThanOrEqualTo: transformBadge.leadingAnchor,
                 constant: -4
             ),
+
+            transformBadge.trailingAnchor.constraint(
+                equalTo: accessoryButton.leadingAnchor,
+                constant: -3
+            ),
+            transformBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
+            transformBadge.widthAnchor.constraint(equalToConstant: 11),
 
             accessoryButton.trailingAnchor.constraint(
                 equalTo: trailingAnchor,
@@ -144,6 +157,24 @@ final class SidebarRowView: ChromeView {
     /// favicon, which has its own colours).
     var tintsIcon = true {
         didSet { iconView.contentTintColor = tintsIcon ? .secondaryLabelColor : nil }
+    }
+
+    /// The reader-state glyph, between the title and the accessory.
+    ///
+    /// Hidden for an untransformed page rather than shown in grey: the default is
+    /// that Zentic restructured the page, so marking every ordinary tab would be
+    /// noise on every row and would say nothing.
+    func setTransform(_ state: SidebarModel.TabTransformState) {
+        guard let symbol = state.symbolName else {
+            transformBadge.isHidden = true
+            return
+        }
+        transformBadge.isHidden = false
+        transformBadge.image = NSImage(systemSymbolName: symbol, accessibilityDescription: state.tip)
+        transformBadge.contentTintColor = switch state {
+        case .rewritten, .rewriting: .controlAccentColor
+        default: .tertiaryLabelColor
+        }
     }
 
     func setAccessory(_ accessory: Accessory) {
@@ -211,11 +242,30 @@ final class SidebarRowView: ChromeView {
         addTrackingArea(
             NSTrackingArea(
                 rect: bounds,
-                options: [.mouseEnteredAndExited, .activeInKeyWindow],
+                // `.inVisibleRect` keeps the area correct as the row scrolls; without
+                // it the rect is captured once and drifts out of place.
+                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
                 owner: self
             )
         )
         trackingAreaAdded = true
+
+        // Scrolling moves rows under a stationary pointer, and AppKit sends no
+        // enter/exit for that — the row that was under the cursor keeps its hover
+        // fill and its close button while the cursor is now over a different row.
+        // Tracking areas are rebuilt on scroll, so this is the moment to ask where
+        // the pointer actually is rather than wait for an event that never comes.
+        syncHoverToPointer()
+    }
+
+    private func syncHoverToPointer() {
+        guard let window else { return }
+        let inView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let hovering = bounds.contains(inView) && window.isKeyWindow
+        guard hovering != isHovered else { return }
+        isHovered = hovering
+        updateAccessoryImage()
+        applyLayerColors()
     }
 
     override func mouseEntered(with event: NSEvent) {

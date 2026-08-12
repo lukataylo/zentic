@@ -36,6 +36,38 @@ final class TabController: NSObject {
     /// Current reader mode, so ⌘\ has something to toggle against.
     private(set) var readerMode: ReaderMode = .restructured
 
+    /// The most recent extraction, kept because rewriting needs its sections.
+    ///
+    /// Cleared on navigation: rewriting the previous page's paragraphs into the
+    /// current one would be the worst possible failure for a feature whose whole
+    /// premise is fidelity.
+    private(set) var extraction: ExtractionResult?
+
+    /// How far a rewrite has got, for the toolbar and the tab's indicator.
+    enum RewriteState: Equatable {
+        case none
+        case running(done: Int, total: Int)
+        /// A rewrite is on screen. The original text is still in the shadow DOM.
+        case shown
+        case failed(String)
+    }
+
+    private(set) var rewriteState: RewriteState = .none
+    private var rewriteTask: Task<Void, Never>?
+
+    /// Whether the reader actually rendered this page, as opposed to deciding it
+    /// should not and passing the original through.
+    ///
+    /// Taken from the reveal reason rather than inferred from `extraction != nil`:
+    /// extraction runs on almost every page and often concludes that it should
+    /// keep its hands off — low confidence, an app, or a few words of prose. A
+    /// control that read "Transformed" on a page that was passed through would be
+    /// stating the opposite of what the user is looking at.
+    private(set) var didRestructure = false
+
+    /// Whether the page on screen is Zentic's rendering or the site's own.
+    var isTransformed: Bool { readerMode == .restructured && didRestructure }
+
     /// Scroll offset to reapply once loading finishes.
     ///
     /// Only set when `interactionState` was unavailable — WebKit restores scroll
@@ -312,6 +344,114 @@ final class TabController: NSObject {
         }
     }
 
+    // MARK: - Rewrite
+
+    /// Whether this page is one where rewriting needs an explicit confirm.
+    ///
+    /// News, medical, legal and financial pages are where a re-voiced sentence
+    /// stops being a style change and becomes a claim about what someone said.
+    var needsFidelityConfirmation: Bool { extraction?.isFidelitySensitive ?? false }
+
+    var canRewrite: Bool {
+        guard let extraction, didRestructure else { return false }
+        return readerMode == .restructured && !extraction.rewritableSections.isEmpty
+    }
+
+    /// Re-voice the page's prose. Layer 3, and the only layer that calls a model.
+    ///
+    /// Never automatic: this runs on an explicit press, per invariant 6. The
+    /// original DOM is untouched throughout — ``discardRewrite()`` and ⌘\ both
+    /// remain instant — and only sections whose kind is rewritable are ever sent,
+    /// which the provider re-checks rather than trusting us.
+    func rewrite(tone: Tone, length: LengthPreference, readingLevel: ReadingLevel?) {
+        guard let extraction, let bridge, let webView else { return }
+        let sections = extraction.rewritableSections
+        guard !sections.isEmpty else { return }
+
+        rewriteTask?.cancel()
+        rewriteState = .running(done: 0, total: sections.count)
+        delegate?.tabControllerDidChangeChrome(self)
+
+        let request = RewriteRequest(
+            sections: sections,
+            tone: tone,
+            length: length,
+            readingLevel: readingLevel,
+            context: RewriteContext(
+                title: extraction.title,
+                siteName: extraction.siteName,
+                lang: extraction.lang
+            )
+        )
+
+        rewriteTask = Task { [weak self] in
+            guard let self else { return }
+            let provider = FoundationModelsProvider()
+
+            switch await provider.availability() {
+            case .available:
+                break
+            case .unavailable(let reason), .ineligible(let reason):
+                rewriteState = .failed(reason)
+                delegate?.tabControllerDidChangeChrome(self)
+                trace("rewrite", "tab \(shortID) unavailable: \(reason)")
+                return
+            }
+
+            var done = 0
+            do {
+                for try await event in provider.rewrite(request) {
+                    try Task.checkCancellation()
+                    switch event {
+                    case .patch(let patch):
+                        try? await bridge.send(.applyRewrite(patch), to: webView)
+                        done += 1
+                        rewriteState = .running(done: done, total: sections.count)
+                        delegate?.tabControllerDidChangeChrome(self)
+                    case .skipped(let sectionID, let reason):
+                        done += 1
+                        trace("rewrite", "tab \(shortID) skipped \(sectionID): \(reason)")
+                    case .finished:
+                        break
+                    }
+                }
+                rewriteState = done > 0 ? .shown : .failed("Nothing was rewritten.")
+            } catch is CancellationError {
+                return
+            } catch {
+                // Partial output stays on screen rather than snapping back: the
+                // user asked for this and half of it is still useful, and the
+                // badge tells them what they are looking at.
+                rewriteState = done > 0 ? .shown : .failed("\(error)")
+            }
+            delegate?.tabControllerDidChangeChrome(self)
+            trace("rewrite", "tab \(shortID) \(rewriteState)")
+        }
+    }
+
+    /// Put the extracted text back. Instant — the rewrite only ever replaced nodes
+    /// in our shadow DOM, and the renderer kept what it replaced.
+    func discardRewrite() {
+        rewriteTask?.cancel()
+        rewriteTask = nil
+        guard rewriteState != .none else { return }
+        rewriteState = .none
+        delegate?.tabControllerDidChangeChrome(self)
+        guard let bridge, let webView else { return }
+        Task {
+            try? await bridge.send(.discardRewrite, to: webView)
+        }
+    }
+
+    /// Navigation invalidates everything the rewrite layer knows.
+    private func resetReaderStateForNavigation() {
+        rewriteTask?.cancel()
+        rewriteTask = nil
+        rewriteState = .none
+        extraction = nil
+        didRestructure = false
+    }
+
     // MARK: - Find in page
 
     @discardableResult
@@ -406,6 +546,9 @@ extension TabController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        // A new page means the extraction and any rewrite belong to a document that
+        // is no longer on screen.
+        resetReaderStateForNavigation()
         delegate?.tabControllerDidChangeChrome(self)
     }
 
@@ -539,9 +682,13 @@ extension TabController: ReaderBridgeDelegate {
         case .ready(let payload):
             trace("bridge", "\(shortID) ready · bundle \(payload.bundleVersion)")
         case .revealed(let payload):
+            didRestructure = payload.reason == .rendered
             trace("bridge", "\(shortID) revealed · \(payload.reason.rawValue) · \(payload.elapsedMs)ms")
+            delegate?.tabControllerDidChangeChrome(self)
         case .extracted(let result):
+            extraction = result
             trace("bridge", "\(shortID) extracted · \(result.archetype.rawValue) · \(result.wordCount)w")
+            delegate?.tabControllerDidChangeChrome(self)
         case .needsRecipe(let skeleton):
             trace("bridge", "\(shortID) needsRecipe · \(skeleton.nodes.count) nodes")
         case .failed(let failure):

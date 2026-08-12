@@ -229,13 +229,24 @@ final class ContentCardView: ChromeView {
 /// through, which is what stops a coloured sidebar looking like painted plastic.
 final class TintView: ChromeView {
     private let gradient = CAGradientLayer()
+    private let bloom = CAGradientLayer()
     private var color: NSColor = .systemIndigo
+    private var strength: TintStrength = .glass
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         gradient.startPoint = CGPoint(x: 0.15, y: 1)  // top-left-ish
         gradient.endPoint = CGPoint(x: 0.85, y: 0)
         layer?.addSublayer(gradient)
+
+        // A soft light source in the top-left corner. Real glass is not evenly
+        // coloured — it catches light somewhere — and a flat gradient is what makes
+        // a tinted panel read as painted plastic instead.
+        bloom.type = .radial
+        bloom.startPoint = CGPoint(x: 0.1, y: 1.05)
+        bloom.endPoint = CGPoint(x: 1.25, y: -0.35)
+        layer?.addSublayer(bloom)
+
         applyLayerColors()
     }
 
@@ -246,22 +257,68 @@ final class TintView: ChromeView {
         applyLayerColors()
     }
 
+    /// How much colour sits over the vibrancy. See ``TintStrength``.
+    func setStrength(_ strength: TintStrength) {
+        self.strength = strength
+        applyLayerColors()
+    }
+
     override func layout() {
         super.layout()
         gradient.frame = bounds
+        bloom.frame = bounds
     }
 
     override func updateLayerColors() {
-        let isDark =
-            effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        // Dark mode needs a weaker tint: the same alpha over a dark vibrancy reads
-        // as a muddy wash rather than a colour.
-        let top = isDark ? 0.34 : 0.42
-        let bottom = isDark ? 0.16 : 0.20
+        let isDark = isDarkAppearance
+        let alpha = strength.alpha(dark: isDark)
         gradient.colors = [
-            color.shifted(hue: -0.03, brightness: 0.06).withAlphaComponent(top).cgColor,
-            color.shifted(hue: 0.05, brightness: -0.04).withAlphaComponent(bottom).cgColor,
+            color.shifted(hue: -0.03, brightness: 0.06).withAlphaComponent(alpha.top).cgColor,
+            color.shifted(hue: 0.05, brightness: -0.04).withAlphaComponent(alpha.bottom).cgColor,
         ]
+        bloom.colors = [
+            NSColor.white.withAlphaComponent(isDark ? 0.06 : 0.30).cgColor,
+            NSColor.clear.cgColor,
+        ]
+        bloom.locations = [0, 0.75]
+    }
+}
+
+/// How heavily a space's colour is laid over the window's vibrancy.
+///
+/// The tint used to be fixed at an alpha high enough to read as a solid colour,
+/// which defeated the vibrancy underneath it — the desktop could not show through,
+/// so the sidebar looked like a painted panel rather than a pane of glass. These
+/// are the presets, lightest first; `frosted` is the old behaviour, kept for anyone
+/// who wants the colour to dominate.
+enum TintStrength: String, CaseIterable, Codable {
+    /// Barely there. The desktop reads clearly through the sidebar.
+    case clear
+    /// The default: enough colour to identify the space, still obviously glass.
+    case glass
+    /// Colour-forward, vibrancy still visible.
+    case tinted
+    /// The original heavy wash.
+    case frosted
+
+    var title: String {
+        switch self {
+        case .clear: "Clear"
+        case .glass: "Glass"
+        case .tinted: "Tinted"
+        case .frosted: "Frosted"
+        }
+    }
+
+    /// Dark mode needs consistently less: the same alpha over a dark vibrancy
+    /// reads as a muddy wash rather than a colour.
+    func alpha(dark: Bool) -> (top: CGFloat, bottom: CGFloat) {
+        switch self {
+        case .clear: dark ? (0.10, 0.04) : (0.14, 0.06)
+        case .glass: dark ? (0.18, 0.08) : (0.24, 0.10)
+        case .tinted: dark ? (0.26, 0.12) : (0.33, 0.15)
+        case .frosted: dark ? (0.34, 0.16) : (0.42, 0.20)
+        }
     }
 }
 

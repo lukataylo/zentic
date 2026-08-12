@@ -1,4 +1,5 @@
 import AppKit
+import ZenticKit
 
 @MainActor
 protocol ContentToolbarDelegate: AnyObject {
@@ -8,6 +9,20 @@ protocol ContentToolbarDelegate: AnyObject {
     func toolbarDidReload()
     func toolbar(_ toolbar: ContentToolbar, didSubmitAddress text: String)
     func toolbarDidRequestDownloads(_ sender: NSView)
+    /// The reader/original segmented control moved.
+    func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode)
+    /// The rewrite button. `sender` anchors the options menu.
+    func toolbarDidRequestRewrite(_ sender: NSView)
+    /// The AI badge was clicked — put the original text back.
+    func toolbarDidRequestDiscardRewrite()
+}
+
+/// What the toolbar needs to know to draw the reader controls.
+struct ReaderControlState {
+    var mode: ReaderMode = .restructured
+    var canTransform = false
+    var canRewrite = false
+    var rewrite: TabController.RewriteState = .none
 }
 
 /// The toolbar. Sits above the **content area**, never above the sidebar — that
@@ -23,6 +38,18 @@ final class ContentToolbar: PointerTrackingView {
     private let forwardButton = NSButton()
     private let reloadButton = NSButton()
     private let downloadsButton = NSButton()
+
+    /// Reader ⇄ Original. The visible half of ⌘\.
+    ///
+    /// A segmented control rather than a single toggle button, because the two
+    /// states are not "on and off" — they are two renderings of the same page, and
+    /// the user needs to see which one they are looking at without clicking to
+    /// find out.
+    private let modeControl = NSSegmentedControl()
+    private let rewriteButton = NSButton()
+    /// Shown only while a rewrite is on screen. Invariant 6: rewritten text is
+    /// badged for as long as it is displayed.
+    private let aiBadge = NSButton()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -44,14 +71,21 @@ final class ContentToolbar: PointerTrackingView {
             delegate?.toolbar(self, didSubmitAddress: text)
         }
 
+        buildReaderControls()
+
         let leftGroup = NSStackView(views: [sidebarButton, backButton, forwardButton, reloadButton])
         leftGroup.orientation = .horizontal
         leftGroup.spacing = 2
         leftGroup.translatesAutoresizingMaskIntoConstraints = false
 
+        let rightGroup = NSStackView(views: [aiBadge, modeControl, rewriteButton, downloadsButton])
+        rightGroup.orientation = .horizontal
+        rightGroup.spacing = 6
+        rightGroup.translatesAutoresizingMaskIntoConstraints = false
+
         addSubview(leftGroup)
         addSubview(breadcrumb)
-        addSubview(downloadsButton)
+        addSubview(rightGroup)
 
         NSLayoutConstraint.activate([
             leftGroup.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
@@ -60,16 +94,81 @@ final class ContentToolbar: PointerTrackingView {
             breadcrumb.leadingAnchor.constraint(equalTo: leftGroup.trailingAnchor, constant: 8),
             breadcrumb.centerYAnchor.constraint(equalTo: centerYAnchor),
             breadcrumb.heightAnchor.constraint(equalToConstant: 24),
-            breadcrumb.trailingAnchor.constraint(equalTo: downloadsButton.leadingAnchor, constant: -8),
+            breadcrumb.trailingAnchor.constraint(equalTo: rightGroup.leadingAnchor, constant: -8),
 
-            downloadsButton.trailingAnchor.constraint(
+            rightGroup.trailingAnchor.constraint(
                 equalTo: trailingAnchor,
                 constant: -(Chrome.contentInset + 4)
             ),
-            downloadsButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            rightGroup.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             heightAnchor.constraint(equalToConstant: Chrome.toolbarHeight),
         ])
+    }
+
+    private func buildReaderControls() {
+        modeControl.segmentCount = 2
+        modeControl.setLabel("Transformed", forSegment: 0)
+        modeControl.setLabel("Original", forSegment: 1)
+        modeControl.segmentStyle = .capsule
+        modeControl.trackingMode = .selectOne
+        modeControl.selectedSegment = 0
+        modeControl.target = self
+        modeControl.action = #selector(modeChanged)
+        modeControl.controlSize = .small
+        modeControl.font = .systemFont(ofSize: 11, weight: .medium)
+        modeControl.toolTip = "Zentic's transformed page, or the site's own (⌘\\)"
+        modeControl.translatesAutoresizingMaskIntoConstraints = false
+
+        configure(
+            rewriteButton,
+            symbol: "wand.and.stars",
+            action: #selector(requestRewrite),
+            tip: "Rewrite this page"
+        )
+
+        // Deliberately a button, not a label: the badge that tells the user they
+        // are reading rewritten text is also the fastest way back to the original.
+        aiBadge.title = "AI"
+        aiBadge.bezelStyle = .badge
+        aiBadge.controlSize = .small
+        aiBadge.font = .systemFont(ofSize: 10, weight: .bold)
+        aiBadge.target = self
+        aiBadge.action = #selector(discardRewrite)
+        aiBadge.toolTip = "Rewritten by a model. Click to restore the original text."
+        aiBadge.isHidden = true
+        aiBadge.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    /// Drive the reader controls from the selected tab.
+    func apply(reader state: ReaderControlState) {
+        modeControl.isEnabled = state.canTransform
+        modeControl.selectedSegment = state.mode == .restructured ? 0 : 1
+
+        switch state.rewrite {
+        case .none:
+            aiBadge.isHidden = true
+            rewriteButton.isEnabled = state.canRewrite
+            rewriteButton.toolTip = state.canRewrite
+                ? "Rewrite this page"
+                : "Rewriting needs the transformed page"
+            rewriteButton.contentTintColor = .secondaryLabelColor
+        case .running(let done, let total):
+            aiBadge.isHidden = true
+            rewriteButton.isEnabled = false
+            rewriteButton.toolTip = "Rewriting \(done) of \(total)…"
+            rewriteButton.contentTintColor = .controlAccentColor
+        case .shown:
+            aiBadge.isHidden = false
+            rewriteButton.isEnabled = state.canRewrite
+            rewriteButton.contentTintColor = .controlAccentColor
+            rewriteButton.toolTip = "Rewrite again with different settings"
+        case .failed(let reason):
+            aiBadge.isHidden = true
+            rewriteButton.isEnabled = state.canRewrite
+            rewriteButton.contentTintColor = .systemOrange
+            rewriteButton.toolTip = reason
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -112,4 +211,11 @@ final class ContentToolbar: PointerTrackingView {
     @objc private func goForward() { delegate?.toolbarDidGoForward() }
     @objc private func reload() { delegate?.toolbarDidReload() }
     @objc private func showDownloads() { delegate?.toolbarDidRequestDownloads(downloadsButton) }
+
+    @objc private func modeChanged() {
+        delegate?.toolbar(self, didSelectMode: modeControl.selectedSegment == 0 ? .restructured : .original)
+    }
+
+    @objc private func requestRewrite() { delegate?.toolbarDidRequestRewrite(rewriteButton) }
+    @objc private func discardRewrite() { delegate?.toolbarDidRequestDiscardRewrite() }
 }
