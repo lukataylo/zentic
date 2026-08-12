@@ -1145,10 +1145,10 @@ extension BrowserViewController: ContentToolbarDelegate {
     }
 
     func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode) {
-        guard let controller = selectedController, controller.readerMode != mode else { return }
-        controller.toggleReaderMode()
+        guard let controller = selectedController else { return }
+        controller.setReaderMode(mode)
         updateToolbar()
-        rebuildSidebar()
+        sidebar.updateTransform(id: controller.id, state: transformState(for: controller.id))
     }
 
     func toolbarDidRequestRewrite(_ sender: NSView) {

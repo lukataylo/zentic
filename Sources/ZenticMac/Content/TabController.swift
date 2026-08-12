@@ -326,7 +326,18 @@ final class TabController: NSObject {
     /// hidden, never destroyed, so the toggle is instant. The bridge configuration
     /// is updated too, so the choice survives the next navigation.
     func toggleReaderMode() {
-        readerMode = readerMode == .restructured ? .original : .restructured
+        setReaderMode(readerMode == .restructured ? .original : .restructured)
+    }
+
+    /// Switch to a specific mode.
+    ///
+    /// The segmented control asks for a *state*, not a flip. Routing it through a
+    /// toggle meant that any disagreement between the control and the tab — a ⌘\
+    /// while the toolbar was stale, a tab switched underneath — sent the page the
+    /// opposite way from the segment the user pressed.
+    func setReaderMode(_ mode: ReaderMode) {
+        guard mode != readerMode else { return }
+        readerMode = mode
         guard let bridge, let webView else { return }
 
         var configuration = bridge.currentConfiguration
@@ -682,7 +693,14 @@ extension TabController: ReaderBridgeDelegate {
         case .ready(let payload):
             trace("bridge", "\(shortID) ready · bundle \(payload.bundleVersion)")
         case .revealed(let payload):
-            didRestructure = payload.reason == .rendered
+            // `.userRequested` is this tab's own ⌘\ echoing back, not a verdict on
+            // whether the page can be transformed. Treating it as one meant the
+            // first switch to Original set `didRestructure = false`, which disabled
+            // the control that had just been used — one click and the toggle was
+            // dead. Only a page-load outcome may change this.
+            if payload.reason != .userRequested {
+                didRestructure = payload.reason == .rendered
+            }
             trace("bridge", "\(shortID) revealed · \(payload.reason.rawValue) · \(payload.elapsedMs)ms")
             delegate?.tabControllerDidChangeChrome(self)
         case .extracted(let result):
