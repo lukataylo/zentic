@@ -286,3 +286,24 @@ class ChromeView: NSView {
         applyLayerColors()
     }
 }
+
+extension NSView {
+    /// The title-bar double-click gesture, by hand.
+    ///
+    /// `isMovableByWindowBackground` had to go because it claimed mouse-downs on
+    /// the toolbar's controls, and dragging was reimplemented on the chrome views
+    /// themselves. The cost was silent: AppKit never sees a double-click on a
+    /// title bar it does not own, so zoom-on-double-click disappeared with it.
+    ///
+    /// Reads the same preference the system does rather than hard-coding zoom —
+    /// someone whose Mac minimises on double-click should still get a minimise.
+    func performTitleBarDoubleClick() {
+        guard let window else { return }
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case "Minimize": window.performMiniaturize(nil)
+        case "None": break
+        // "Maximize", and the unset default, which is also maximise.
+        default: window.performZoom(nil)
+        }
+    }
+}

@@ -35,7 +35,7 @@ public actor FoundationModelsProvider: LLMProvider {
                 return .ineligible(reason: "This Mac does not support Apple Intelligence.")
             case .appleIntelligenceNotEnabled:
                 return .unavailable(
-                    reason: "Apple Intelligence is off. Turn it on in System Settings to rewrite."
+                    reason: "Apple Intelligence is off. Turn it on in System Settings."
                 )
             case .modelNotReady:
                 return .unavailable(reason: "The on-device model is still downloading.")
@@ -151,12 +151,47 @@ public actor FoundationModelsProvider: LLMProvider {
         )
     }
 
-    public nonisolated func generateTheme(from prompt: String) async throws -> ThemeTokens {
-        throw LLMError.providerFailed(
-            identifier: identifier,
-            message: "Theme generation is not implemented yet (M5)."
-        )
+    /// Guided generation straight into ``ThemeTokens``.
+    ///
+    /// The structure *is* the schema — the model fills in fields, so it cannot
+    /// return CSS, a font name outside ``FontKey``, or a value of the wrong type
+    /// even if it wants to. `validated()` then clamps ranges and repairs contrast,
+    /// which matters more here than with a frontier model: a 3B on-device model
+    /// will happily pick charcoal text on a charcoal background.
+    public func generateTheme(from prompt: String) async throws -> ThemeTokens {
+        switch await availability() {
+        case .available: break
+        case .unavailable(let reason), .ineligible(let reason):
+            throw LLMError.providerFailed(identifier: identifier, message: reason)
+        }
+
+        let session = LanguageModelSession(instructions: Self.themeInstructions)
+        do {
+            let response = try await session.respond(
+                to: "Design a reading theme: \(prompt)",
+                generating: ThemeTokens.self
+            )
+            return response.content.validated()
+        } catch is CancellationError {
+            throw LLMError.cancelled
+        } catch {
+            throw LLMError.providerFailed(identifier: identifier, message: "\(error)")
+        }
     }
+
+    private static let themeInstructions = """
+        You are a typographer designing how a browser renders articles for reading.
+
+        Fill in every field. Rules:
+        1. Body text must be comfortable for long reading: line height around 1.5-1.7, \
+        measure 60-75 characters.
+        2. The light and dark palettes are both complete designs, not inversions of \
+        each other. Dark means a dark background with light text.
+        3. Text must contrast strongly against its own background in each palette.
+        4. Colours are #rrggbb hex.
+        5. Match the requested look — a retro or newspaper brief wants period fonts, \
+        square corners and ornament; a minimal brief wants restraint.
+        """
 }
 
 extension Tone {

@@ -1,0 +1,7 @@
+{
+  "payload" : {
+    "html" : "<style>p{color:#222}<\/style><p>Hello<\/p>"
+  },
+  "type" : "applyDocument",
+  "v" : 1
+}

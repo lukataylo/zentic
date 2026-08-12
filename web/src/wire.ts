@@ -243,10 +243,23 @@ export interface RewritePatch {
   isFinal: boolean;
 }
 
+/**
+ * A model-authored rendering of the page.
+ *
+ * Sanitised on the Swift side before it is sent — no script, no iframe, no
+ * `url()`, and no `<img>` pointing anywhere the page does not already load
+ * from. Non-rewritable sections are not in here: they arrive as
+ * `<zentic-section section="…">` placeholders and are rendered locally.
+ */
+export interface GeneratedDocument {
+  html: string;
+}
+
 export type ReaderCommand =
   | { v: number; type: "applyRecipe"; payload: SiteRecipe }
   | { v: number; type: "setMode"; payload: ReaderMode }
   | { v: number; type: "requestSkeleton" }
   | { v: number; type: "applyRewrite"; payload: RewritePatch }
   | { v: number; type: "discardRewrite" }
-  | { v: number; type: "applyTheme"; payload: ReaderTheme };
+  | { v: number; type: "applyTheme"; payload: ReaderTheme }
+  | { v: number; type: "applyDocument"; payload: GeneratedDocument };

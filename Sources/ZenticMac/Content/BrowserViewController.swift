@@ -820,6 +820,12 @@ final class BrowserViewController: NSViewController {
             )
         )
         view.window?.title = controller?.title ?? "Zentic"
+
+        if let origin = controller?.url?.host() {
+            Task { @MainActor in toolbar.setShield(await Blocking.engine.shield(for: origin)) }
+        } else {
+            toolbar.setShield(.standard)
+        }
     }
 
     func focusAddressBar() {
@@ -1146,14 +1152,154 @@ extension BrowserViewController: ContentToolbarDelegate {
 
     func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode) {
         guard let controller = selectedController else { return }
+        guard controller.didRestructure else {
+            // Snap back, then say why. Silently ignoring the click is what made
+            // this corner of the toolbar feel broken.
+            updateToolbar()
+            explain(
+                "Zentic left this page as it is, so there is nothing to switch between.",
+                from: toolbar.modeAnchor
+            )
+            return
+        }
         controller.setReaderMode(mode)
         updateToolbar()
         sidebar.updateTransform(id: controller.id, state: transformState(for: controller.id))
     }
 
+    /// The blocking menu: this origin's shield, and the state of the lists.
+    ///
+    /// State, never a count. `WKContentRuleList` matches inside the network
+    /// process and tells the app nothing about what it stopped, so the only
+    /// honest numbers here are the ones we produced ourselves at compile time.
+    func toolbarDidRequestShield(_ sender: NSView) {
+        guard let controller = selectedController, let origin = controller.url?.host() else {
+            explain("Blocking applies to a loaded site.", from: sender)
+            return
+        }
+        Task { @MainActor in
+            let current = await Blocking.engine.shield(for: origin)
+            let menu = NSMenu()
+            let header = NSMenuItem(title: origin, action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            menu.addItem(header)
+            menu.addItem(.separator())
+
+            for state in ShieldState.allCases {
+                let item = NSMenuItem(
+                    title: Self.shieldTitle(state),
+                    action: #selector(self.setShieldCommand(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.tag = ShieldState.allCases.firstIndex(of: state) ?? 0
+                item.state = state == current ? .on : .off
+                menu.addItem(item)
+            }
+
+            menu.addItem(.separator())
+            let update = NSMenuItem(
+                title: "Update Filter Lists Now",
+                action: #selector(self.updateFilterListsCommand(_:)),
+                keyEquivalent: ""
+            )
+            update.target = self
+            menu.addItem(update)
+
+            let counts = (try? await Blocking.engine.installedRuleLists().count) ?? 0
+            let status = NSMenuItem(
+                title: counts == 0
+                    ? "No filter lists compiled yet"
+                    : "\(counts) compiled rule lists installed",
+                action: nil,
+                keyEquivalent: ""
+            )
+            status.isEnabled = false
+            menu.addItem(status)
+
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
+        }
+    }
+
+    private static func shieldTitle(_ state: ShieldState) -> String {
+        switch state {
+        case .standard: "Standard — ads, trackers, cookie walls"
+        case .blockingOnly: "Blocking only — do not hide elements"
+        case .off: "Off for this site"
+        }
+    }
+
+    @objc private func setShieldCommand(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+            let state = ShieldState.allCases[safe: item.tag],
+            let controller = selectedController,
+            let origin = controller.url?.host()
+        else { return }
+        Task { @MainActor in
+            await Blocking.engine.setShield(state, for: origin)
+            controller.applyShield()
+            toolbar.setShield(state)
+            trace("blocking", "shield \(state.rawValue) for \(origin)")
+        }
+    }
+
+    @objc private func updateFilterListsCommand(_ sender: Any?) {
+        Task { @MainActor in
+            let alert = NSAlert()
+            do {
+                let report = try await Blocking.engine.refresh(force: false)
+                alert.messageText = report.listsUpdated.isEmpty
+                    ? "Filter lists are up to date"
+                    : "Updated \(report.listsUpdated.count) filter lists"
+                // Compile-time facts, which we do know — unlike block counts.
+                alert.informativeText = """
+                    \(report.rulesCompiled) rules compiled, \(report.rulesDropped) dropped as \
+                    inexpressible in Safari's rule syntax.
+                    """
+            } catch {
+                alert.messageText = "Could not update filter lists"
+                alert.informativeText = "\(error)"
+                alert.alertStyle = .warning
+            }
+            alert.addButton(withTitle: "OK")
+            if let window = view.window {
+                alert.beginSheetModal(for: window, completionHandler: nil)
+            } else {
+                alert.runModal()
+            }
+        }
+    }
+
     func toolbarDidRequestRewrite(_ sender: NSView) {
-        guard let controller = selectedController, controller.canRewrite else { return }
+        guard let controller = selectedController else { return }
+        guard controller.canRewrite else {
+            explain(Self.rewriteBlockReason(for: controller), from: sender)
+            return
+        }
         presentRewriteMenu(from: sender, for: controller)
+    }
+
+    /// Why the rewrite button cannot run right now, in the user's terms.
+    private static func rewriteBlockReason(for controller: TabController) -> String {
+        if !controller.didRestructure {
+            return "Zentic left this page as it is, so there is no prose to rewrite."
+        }
+        if controller.readerMode == .original {
+            return "Switch to the transformed page (⌘\\) to rewrite it."
+        }
+        return "This page has nothing rewritable — only code, tables or embeds."
+    }
+
+    /// A one-line answer anchored to the control that was pressed.
+    ///
+    /// A menu rather than an alert: it is dismissed by the next click, it points at
+    /// the control it is about, and it costs the user nothing to have opened.
+    private func explain(_ message: String, from sender: NSView) {
+        let menu = NSMenu()
+        let item = NSMenuItem(title: message, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
     }
 
     func toolbarDidRequestDiscardRewrite() {
@@ -1465,6 +1611,28 @@ extension BrowserViewController {
         }
     }
 
+    /// ⇧⌥⌘D — hand the whole page to the model to lay out in HTML.
+    @objc func rebuildPageCommand(_ sender: Any?) {
+        guard let controller = selectedController else { return }
+        guard let extraction = controller.currentExtraction, controller.didRestructure else {
+            explain(
+                "Zentic left this page as it is, so there is nothing to rebuild.",
+                from: toolbar.modeAnchor
+            )
+            return
+        }
+        Task { @MainActor in
+            guard
+                let document = await RedesignController.shared.promptForDocument(
+                    extraction: extraction,
+                    origin: controller.url?.host(),
+                    over: view.window
+                )
+            else { return }
+            controller.applyGeneratedDocument(document)
+        }
+    }
+
     /// Drop this site's design and fall back to the default.
     @objc func resetDesignCommand(_ sender: Any?) {
         guard let controller = selectedController else { return }
@@ -1479,29 +1647,17 @@ extension BrowserViewController {
 
     /// Settings ▸ the BYO key. Stored in the Keychain, never in a file.
     @objc func setAPIKeyCommand(_ sender: Any?) {
-        let alert = NSAlert()
-        alert.messageText = "OpenAI API key"
-        alert.informativeText = """
-            Used only for redesign and cloud rewriting, sent only to OpenAI, and \
-            stored in your login Keychain. Zentic has no server: your key never \
-            reaches us.
-            """
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Cancel")
+        RedesignController.shared.promptForAPIKey()
+    }
 
-        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = APIKeyStore.redacted(.openAI) ?? "sk-…"
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            try? APIKeyStore.save(field.stringValue, for: .openAI)
-        case .alertSecondButtonReturn:
-            APIKeyStore.remove(.openAI)
-        default:
-            break
+    /// Which model draws generated designs. Tag is `DesignModel.allCases` order.
+    @objc func setDesignModelCommand(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+            let model = RedesignController.DesignModel.allCases[safe: item.tag]
+        else { return }
+        RedesignController.shared.designModel = model
+        if model == .openAI, !APIKeyStore.has(.openAI) {
+            RedesignController.shared.promptForAPIKey()
         }
     }
 
@@ -1523,9 +1679,14 @@ extension BrowserViewController {
 extension BrowserViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(goBackCommand): selectedController?.canGoBack ?? false
-        case #selector(goForwardCommand): selectedController?.canGoForward ?? false
-        default: true
+        case #selector(goBackCommand): return selectedController?.canGoBack ?? false
+        case #selector(goForwardCommand): return selectedController?.canGoForward ?? false
+        case #selector(setDesignModelCommand):
+            menuItem.state =
+                RedesignController.DesignModel.allCases[safe: menuItem.tag]
+                == RedesignController.shared.designModel ? .on : .off
+            return true
+        default: return true
         }
     }
 }

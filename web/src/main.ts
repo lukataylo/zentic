@@ -116,6 +116,15 @@ function main(): void {
         view.applyTheme(command.payload);
         break;
 
+      case "applyDocument":
+        // The model laid out the page; we still own what is in the placeholders.
+        if (context.lastResult) {
+          view.renderDocument(command.payload.html, context.lastResult, context.theme);
+        } else {
+          bridge.postFailure("applyDocument", new Error("no extraction to lay out"));
+        }
+        break;
+
       case "applyRecipe":
         context.recipe = command.payload;
         view.clear();

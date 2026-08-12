@@ -371,6 +371,22 @@ final class TabController: NSObject {
         }
     }
 
+    /// Replace the reading view with a model-authored layout of this page.
+    ///
+    /// Not persisted the way a theme is: a generated document is this page's
+    /// markup, and the next article on the same site has different content, so
+    /// there is nothing to reuse. The prompt is what gets saved.
+    func applyGeneratedDocument(_ document: GeneratedDocument) {
+        guard let bridge, let webView else { return }
+        Task {
+            try? await bridge.send(.applyDocument(document), to: webView)
+            trace("redesign", "tab \(shortID) applied generated document")
+        }
+    }
+
+    /// The page as extracted, for handing to a model that will lay it out.
+    var currentExtraction: ExtractionResult? { extraction }
+
     /// Reapply this origin's saved design once the page is rendered.
     ///
     /// Runs on every reveal rather than once per tab, because an SPA navigation
@@ -385,6 +401,20 @@ final class TabController: NSObject {
             }
             applyDesign(theme)
         }
+    }
+
+    // MARK: - Blocking
+
+    /// Swap this tab's rule lists to match the origin's shield, then reload.
+    ///
+    /// The reload is not optional: `WKContentRuleList`s are applied at request
+    /// time, so a page that already loaded its trackers keeps them until it is
+    /// fetched again — and a shield toggle that appears to do nothing is worse
+    /// than no toggle.
+    func applyShield() {
+        guard let webView else { return }
+        Blocking.reapply(to: webView.configuration.userContentController, origin: url?.host())
+        reload()
     }
 
     // MARK: - Rewrite

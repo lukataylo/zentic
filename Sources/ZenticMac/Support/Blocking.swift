@@ -48,10 +48,19 @@ enum Blocking {
                 trace("blocking", "shield off for \(origin ?? "?")")
                 return
             }
-            guard let lists = try? await engine.installedRuleLists() else { return }
+            // Per shield, not the whole set: `.blockingOnly` keeps the network
+            // rules and drops the cosmetic ones, which is the entire point of
+            // having that level for sites whose layout collapses without them.
+            guard let lists = try? await engine.ruleLists(for: shield) else { return }
             for list in lists {
                 controller.add(list)
             }
         }
+    }
+
+    /// Swap the attached lists after the user changes this origin's shield.
+    static func reapply(to controller: WKUserContentController, origin: String?) {
+        controller.removeAllContentRuleLists()
+        attach(to: controller, origin: origin)
     }
 }

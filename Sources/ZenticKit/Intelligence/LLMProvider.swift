@@ -41,6 +41,27 @@ public protocol LLMProvider: Sendable {
     /// This is off the hot path: a theme is generated once from a prompt and then
     /// reused across every page, so it never costs anything per pageview.
     func generateTheme(from prompt: String) async throws -> ThemeTokens
+
+    /// Lay the page out as markup, rather than as tokens over our own layout.
+    ///
+    /// The heavier half of redesign, and the only place a model authors HTML.
+    /// Providers that cannot do it usefully decline (see the default below) —
+    /// a full page is a long, structured generation, and a small on-device model
+    /// producing half a document is worse than one that says no.
+    ///
+    /// The result is sanitised by the caller before it reaches a page; see
+    /// ``GeneratedHTML``. Non-rewritable sections are never in the request and
+    /// come back as placeholders, so invariant 3 holds here too.
+    func generateDocument(_ request: DocumentRequest) async throws -> GeneratedDocument
+}
+
+extension LLMProvider {
+    public func generateDocument(_ request: DocumentRequest) async throws -> GeneratedDocument {
+        throw LLMError.providerFailed(
+            identifier: identifier,
+            message: "This model does not generate full page layouts. Choose OpenAI in View ▸ Design Model."
+        )
+    }
 }
 
 public enum ProviderTier: String, Codable, Sendable, Comparable, CaseIterable {

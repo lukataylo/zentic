@@ -15,6 +15,8 @@ protocol ContentToolbarDelegate: AnyObject {
     func toolbarDidRequestRewrite(_ sender: NSView)
     /// The AI badge was clicked — put the original text back.
     func toolbarDidRequestDiscardRewrite()
+    /// The shield. `sender` anchors the blocking menu.
+    func toolbarDidRequestShield(_ sender: NSView)
 }
 
 /// What the toolbar needs to know to draw the reader controls.
@@ -47,6 +49,9 @@ final class ContentToolbar: PointerTrackingView {
     /// find out.
     private let modeControl = NSSegmentedControl()
     private let rewriteButton = NSButton()
+    /// Blocking, for this origin. State only — invariant 8: WebKit reports no
+    /// counts back, so a "127 trackers blocked" badge would be a fabrication.
+    private let shieldButton = NSButton()
     /// Shown only while a rewrite is on screen. Invariant 6: rewritten text is
     /// badged for as long as it is displayed.
     private let aiBadge = NSButton()
@@ -78,7 +83,9 @@ final class ContentToolbar: PointerTrackingView {
         leftGroup.spacing = 2
         leftGroup.translatesAutoresizingMaskIntoConstraints = false
 
-        let rightGroup = NSStackView(views: [aiBadge, modeControl, rewriteButton, downloadsButton])
+        let rightGroup = NSStackView(views: [
+            aiBadge, shieldButton, modeControl, rewriteButton, downloadsButton,
+        ])
         rightGroup.orientation = .horizontal
         rightGroup.spacing = 6
         rightGroup.translatesAutoresizingMaskIntoConstraints = false
@@ -135,6 +142,12 @@ final class ContentToolbar: PointerTrackingView {
             action: #selector(requestRewrite),
             tip: "Rewrite this page"
         )
+        configure(
+            shieldButton,
+            symbol: "shield.lefthalf.filled",
+            action: #selector(requestShield),
+            tip: "Blocking"
+        )
 
         // Deliberately a button, not a label: the badge that tells the user they
         // are reading rewritten text is also the fastest way back to the original.
@@ -149,9 +162,15 @@ final class ContentToolbar: PointerTrackingView {
         aiBadge.translatesAutoresizingMaskIntoConstraints = false
     }
 
+    /// Anchors an explanation popped from the mode control.
+    var modeAnchor: NSView { modeControl }
+
     /// Drive the reader controls from the selected tab.
     func apply(reader state: ReaderControlState) {
-        modeControl.isEnabled = state.canTransform
+        // Deliberately still enabled with nothing to switch to. A disabled control
+        // answers "why?" only on hover, and a toolbar corner that swallows clicks
+        // reads as broken — the delegate says why instead. See `explain(_:from:)`.
+        modeControl.isEnabled = true
         modeControl.selectedSegment = state.mode == .restructured ? 0 : 1
         // Says *why* it is inert rather than just being inert. On a page Zentic
         // left alone both segments show the same thing, and a control that appears
@@ -163,11 +182,14 @@ final class ContentToolbar: PointerTrackingView {
         switch state.rewrite {
         case .none:
             aiBadge.isHidden = true
-            rewriteButton.isEnabled = state.canRewrite
+            rewriteButton.isEnabled = true
             rewriteButton.toolTip = state.canRewrite
                 ? "Rewrite this page"
                 : "Rewriting needs the transformed page"
-            rewriteButton.contentTintColor = .secondaryLabelColor
+            // Dimmed rather than disabled, for the reason above.
+            rewriteButton.contentTintColor = state.canRewrite
+                ? .secondaryLabelColor
+                : .tertiaryLabelColor
         case .running(let done, let total):
             aiBadge.isHidden = true
             rewriteButton.isEnabled = false
@@ -175,12 +197,12 @@ final class ContentToolbar: PointerTrackingView {
             rewriteButton.contentTintColor = .controlAccentColor
         case .shown:
             aiBadge.isHidden = false
-            rewriteButton.isEnabled = state.canRewrite
+            rewriteButton.isEnabled = true
             rewriteButton.contentTintColor = .controlAccentColor
             rewriteButton.toolTip = "Rewrite again with different settings"
         case .failed(let reason):
             aiBadge.isHidden = true
-            rewriteButton.isEnabled = state.canRewrite
+            rewriteButton.isEnabled = true
             rewriteButton.contentTintColor = .systemOrange
             rewriteButton.toolTip = reason
         }
@@ -231,6 +253,37 @@ final class ContentToolbar: PointerTrackingView {
         delegate?.toolbar(self, didSelectMode: modeControl.selectedSegment == 0 ? .restructured : .original)
     }
 
+    /// Reflect this origin's shield. Three states, three glyphs — no numbers.
+    func setShield(_ state: ShieldState) {
+        let (symbol, tip, tint): (String, String, NSColor) = switch state {
+        case .standard:
+            ("shield.lefthalf.filled", "Blocking ads, trackers and cookie walls", .secondaryLabelColor)
+        case .blockingOnly:
+            ("shield", "Blocking ads and trackers, not hiding elements", .secondaryLabelColor)
+        case .off:
+            ("shield.slash", "Blocking is off for this site", .systemOrange)
+        }
+        shieldButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)
+        shieldButton.toolTip = tip
+        shieldButton.contentTintColor = tint
+    }
+
+    /// The strip around the controls is chrome: drag moves the window, and a
+    /// double-click is the title-bar gesture. Anything over a button or the
+    /// address field never reaches here.
+    override func mouseDragged(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            performTitleBarDoubleClick()
+        } else {
+            super.mouseDown(with: event)
+        }
+    }
+
+    @objc private func requestShield() { delegate?.toolbarDidRequestShield(shieldButton) }
     @objc private func requestRewrite() { delegate?.toolbarDidRequestRewrite(rewriteButton) }
     @objc private func discardRewrite() { delegate?.toolbarDidRequestDiscardRewrite() }
 }

@@ -40,6 +40,15 @@ struct WireContractTests {
         )
     }
 
+    @Test func applyDocumentCommandMatchesGolden() throws {
+        try GoldenFixture.assertMatches(
+            ReaderCommand.applyDocument(
+                GeneratedDocument(html: "<style>p{color:#222}</style><p>Hello</p>")
+            ),
+            named: "command-applyDocument"
+        )
+    }
+
     @Test func requestSkeletonCommandMatchesGolden() throws {
         try GoldenFixture.assertMatches(
             ReaderCommand.requestSkeleton,

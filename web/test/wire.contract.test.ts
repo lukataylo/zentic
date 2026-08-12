@@ -169,6 +169,18 @@ describe("commands", () => {
     expectField(command, "payload.tokens.typography.body", "string");
     expectField(command, "payload.tokens.light.accent", "string");
   });
+
+  it("applyDocument carries markup the bundle can insert as-is", () => {
+    const command = fixture("command-applyDocument") as {
+      type: string;
+      payload: { html: string };
+    };
+    expect(command.type).toBe("applyDocument");
+    expectField(command, "payload.html", "string");
+    // Sanitising happens in Swift, before the command is ever sent. If a script
+    // reaches this side, the boundary has already failed.
+    expect(command.payload.html).not.toContain("<script");
+  });
 });
 
 describe("cross-language invariants", () => {

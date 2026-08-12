@@ -195,6 +195,15 @@ final class SidebarView: PointerTrackingView {
         window?.performDrag(with: event)
     }
 
+    /// Empty chrome, so a double-click here is the title-bar gesture.
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            performTitleBarDoubleClick()
+        } else {
+            super.mouseDown(with: event)
+        }
+    }
+
     // MARK: - Rendering
 
     func reload(_ model: SidebarModel) {

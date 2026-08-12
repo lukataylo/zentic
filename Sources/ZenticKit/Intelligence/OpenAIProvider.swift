@@ -20,11 +20,19 @@ public actor OpenAIProvider: LLMProvider {
     public nonisolated var tier: ProviderTier { .byoKey }
 
     private let model: String
+    /// Laying out a whole page is a harder, longer generation than filling in
+    /// twenty token fields, and the cheap model shows it.
+    private let documentModel: String
     private let session: URLSession
     private let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
 
-    public init(model: String = "gpt-4.1-mini", session: URLSession = .shared) {
+    public init(
+        model: String = "gpt-4.1-mini",
+        documentModel: String = "gpt-4.1",
+        session: URLSession = .shared
+    ) {
         self.model = model
+        self.documentModel = documentModel
         self.session = session
     }
 
@@ -81,6 +89,79 @@ public actor OpenAIProvider: LLMProvider {
         } catch {
             throw LLMError.malformedOutput("\(error)")
         }
+    }
+
+    // MARK: - Document generation
+
+    /// Ask for the whole page as markup.
+    ///
+    /// Plain text out, not JSON: a document wrapped in a JSON string doubles the
+    /// escaping and is where long generations get truncated. What comes back is
+    /// untrusted either way — `sanitize` runs on it before it is returned, so the
+    /// caller cannot forget to.
+    public func generateDocument(_ request: DocumentRequest) async throws -> GeneratedDocument {
+        let body: [String: Any] = [
+            "model": documentModel,
+            "messages": [
+                ["role": "system", "content": Self.documentInstructions],
+                ["role": "user", "content": Self.documentPrompt(request)],
+            ],
+        ]
+
+        let json = try await post(body)
+        guard let content = Self.firstMessageContent(json), !content.isEmpty else {
+            throw LLMError.malformedOutput("no content in response")
+        }
+
+        let html = GeneratedHTML.sanitize(content, allowing: request.contentURLs)
+        guard html.contains("<") else {
+            throw LLMError.malformedOutput("nothing left after sanitising")
+        }
+        return GeneratedDocument(html: html)
+    }
+
+    private static let documentInstructions = """
+        You are a designer who implements. You are given the content of one web \
+        page and a description of a look. You return the complete HTML for a \
+        reading view of that page — structure and a `<style>` block, nothing else.
+
+        Rules:
+        1. Return markup only. No explanation, no markdown fence.
+        2. All CSS goes in one `<style>` element at the top. No `url(...)`, no \
+        `@import`, no `@font-face`, no webfonts — use locally available families.
+        3. No script, no iframe, no form, no tracking pixel, no external request \
+        of any kind. Anything of the sort is stripped before your output is used, \
+        which will leave a hole in your design.
+        4. Never change, summarise or omit the words you are given. You are laying \
+        them out, not editing them.
+        5. Where you see a placeholder line, emit exactly the tag it names, in the \
+        position it belongs. That content is rendered locally and you do not get \
+        to see or restyle it.
+        6. Design for reading: a measure of 60-75 characters, real vertical rhythm, \
+        and a light and dark palette via `@media (prefers-color-scheme: dark)`.
+        """
+
+    private static func documentPrompt(_ request: DocumentRequest) -> String {
+        var lines = ["Look: \(request.prompt)", "", "Title: \(request.extraction.title)"]
+        if let byline = request.extraction.byline { lines.append("Byline: \(byline)") }
+        if let site = request.extraction.siteName { lines.append("Site: \(site)") }
+        lines.append("")
+        lines.append("Content, in order:")
+
+        for section in request.extraction.sections {
+            if section.kind.isRewritable {
+                lines.append("")
+                lines.append("[\(section.kind.rawValue)]")
+                lines.append(section.markdown)
+            } else {
+                // Invariant 3: this section's text is not in the request at all.
+                lines.append("")
+                lines.append(
+                    "[placeholder — emit <zentic-section section=\"\(section.id)\"></zentic-section>]"
+                )
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Rewrite

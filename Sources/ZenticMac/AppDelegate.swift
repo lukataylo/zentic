@@ -177,14 +177,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Redesign This Site…", #selector(BrowserViewController.redesignSiteCommand(_:)), "d", [.command, .option])
         )
         menu.addItem(
+            item(
+                "Rebuild This Page in HTML…",
+                #selector(BrowserViewController.rebuildPageCommand(_:)),
+                "d",
+                [.command, .option, .shift]
+            )
+        )
+        menu.addItem(
             item("Reset This Site's Design", #selector(BrowserViewController.resetDesignCommand(_:)), "")
         )
+        menu.addItem(designModelMenuItem())
         menu.addItem(.separator())
         menu.addItem(backgroundMenuItem())
         menu.addItem(.separator())
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
 
         let holder = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+        holder.submenu = menu
+        return holder
+    }
+
+    /// Which model generates designs. On-device by default; OpenAI needs the key.
+    private func designModelMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Design Model")
+        for (index, model) in RedesignController.DesignModel.allCases.enumerated() {
+            menu.addItem(
+                item(
+                    model.title,
+                    #selector(BrowserViewController.setDesignModelCommand(_:)),
+                    "",
+                    .command,
+                    tag: index
+                )
+            )
+        }
+        menu.addItem(.separator())
+        menu.addItem(
+            item("OpenAI API Key…", #selector(BrowserViewController.setAPIKeyCommand(_:)), "")
+        )
+
+        let holder = NSMenuItem(title: "Design Model", action: nil, keyEquivalent: "")
         holder.submenu = menu
         return holder
     }

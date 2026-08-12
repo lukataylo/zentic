@@ -131,9 +131,13 @@ public enum ReaderCommand: Sendable, Hashable {
     /// Restyle the current view. Purely presentational and instant — no
     /// re-extraction, no model call, no reload.
     case applyTheme(ReaderTheme)
+    /// Replace the reading view with a model-authored rendering of this page.
+    /// Sanitised before it is sent; see ``GeneratedDocument``.
+    case applyDocument(GeneratedDocument)
 
     private enum Tag: String, Codable {
         case applyRecipe, setMode, requestSkeleton, applyRewrite, discardRewrite, applyTheme
+        case applyDocument
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -187,6 +191,8 @@ extension ReaderCommand: Codable {
             self = .discardRewrite
         case .applyTheme:
             self = .applyTheme(try container.decode(ReaderTheme.self, forKey: .payload))
+        case .applyDocument:
+            self = .applyDocument(try container.decode(GeneratedDocument.self, forKey: .payload))
         }
     }
 
@@ -210,6 +216,9 @@ extension ReaderCommand: Codable {
             try container.encode(Tag.discardRewrite, forKey: .type)
         case .applyTheme(let payload):
             try container.encode(Tag.applyTheme, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .applyDocument(let payload):
+            try container.encode(Tag.applyDocument, forKey: .type)
             try container.encode(payload, forKey: .payload)
         }
     }

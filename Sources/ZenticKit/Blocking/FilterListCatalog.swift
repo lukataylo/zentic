@@ -46,6 +46,22 @@ public enum FilterListCatalog {
         // interstitials, social widgets, "recommended for you" rails. Layer 2
         // discards these anyway on a page it restructures, but this also cleans up
         // the pages Zentic deliberately leaves alone.
+        // uBlock Origin's own filters, which is where anything EasyList has not
+        // caught up with lands first — malware/scam hosts in `badware`, and the
+        // trackers `privacy` covers beyond EasyPrivacy. Both are plain ABP syntax
+        // maintained in the uAssets repo, so they convert cleanly.
+        FilterListSource(
+            id: "ublock-badware",
+            title: "uBlock Origin — Badware Risks",
+            url: URL(string: "https://ublockorigin.github.io/uAssets/filters/badware.txt")!,
+            isDefault: true
+        ),
+        FilterListSource(
+            id: "ublock-privacy",
+            title: "uBlock Origin — Privacy",
+            url: URL(string: "https://ublockorigin.github.io/uAssets/filters/privacy.txt")!,
+            isDefault: true
+        ),
         FilterListSource(
             id: "easylist-annoyances",
             title: "EasyList Annoyances",

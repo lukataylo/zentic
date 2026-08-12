@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModels
 
 /// How the restructured page *looks*, independent of what it says.
 ///
@@ -62,6 +63,7 @@ public struct ReaderTheme: Codable, Sendable, Hashable, Identifiable {
 ///   silently breaks the page.
 /// - **Cost.** This structure is small enough for an on-device model to fill in
 ///   reliably with guided generation.
+@Generable
 public struct ThemeTokens: Codable, Sendable, Hashable {
     public var typography: Typography
     public var light: Palette
@@ -87,6 +89,7 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
         self.density = density
     }
 
+    @Generable
     public struct Typography: Codable, Sendable, Hashable {
         public var body: FontKey
         public var heading: FontKey
@@ -124,6 +127,7 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
     }
 
     /// Colours for one appearance. Hex strings, `#rrggbb`.
+    @Generable
     public struct Palette: Codable, Sendable, Hashable {
         public var background: String
         public var surface: String
@@ -155,6 +159,7 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
         }
     }
 
+    @Generable
     public struct Shape: Codable, Sendable, Hashable {
         /// Corner radius in points, 0...24. Zero is what makes retro themes work.
         public var radius: Double
@@ -168,6 +173,7 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
             self.elevation = elevation
         }
 
+        @Generable
         public enum Elevation: String, Codable, Sendable, CaseIterable {
             case none
             case subtle
@@ -177,6 +183,7 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
         }
     }
 
+    @Generable
     public struct Ornament: Codable, Sendable, Hashable {
         public var rule: RuleStyle
         public var listMarker: ListMarker
@@ -204,18 +211,22 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
             self.justify = justify
         }
 
+        @Generable
         public enum RuleStyle: String, Codable, Sendable, CaseIterable {
             case none, hairline, solid, double, dashed, groove, ridge
         }
 
+        @Generable
         public enum ListMarker: String, Codable, Sendable, CaseIterable {
             case disc, circle, square, dash, arrow, none
         }
 
+        @Generable
         public enum LinkDecoration: String, Codable, Sendable, CaseIterable {
             case none, underline, thickUnderline, dotted, highlight
         }
 
+        @Generable
         public enum HeadingCase: String, Codable, Sendable, CaseIterable {
             case asIs, upper, smallCaps
         }
@@ -231,6 +242,7 @@ public struct ThemeTokens: Codable, Sendable, Hashable {
 /// something unintended, and any design that permits a family name eventually
 /// wants a webfont URL — which means a network request per page, breaking both
 /// offline rendering and the privacy guarantee. Everything here is local.
+@Generable
 public enum FontKey: String, Codable, Sendable, CaseIterable {
     // Sans
     case systemSans

@@ -160,6 +160,57 @@ export class ReaderView {
     this.show();
   }
 
+  /**
+   * Render a model-authored layout of the page instead of our own.
+   *
+   * Goes in the same shadow root, over the same hidden original document, so ⌘\
+   * still restores the site's own page and nothing here can reach the rest of
+   * the DOM. `innerHTML` does not execute `<script>`, and the Swift side has
+   * already stripped anything that could reach the network.
+   *
+   * Placeholders are the interesting part: code, tables, math and embeds were
+   * never sent to the model, so it emits `<zentic-section>` where they belong
+   * and we fill them in from the extraction. A model cannot mangle a code block
+   * it has not seen.
+   */
+  renderDocument(
+    html: string,
+    result: ExtractionResult,
+    theme: ReaderTheme | undefined,
+  ): void {
+    const root = this.mount(theme ?? this.theme);
+    this.sectionNodes.clear();
+    this.viewport?.remove();
+
+    const viewport = this.doc.createElement("div");
+    viewport.className = "viewport generated";
+    if (result.lang) {
+      viewport.setAttribute("lang", result.lang);
+      if (isRTL(result.lang)) viewport.setAttribute("dir", "rtl");
+    }
+    viewport.innerHTML = html;
+
+    const sections = new Map(result.sections.map((section) => [section.id, section]));
+    for (const slot of Array.from(viewport.querySelectorAll("zentic-section"))) {
+      const section = sections.get(slot.getAttribute("section") ?? "");
+      const node = section ? this.renderSection(section, result) : undefined;
+      if (node) {
+        slot.replaceWith(node);
+        this.sectionNodes.set(section!.id, node);
+      } else {
+        slot.remove();
+      }
+    }
+
+    root.appendChild(viewport);
+    this.viewport = viewport;
+
+    renderMath(viewport, this.doc);
+    this.applyIntrinsicImageSizes(viewport);
+    this.wireInPageLinks(viewport);
+    this.show();
+  }
+
   /** Restyle without re-extracting: replace one stylesheet, keep the DOM. */
   applyTheme(theme: ReaderTheme): void {
     this.theme = theme;
