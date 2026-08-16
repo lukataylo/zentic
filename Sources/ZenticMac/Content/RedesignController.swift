@@ -54,6 +54,17 @@ final class RedesignController {
         await store.design(for: origin)
     }
 
+    /// Keep a built-in preset for this site.
+    ///
+    /// The same storage a generated design uses, deliberately: from the page's point
+    /// of view a preset and a prompted design are both just validated tokens, and
+    /// having two ways to remember "how this site should look" would mean two places
+    /// to look when it looks wrong.
+    func adopt(_ theme: ReaderTheme, for origin: String?) async {
+        await store.save(theme, for: origin)
+        trace("redesign", "\(theme.name) for \(origin ?? "all sites")")
+    }
+
     func forget(origin: String?) async {
         await store.remove(origin: origin)
     }
@@ -108,7 +119,7 @@ final class RedesignController {
         guard let llm = error as? LLMError else { return "\(error)" }
         switch llm {
         case .notEntitled:
-            return "Add an OpenAI API key in Settings first."
+            return "Add an OpenAI API key first — Zentic ▸ OpenAI API Key… (⌘,)."
         case .providerFailed(_, let message):
             return message
         case .malformedOutput(let detail):

@@ -2,7 +2,7 @@ import type { Bridge } from "./bridge.js";
 import { dismissConsent } from "./consent.js";
 import { extract } from "./extract/index.js";
 import { buildSkeleton } from "./skeleton.js";
-import { waitForSettle } from "./settle.js";
+import { waitForSettle, type SettleResult } from "./settle.js";
 import type { VisibilityController } from "./visibility.js";
 import type { ReaderView } from "./render/view.js";
 import {
@@ -48,6 +48,32 @@ export interface PipelineContext {
   recipe: SiteRecipe | undefined;
   /** Last successful extraction, so a rewrite can be discarded back to it. */
   lastResult: ExtractionResult | undefined;
+  /**
+   * A settle already in flight, started at `document-start`.
+   *
+   * The wait used to begin when the pipeline did, which is `DOMContentLoaded` at
+   * the earliest — by which point the DOM had usually stopped moving already. Every
+   * page measured recorded zero mutations during it, so the quiet period was paid
+   * as dead time after the page was finished rather than overlapping the load.
+   *
+   * Consumed once: an SPA route change gets a fresh settle, because the whole
+   * point there is to watch mutations that have not happened yet.
+   */
+  pendingSettle: Promise<SettleResult> | undefined;
+  /**
+   * Whether the reader may put its overlay on screen.
+   *
+   * False on an instant origin, where the page was never hidden. Extraction still
+   * runs — its verdict is what keeps the origin's streak honest — but rendering
+   * over a page the user is already reading is exactly the content swap that
+   * hiding at `document-start` exists to avoid. So the verdict is reported, the
+   * render is skipped, and the next visit hides and restructures properly.
+   */
+  mayRender: boolean;
+  /// Whether this level permits pressing a consent dialog's button. Below Calm it
+  /// does not: blocking a request and acting in the user's name are different
+  /// kinds of thing, and only one of them was asked for.
+  dismissesCookieWalls: boolean;
 }
 
 export class ReaderPipeline implements Pipeline {
@@ -60,7 +86,7 @@ export class ReaderPipeline implements Pipeline {
     const { config, doc, bridge, view } = this.context;
     const debug = config.debugLogging;
 
-    if (!this.consentStarted) {
+    if (!this.consentStarted && this.context.dismissesCookieWalls) {
       this.consentStarted = true;
       // Not awaited. A consent dialog that outlives our budget is still worth
       // dismissing, and waiting for one would spend the reader's whole reveal
@@ -74,10 +100,13 @@ export class ReaderPipeline implements Pipeline {
       });
     }
 
-    const settle = await waitForSettle(doc, {
-      quietPeriodMs: config.settleQuietPeriodMs,
-      ceilingMs: config.settleCeilingMs,
-    });
+    const started = this.context.pendingSettle;
+    this.context.pendingSettle = undefined;
+    const settle = await (started ??
+      waitForSettle(doc, {
+        quietPeriodMs: config.settleQuietPeriodMs,
+        ceilingMs: config.settleCeilingMs,
+      }));
     if (debug) {
       console.info(
         `[zentic] settle: ${settle.quiet ? "quiet" : "ceiling"} after ${settle.elapsedMs}ms, ${settle.mutations} mutations`,
@@ -119,6 +148,11 @@ export class ReaderPipeline implements Pipeline {
       }
       return "passthrough";
     }
+
+    // The page is already on screen and this origin was expected to pass through.
+    // It did not, which is worth knowing — `extracted` above carries the verdict —
+    // but acting on it now would replace what the user is reading mid-read.
+    if (!this.context.mayRender) return "passthrough";
 
     try {
       view.render(outcome.result, this.context.theme);

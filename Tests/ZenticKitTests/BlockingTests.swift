@@ -373,6 +373,27 @@ struct ShieldTests {
         #expect(await harness.engine.shield(for: "https://example.com:8443") == .standard)
     }
 
+    /// The shell derives a tab's origin with `URL.zenticOrigin` and the engine files
+    /// shields under `normalize`. If those two disagree, every per-site shield is
+    /// written to a key the lookup can never produce, and blocking silently ignores
+    /// the user — which is exactly what a bare `host()` used to do here.
+    @Test func shellOriginKeyMatchesEngineKey() async throws {
+        let harness = try Harness()
+
+        for spelling in [
+            "https://example.com/some/path?q=1",
+            "HTTPS://Example.com/",
+            "https://example.com:443/deep/page",
+            "http://plain.example.org/x",
+        ] {
+            let url = try #require(URL(string: spelling))
+            let shellKey = try #require(url.zenticOrigin)
+            await harness.engine.setShield(.off, for: shellKey)
+            #expect(await harness.engine.shield(for: spelling) == .off, "\(spelling)")
+            await harness.engine.setShield(.standard, for: shellKey)
+        }
+    }
+
     @Test func resettingToStandardForgetsTheOverride() async throws {
         let harness = try Harness()
         await harness.engine.setShield(.off, for: "https://example.com")

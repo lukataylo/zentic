@@ -31,7 +31,7 @@ public actor OpenAIProvider: LLMProvider {
     public func availability() async -> ProviderAvailability {
         APIKeyStore.has(.openAI)
             ? .available
-            : .unavailable(reason: "Add an OpenAI API key in Settings to use cloud redesign.")
+            : .unavailable(reason: "Add an OpenAI API key first — Zentic ▸ OpenAI API Key… (⌘,).")
     }
 
     // MARK: - Theme generation

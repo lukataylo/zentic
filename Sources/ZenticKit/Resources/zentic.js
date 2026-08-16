@@ -14935,6 +14935,31 @@ ${a.join("\n")}
     };
   }
 
+  // src/level.ts
+  var ORDER = ["original", "clean", "calm", "reader", "rewritten"];
+  function atLeast(level, floor) {
+    const a = ORDER.indexOf(level);
+    const b = ORDER.indexOf(floor);
+    return a >= 0 && b >= 0 && a >= b;
+  }
+  var NOTHING = { hide: false, consent: false, pipeline: false, render: false };
+  function plan(config, eligible, isInstantOrigin2) {
+    if (ORDER.indexOf(config.level) < 0) return NOTHING;
+    if (config.level === "original") return NOTHING;
+    if (config.level === "clean") {
+      return { hide: false, consent: false, pipeline: false, render: false };
+    }
+    if (config.level === "calm") {
+      return { hide: false, consent: true, pipeline: true, render: false };
+    }
+    return {
+      hide: eligible && !isInstantOrigin2,
+      consent: true,
+      pipeline: true,
+      render: eligible
+    };
+  }
+
   // src/extract/index.ts
   var import_defuddle = __toESM(require_dist(), 1);
 
@@ -15595,13 +15620,7 @@ ${a.join("\n")}
         return false;
       }
     });
-    const articleMarkers = [];
-    if (doc.querySelector("article")) articleMarkers.push("article");
-    const ogType = doc.querySelector('meta[property="og:type"], meta[name="og:type"]')?.getAttribute("content");
-    if (ogType && /article|book|blog/i.test(ogType)) articleMarkers.push(`og:type=${ogType}`);
-    if (doc.querySelector('meta[property^="article:"]')) articleMarkers.push("article:*");
-    if (hasArticleSchema(doc)) articleMarkers.push("schema.org");
-    if (doc.querySelector("time[datetime]")) articleMarkers.push("time");
+    const articleMarkers = publicationMarkers(doc);
     if (doc.querySelector('link[rel="canonical"]') && paragraphs.length >= 5) {
       articleMarkers.push("canonical+prose");
     }
@@ -15623,6 +15642,19 @@ ${a.join("\n")}
       shellMarkers,
       articleMarkers
     };
+  }
+  function publicationMarkers(doc) {
+    const markers = [];
+    if (doc.querySelector("article")) markers.push("article");
+    const ogType = openGraphType(doc);
+    if (ogType && /article|book|blog/i.test(ogType)) markers.push(`og:type=${ogType}`);
+    if (doc.querySelector('meta[property^="article:"]')) markers.push("article:*");
+    if (hasArticleSchema(doc)) markers.push("schema.org");
+    if (doc.querySelector("time[datetime]")) markers.push("time");
+    return markers;
+  }
+  function openGraphType(doc) {
+    return doc.querySelector('meta[property="og:type"], meta[name="og:type"]')?.getAttribute("content")?.trim().toLowerCase() ?? "";
   }
   function narrativeText(body) {
     if (!body) return { words: 0, runs: 0, longest: 0 };
@@ -16396,6 +16428,14 @@ $$` : (element.textContent ?? "").trim();
     if (doc.querySelector('[role^="doc-"], [class*="api-"], [class*="reference"]')) signals += 0.5;
     return signals >= 2;
   }
+  var LOCALE_SEGMENT = /^[a-z]{2}[-_][a-z0-9]{2,4}$/i;
+  var COMMERCE_OG_TYPES = /^(product|place|business)/;
+  function isFrontDoor(url) {
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return true;
+    if (segments.length > 1) return false;
+    return LOCALE_SEGMENT.test(segments[0] ?? "");
+  }
   function estimateConfidence(input) {
     let score = 0.35;
     const coverage = input.bodyWords > 0 ? input.wordCount / input.bodyWords : 0;
@@ -16418,6 +16458,8 @@ $$` : (element.textContent ?? "").trim();
     if (input.wordCount < input.minWordCount * 2 && !structured) score -= 0.25;
     if (input.longParagraphs === 0 && !structured) score -= 0.2;
     if (input.postBlocks >= 3) return Math.min(score, 0.4);
+    if (input.declaresCommerce) return Math.min(score, 0.4);
+    if (input.isHomePage && !input.hasPublicationMarker) return Math.min(score, 0.4);
     return Math.min(0.98, Math.max(0.05, score));
   }
   function extract(doc, options) {
@@ -16431,8 +16473,11 @@ $$` : (element.textContent ?? "").trim();
       }
     };
     let hostname = "";
+    let isHomePage = false;
     try {
-      hostname = new URL(options.url).hostname;
+      const parsedURL = new URL(options.url);
+      hostname = parsedURL.hostname;
+      isHomePage = isFrontDoor(parsedURL);
     } catch {
       hostname = "";
     }
@@ -16450,6 +16495,24 @@ $$` : (element.textContent ?? "").trim();
           wordCount: 0,
           sections: [],
           confidence: app.confidence,
+          isFidelitySensitive: false,
+          ...lang ? { lang } : {}
+        }
+      };
+    }
+    const tableLike = doc.body ? doc.body.querySelectorAll("table").length : 0;
+    if (app.signals.proseWords < options.minWordCount && tableLike < 3) {
+      return {
+        app,
+        empty: true,
+        timings,
+        result: {
+          url: options.url,
+          archetype: "article",
+          title: (doc.title ?? "").trim(),
+          wordCount: 0,
+          sections: [],
+          confidence: 0.05,
           isFidelitySensitive: false,
           ...lang ? { lang } : {}
         }
@@ -16498,6 +16561,9 @@ $$` : (element.textContent ?? "").trim();
       fellBackToBody: /^\s*<body/i.test(parsed.content ?? ""),
       hasTitle: title.length > 0,
       hasAttribution: Boolean(parsed.author || parsed.published),
+      isHomePage,
+      hasPublicationMarker: publicationMarkers(doc).length > 0,
+      declaresCommerce: COMMERCE_OG_TYPES.test(openGraphType(doc)),
       minWordCount: options.minWordCount
     });
     const archetype = detectDocs(
@@ -16720,7 +16786,7 @@ $$` : (element.textContent ?? "").trim();
     async run() {
       const { config, doc, bridge, view } = this.context;
       const debug = config.debugLogging;
-      if (!this.consentStarted) {
+      if (!this.consentStarted && this.context.dismissesCookieWalls) {
         this.consentStarted = true;
         void dismissConsent({
           budgetMs: config.settleCeilingMs,
@@ -16730,10 +16796,12 @@ $$` : (element.textContent ?? "").trim();
           if (debug) console.info(`[zentic] consent: ${outcome2}`);
         });
       }
-      const settle = await waitForSettle(doc, {
+      const started = this.context.pendingSettle;
+      this.context.pendingSettle = void 0;
+      const settle = await (started ?? waitForSettle(doc, {
         quietPeriodMs: config.settleQuietPeriodMs,
         ceilingMs: config.settleCeilingMs
-      });
+      }));
       if (debug) {
         console.info(
           `[zentic] settle: ${settle.quiet ? "quiet" : "ceiling"} after ${settle.elapsedMs}ms, ${settle.mutations} mutations`
@@ -16768,6 +16836,7 @@ $$` : (element.textContent ?? "").trim();
         }
         return "passthrough";
       }
+      if (!this.context.mayRender) return "passthrough";
       try {
         view.render(outcome.result, this.context.theme);
       } catch (error) {
@@ -17829,6 +17898,7 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
     }
     hidden = false;
     didReveal = false;
+    reportedReason;
     failsafeTimer;
     startedAt = performance.now();
     get isHidden() {
@@ -17857,10 +17927,32 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
         this.hidden = false;
       }
     }
+    /**
+     * Report what the pipeline actually did.
+     *
+     * `reveal` is first-wins, which is correct for un-hiding a document — it must
+     * happen once — but wrong as a *description* of the page. On a slow site the
+     * failsafe fires first and the pipeline renders a moment later; the reader
+     * overlay is then on screen, but the only thing the app was ever told is
+     * "failsafe". It concludes the page was not restructured and disables the
+     * control that switches back to the original — on a page that is very much
+     * restructured. So an outcome that contradicts what was already reported is
+     * sent once more, and the last word describes what the user is looking at.
+     */
+    settle(reason) {
+      if (!this.didReveal) {
+        this.reveal(reason);
+        return;
+      }
+      if (reason === this.reportedReason) return;
+      this.reportedReason = reason;
+      this.onReveal({ reason, elapsedMs: Math.round(performance.now() - this.startedAt) });
+    }
     /** Reveal the document. Idempotent — the first reason wins, later calls are ignored. */
     reveal(reason) {
       if (this.didReveal) return;
       this.didReveal = true;
+      this.reportedReason = reason;
       if (this.failsafeTimer !== void 0) {
         clearTimeout(this.failsafeTimer);
         this.failsafeTimer = void 0;
@@ -17901,6 +17993,13 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
     }
     return location.protocol === "https:" || location.protocol === "http:";
   }
+  function isInstantOrigin(config) {
+    try {
+      return config.instantOrigins.includes(location.origin);
+    } catch {
+      return false;
+    }
+  }
   function main() {
     const config = readConfiguration();
     const debug = config?.debugLogging ?? false;
@@ -17916,9 +18015,15 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
     let visibility = new VisibilityController(onReveal);
     const view = new ReaderView(document);
     const eligible = isEligible(config);
-    if (eligible) {
+    const instant = isInstantOrigin(config);
+    const allowed = plan(config, eligible, instant);
+    if (allowed.hide) {
       visibility.hide(config.revealFailsafeMs);
     }
+    const pendingSettle = allowed.pipeline ? waitForSettle(document, {
+      quietPeriodMs: config.settleQuietPeriodMs,
+      ceilingMs: config.settleCeilingMs
+    }) : void 0;
     bridge.postReady("0.1.0", location.href);
     const context = {
       doc: document,
@@ -17928,12 +18033,15 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
       view,
       theme: config.theme,
       recipe: config.recipe,
-      lastResult: void 0
+      lastResult: void 0,
+      pendingSettle,
+      mayRender: allowed.render && !instant,
+      dismissesCookieWalls: allowed.consent
     };
     const pipeline = new ReaderPipeline(context);
     const start = async () => {
       try {
-        visibility.reveal(await pipeline.run());
+        visibility.settle(await pipeline.run());
       } catch (error) {
         bridge.postFailure("pipeline", error);
         visibility.reveal("failsafe");
@@ -17951,6 +18059,22 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
             await start();
           }
           break;
+        case "setLevel": {
+          config.level = command.payload;
+          config.mode = atLeast(command.payload, "reader") ? "restructured" : "original";
+          const next = plan(config, isEligible(config), instant);
+          context.mayRender = next.render;
+          context.dismissesCookieWalls = next.consent;
+          if (!next.render) {
+            view.hide();
+            visibility.reveal("userRequested");
+          } else if (view.isRendered) {
+            view.show();
+          } else {
+            await start();
+          }
+          break;
+        }
         case "applyTheme":
           context.theme = command.payload;
           view.applyTheme(command.payload);
@@ -17983,8 +18107,10 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
           break;
       }
     });
-    if (!eligible) {
-      void dismissConsent({ budgetMs: config.settleCeilingMs, prehide: true, debug });
+    if (!allowed.pipeline) {
+      if (allowed.consent) {
+        void dismissConsent({ budgetMs: config.settleCeilingMs, prehide: true, debug });
+      }
       visibility.reveal("passthrough");
       return;
     }
@@ -17993,7 +18119,11 @@ ${block(dark).split("\n").map((line) => `  ${line}`).join("\n")}
       visibility = visibility.restartedForNavigation();
       context.visibility = visibility;
       view.clear();
-      visibility.hide(config.revealFailsafeMs);
+      if (allowed.hide) visibility.hide(config.revealFailsafeMs);
+      context.pendingSettle = waitForSettle(document, {
+        quietPeriodMs: config.settleQuietPeriodMs,
+        ceilingMs: config.settleCeilingMs
+      });
       void start();
     });
     if (document.readyState === "loading") {

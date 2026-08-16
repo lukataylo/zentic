@@ -105,7 +105,7 @@ struct BudgetTests {
     @Test("Duration converts to whole milliseconds for JavaScript")
     func durationConversion() {
         #expect(Budget.revealFailsafe.milliseconds == 1500)
-        #expect(Budget.settleQuietPeriod.milliseconds == 120)
+        #expect(Budget.settleQuietPeriod.milliseconds == 60)
         #expect(Duration.seconds(2).milliseconds == 2000)
         #expect(Duration.milliseconds(1).milliseconds == 1)
     }

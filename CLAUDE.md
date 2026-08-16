@@ -12,6 +12,7 @@ Full design: `~/.claude/plans/hazy-swimming-flame.md`.
 | Path | What |
 |---|---|
 | `Sources/ZenticKit/` | Shared core. Contracts, models, policy. No UI. |
+| `Sources/ZenticKit/Level/` | `PageLevel` and its resolution. The one control's model. |
 | `Sources/ZenticMac/` | macOS shell. Arc-style sidebar, spaces, ⌘K palette, tab suspension. |
 | `web/` | TypeScript injected into every page. Builds to `Sources/ZenticKit/Resources/zentic.js`. |
 | `Tests/Fixtures/wire/` | Golden files. The bridge contract, shared by both languages. |
@@ -66,7 +67,16 @@ These are not style preferences. Each one is load-bearing, and each has a test.
 6. **Rewriting is opt-in and reversible.** Off by default, badged while shown,
    original always one keystroke away (⌘\). The original DOM is hidden, never
    destroyed. Fidelity-sensitive content (news, medical, legal, financial) needs an
-   explicit confirm.
+   explicit confirm. Every guard lives in `BrowserViewController.requestRewrite` —
+   the model is not reached by any other path, because a guard that sits in a button's
+   handler belongs to that button rather than to rewriting.
+
+9. **`PageLevel` is the single source of truth for how much a page is changed.**
+   `ShieldState`, `ReaderMode`, cookie-wall dismissal and theming are *projections* of
+   it, never independently settable — two controls that can disagree are two controls
+   that will. The ladder is strictly ordered, and `PageLevel.requiresReload` is exactly
+   the strip delta: WebKit bakes `css-display-none` in at load, so a blocking change
+   describes the next document, not the one on screen.
 
 7. **No telemetry.** Nothing about browsing leaves the device. `RevealPayload.elapsedMs`
    is for local diagnosis only.

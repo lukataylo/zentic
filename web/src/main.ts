@@ -1,7 +1,9 @@
 import { Bridge } from "./bridge.js";
 import { dismissConsent } from "./consent.js";
+import { atLeast, plan } from "./level.js";
 import { ReaderPipeline, type Pipeline, type PipelineContext } from "./pipeline.js";
 import { ReaderView } from "./render/view.js";
+import { waitForSettle } from "./settle.js";
 import { buildSkeleton } from "./skeleton.js";
 import { VisibilityController } from "./visibility.js";
 import { WIRE_VERSION, type ReaderConfiguration, type RevealPayload } from "./wire.js";
@@ -40,6 +42,20 @@ function isEligible(config: ReaderConfiguration): boolean {
   return location.protocol === "https:" || location.protocol === "http:";
 }
 
+/**
+ * Whether this origin has earned an unhidden first paint.
+ *
+ * Same fail-closed handling as ``isEligible``: an origin we cannot read is not
+ * one we have learned anything about, so it takes the normal hidden path.
+ */
+function isInstantOrigin(config: ReaderConfiguration): boolean {
+  try {
+    return config.instantOrigins.includes(location.origin);
+  } catch {
+    return false;
+  }
+}
+
 function main(): void {
   const config = readConfiguration();
   const debug = config?.debugLogging ?? false;
@@ -61,9 +77,29 @@ function main(): void {
   const view = new ReaderView(document);
 
   const eligible = isEligible(config);
-  if (eligible) {
+  // An origin that has declined to restructure several times running. The reader
+  // still runs — that is how the app learns the site has changed — but the page is
+  // never hidden for it, so navigation costs nothing at all.
+  const instant = isInstantOrigin(config);
+  // One decision, made once. Every gate below reads from this rather than
+  // re-deriving its own answer from `level` and `eligible`.
+  const allowed = plan(config, eligible, instant);
+
+  if (allowed.hide) {
     visibility.hide(config.revealFailsafeMs);
   }
+
+  // Armed here, at `document-start`, rather than when the pipeline runs. The
+  // pipeline does not start until `DOMContentLoaded`, and by then the DOM has
+  // usually stopped moving — so the quiet period was being served *after* the page
+  // was already finished instead of overlapping its load. Starting now means the
+  // common case is a settle that has already resolved by the time it is awaited.
+  const pendingSettle = allowed.pipeline
+    ? waitForSettle(document, {
+        quietPeriodMs: config.settleQuietPeriodMs,
+        ceilingMs: config.settleCeilingMs,
+      })
+    : undefined;
 
   bridge.postReady(__ZENTIC_VERSION__, location.href);
 
@@ -76,13 +112,18 @@ function main(): void {
     theme: config.theme,
     recipe: config.recipe,
     lastResult: undefined,
+    pendingSettle,
+    mayRender: allowed.render && !instant,
+    dismissesCookieWalls: allowed.consent,
   };
 
   const pipeline: Pipeline = new ReaderPipeline(context);
 
   const start = async () => {
     try {
-      visibility.reveal(await pipeline.run());
+      // `settle`, not `reveal`: if the failsafe already showed the page, the
+      // pipeline's verdict is still the truth about what is now on screen.
+      visibility.settle(await pipeline.run());
     } catch (error) {
       // Any pipeline failure must still reveal the page. The failsafe timer would
       // catch this eventually, but revealing now saves the user the full wait.
@@ -109,6 +150,33 @@ function main(): void {
           await start();
         }
         break;
+
+      case "setLevel": {
+        // Recompute what this page is permitted to do, then act on it.
+        //
+        // The permissions were cached at load time, which is correct for the load
+        // and wrong for everything after it: a page that arrived at Calm had
+        // `render: false` baked in, so a later `setMode` would run the whole
+        // pipeline and then decline to show the result. The level moved, the page
+        // did not, and the control looked stuck.
+        config.level = command.payload;
+        // `mode` moves with it, or `isEligible` keeps answering from the clamp
+        // applied at load and the same staleness bites one layer down.
+        config.mode = atLeast(command.payload, "reader") ? "restructured" : "original";
+        const next = plan(config, isEligible(config), instant);
+        context.mayRender = next.render;
+        context.dismissesCookieWalls = next.consent;
+
+        if (!next.render) {
+          view.hide();
+          visibility.reveal("userRequested");
+        } else if (view.isRendered) {
+          view.show();
+        } else {
+          await start();
+        }
+        break;
+      }
 
       case "applyTheme":
         // Presentation only: no re-extraction, no model call, no reload.
@@ -148,12 +216,16 @@ function main(): void {
     }
   });
 
-  // An ineligible page still reports, so the app can tell "declined" from
-  // "the bundle never ran" — and still gets its cookie wall dismissed, which is
-  // the strip layer's job regardless of whether we restructure.
-  if (!eligible) {
-    // Nothing was hidden, so autoconsent may pre-hide the CMP container itself.
-    void dismissConsent({ budgetMs: config.settleCeilingMs, prehide: true, debug });
+  // A page we will not extract still reports, so the app can tell "declined" from
+  // "the bundle never ran".
+  //
+  // Consent is now gated on the level rather than run unconditionally: below Calm
+  // the user asked us to block requests, not to click buttons on their behalf.
+  if (!allowed.pipeline) {
+    if (allowed.consent) {
+      // Nothing was hidden, so autoconsent may pre-hide the CMP container itself.
+      void dismissConsent({ budgetMs: config.settleCeilingMs, prehide: true, debug });
+    }
     visibility.reveal("passthrough");
     return;
   }
@@ -167,7 +239,14 @@ function main(): void {
     visibility = visibility.restartedForNavigation();
     context.visibility = visibility;
     view.clear();
-    visibility.hide(config.revealFailsafeMs);
+    if (allowed.hide) visibility.hide(config.revealFailsafeMs);
+    // Armed before `start()` for the same reason as the initial load: the router
+    // is mutating the DOM right now, and the watch should cover that, not begin
+    // after it.
+    context.pendingSettle = waitForSettle(document, {
+      quietPeriodMs: config.settleQuietPeriodMs,
+      ceilingMs: config.settleCeilingMs,
+    });
     void start();
   });
 

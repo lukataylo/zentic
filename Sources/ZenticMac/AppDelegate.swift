@@ -103,6 +103,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(
+            item(
+                "Allow Rewriting",
+                #selector(BrowserViewController.toggleRewriteEnabledCommand(_:)),
+                ""
+            )
+        )
+        menu.addItem(
             item("OpenAI API Key…", #selector(BrowserViewController.setAPIKeyCommand(_:)), ",")
         )
         menu.addItem(.separator())
@@ -156,9 +163,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Show Original Page", #selector(BrowserViewController.toggleOriginalCommand(_:)), "\\")
         )
         menu.addItem(.separator())
+        menu.addItem(pageLevelMenuItem())
         menu.addItem(
-            item("Simplify Page", #selector(BrowserViewController.simplifyCommand(_:)), "s", [.command, .shift])
+            item("Less", #selector(BrowserViewController.levelDownCommand(_:)), "[", [.command, .option])
         )
+        menu.addItem(
+            item("More", #selector(BrowserViewController.levelUpCommand(_:)), "]", [.command, .option])
+        )
+        menu.addItem(.separator())
+        menu.addItem(rewriteMenuItem())
         menu.addItem(
             item("Show Original Text", #selector(BrowserViewController.discardRewriteCommand(_:)), "")
         )
@@ -173,18 +186,103 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Focus Mode", #selector(BrowserViewController.toggleFocusModeCommand(_:)), "f", [.command, .shift])
         )
         menu.addItem(.separator())
-        menu.addItem(
-            item("Redesign This Site…", #selector(BrowserViewController.redesignSiteCommand(_:)), "d", [.command, .option])
-        )
-        menu.addItem(
-            item("Reset This Site's Design", #selector(BrowserViewController.resetDesignCommand(_:)), "")
-        )
+        menu.addItem(designMenuItem())
         menu.addItem(.separator())
         menu.addItem(backgroundMenuItem())
         menu.addItem(.separator())
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
 
         let holder = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+        holder.submenu = menu
+        return holder
+    }
+
+    /// How the restructured page looks — the axis the level rail deliberately does
+    /// not carry.
+    ///
+    /// The six built-in themes existed since M3 and had no UI at all: the only way
+    /// to change a page's look was to describe one to a model, which is a strange
+    /// thing to require for "I would like serif". Presets first, then the prompt.
+    private func designMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Design")
+        for (index, theme) in ReaderTheme.allBuiltIn.enumerated() {
+            menu.addItem(
+                item(
+                    theme.name,
+                    #selector(BrowserViewController.applyBuiltInThemeCommand(_:)),
+                    "",
+                    .command,
+                    tag: index
+                )
+            )
+        }
+        menu.addItem(.separator())
+        menu.addItem(
+            item(
+                "Describe a Look…",
+                #selector(BrowserViewController.redesignSiteCommand(_:)),
+                "d",
+                [.command, .option]
+            )
+        )
+        menu.addItem(
+            item("Reset This Site's Design", #selector(BrowserViewController.resetDesignCommand(_:)), "")
+        )
+
+        let holder = NSMenuItem(title: "Design", action: nil, keyEquivalent: "")
+        holder.submenu = menu
+        return holder
+    }
+
+    /// The rewrite presets.
+    ///
+    /// These lived behind the toolbar's wand button, which the level rail replaced —
+    /// leaving four of the five presets with no way to reach them and ⌘⇧S as the
+    /// only survivor. The menu is where they belong anyway: they are five variations
+    /// on one action, which is what a submenu is for.
+    private func rewriteMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Rewrite")
+        for preset in RewritePreset.allCases {
+            menu.addItem(
+                item(
+                    preset.title,
+                    #selector(BrowserViewController.runRewritePreset(_:)),
+                    preset.keyEquivalent,
+                    [.command, .shift],
+                    tag: preset.rawValue
+                )
+            )
+        }
+
+        let holder = NSMenuItem(title: "Rewrite", action: nil, keyEquivalent: "")
+        holder.submenu = menu
+        return holder
+    }
+
+    /// Page level: how much Zentic changes the site in front of you.
+    ///
+    /// Built from `PageLevel.allCases` with the case index as the tag, the same
+    /// shape as ``backgroundMenuItem()`` — so a sixth stop appears here for free
+    /// rather than needing a sixth menu item written by hand.
+    private func pageLevelMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Page Level")
+        for (index, level) in PageLevel.allCases.enumerated() {
+            menu.addItem(
+                item(
+                    level.title,
+                    #selector(BrowserViewController.setLevelPinCommand(_:)),
+                    "",
+                    .command,
+                    tag: index
+                )
+            )
+        }
+        menu.addItem(.separator())
+        menu.addItem(
+            item("Automatic", #selector(BrowserViewController.setLevelAutoCommand(_:)), "")
+        )
+
+        let holder = NSMenuItem(title: "Page Level", action: nil, keyEquivalent: "")
         holder.submenu = menu
         return holder
     }

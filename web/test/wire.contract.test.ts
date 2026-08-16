@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { plan } from "../src/level.js";
+
 import {
   isRewritable,
   WIRE_VERSION,
@@ -67,6 +69,26 @@ describe("bootstrap configuration", () => {
     expectField(config, "settleCeilingMs", "number");
     expect(config.revealFailsafeMs).toBeGreaterThan(0);
     expect(config.settleCeilingMs).toBeLessThan(config.revealFailsafeMs);
+  });
+
+  it("carries the level, which decides whether the page is hidden at all", () => {
+    expectField(config, "level", "string");
+    expect(["original", "clean", "calm", "reader", "rewritten"]).toContain(config.level);
+    // Both languages must agree on the plan for the level Swift actually sent, or
+    // one of them hides a page the other thinks is untouched.
+    expect(plan(config, true, false).hide).toBe(true);
+  });
+
+  it("clamps mode to original below Reader", () => {
+    // Swift asked for `restructured` at level `clean` and got `original` back. A
+    // second fixture, because a clamp is invisible in a file where the requested
+    // and stored values happen to agree.
+    const clean = fixture("configuration-clean") as ReaderConfiguration;
+    expect(clean.level).toBe("clean");
+    expect(clean.mode).toBe("original");
+    const allowed = plan(clean, true, false);
+    expect(allowed.hide).toBe(false);
+    expect(allowed.consent).toBe(false);
   });
 
   it("carries the eligibility inputs", () => {

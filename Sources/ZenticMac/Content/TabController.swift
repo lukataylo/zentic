@@ -10,6 +10,13 @@ protocol TabControllerDelegate: AnyObject {
     func tabControllerDidFinishLoad(_ controller: TabController)
     /// A main-frame navigation committed. Drives history and visit counting.
     func tabController(_ controller: TabController, didCommit url: URL, title: String)
+    /// Extraction reached a verdict on a page. Drives the per-origin memory of
+    /// whether pages here are worth hiding on arrival.
+    func tabController(
+        _ controller: TabController,
+        didExtract result: ExtractionResult,
+        from url: URL
+    )
     /// A link asked for a new tab (⌘-click, `target=_blank`, `window.open`).
     func tabController(_ controller: TabController, wantsNewTabFor url: URL)
     func tabController(_ controller: TabController, didStart download: WKDownload)
@@ -75,6 +82,18 @@ final class TabController: NSObject {
     private var pendingScrollY: Double?
     private var lastCommittedURL: URL?
 
+    /// Title and URL are observed rather than sampled.
+    ///
+    /// `didCommit` and `didFinish` are the wrong moments to read `title`: WebKit
+    /// parses `<title>` on its own schedule, and a single-page app rewrites
+    /// `document.title` well after the navigation that triggered it — often after
+    /// the load has finished, sometimes without a load at all. Sampling at those
+    /// two points leaves the previous page's title in the sidebar, which is why
+    /// the favicon could refresh while the title did not: the favicon already had
+    /// an async path of its own.
+    private var titleObservation: NSKeyValueObservation?
+    private var urlObservation: NSKeyValueObservation?
+
     /// Set once the tab is closed. Every write to ``record`` is gated on it: the
     /// store deletes the record synchronously while snapshot capture and suspension
     /// are in flight, and SwiftData traps on any access to a deleted object.
@@ -87,11 +106,57 @@ final class TabController: NSObject {
     /// frame is a measurable tax on every page.
     private var scrollPoll: Task<Void, Never>?
 
-    init(record: Tab, faviconService: FaviconService) {
+    /// Origins whose pages this tab should leave visible on arrival.
+    ///
+    /// A closure rather than a stored set, because the answer changes as the user
+    /// browses and a tab outlives many navigations. It is read at ``realize()`` and
+    /// baked into the bootstrap script, which belongs to the web view's
+    /// configuration and cannot be changed afterwards — so reading it late is the
+    /// only way a tab suspended before an origin was learned picks the answer up
+    /// when it comes back.
+    private let instantOrigins: () -> Set<String>
+
+    /// The level a page from a given origin should load at.
+    ///
+    /// A closure for the same reason as ``instantOrigins`` — it is resolved at
+    /// ``realize()`` and baked into the bootstrap, so it has to be read late — and
+    /// it takes the origin because a tab outlives navigations between sites.
+    private let resolveLevel: (String?) -> LevelResolution
+
+    /// The level this tab's current document was loaded under, which is what a
+    /// change has to be compared against to know whether a reload is owed.
+    private(set) var level: PageLevel = .reader
+    /// Where this page would sit with no override. Cached rather than derived on
+    /// demand: the toolbar reads it on every title change, favicon and reveal, and
+    /// resolving it touches the store.
+    private(set) var automaticLevel: PageLevel = .reader
+    /// The origin the current level and rule lists were resolved for, so a
+    /// same-site navigation costs nothing and a cross-site one is noticed.
+    private var attachedOrigin: String?
+
+    init(
+        record: Tab,
+        faviconService: FaviconService,
+        instantOrigins: @escaping () -> Set<String> = { [] },
+        resolveLevel: @escaping (String?) -> LevelResolution = {
+            _ in LevelResolution(level: .reader, automatic: .reader)
+        }
+    ) {
         self.id = record.id
         self.record = record
         self.faviconService = faviconService
+        self.instantOrigins = instantOrigins
+        self.resolveLevel = resolveLevel
         super.init()
+    }
+
+    /// Re-read this origin's level from the store.
+    ///
+    /// Called when the memory behind it actually changes — a new extraction verdict,
+    /// a preference edit — rather than on every chrome update.
+    func refreshLevelResolution() {
+        let resolved = resolveLevel(record.url?.zenticOrigin)
+        automaticLevel = resolved.automatic
     }
 
     deinit {
@@ -120,6 +185,15 @@ final class TabController: NSObject {
     func realize() -> WKWebView {
         if let webView { return webView }
 
+        // Resolved before anything is built, because it decides both which rule
+        // lists attach and what the bootstrap script says — and the bootstrap
+        // belongs to the configuration, which cannot be changed once the web view
+        // exists.
+        attachedOrigin = record.url?.zenticOrigin
+        let resolved = resolveLevel(attachedOrigin)
+        level = resolved.level
+        automaticLevel = resolved.automatic
+
         let configuration = WKWebViewConfiguration()
         // Shared data store: cookies and logins must survive suspension, and a
         // per-tab store would sign the user out every time a tab was evicted.
@@ -137,7 +211,12 @@ final class TabController: NSObject {
         do {
             let bridge = try ReaderBridge(
                 contentController: configuration.userContentController,
-                configuration: ReaderConfiguration(mode: readerMode, debugLogging: true)
+                configuration: ReaderConfiguration(
+                    level: level,
+                    mode: readerMode,
+                    instantOrigins: instantOrigins(),
+                    debugLogging: true
+                )
             )
             bridge.delegate = self
             self.bridge = bridge
@@ -150,7 +229,10 @@ final class TabController: NSObject {
         // Ads, trackers and cookie walls. Attached per tab because the shield is
         // per origin — one site being allowed through must not lift blocking
         // everywhere.
-        Blocking.attach(to: configuration.userContentController, origin: record.url?.host())
+        //
+        // The shield is a projection of the level, not a second setting looked up
+        // separately — two controls that can disagree are two controls that will.
+        Blocking.attach(to: configuration.userContentController, shield: level.shield)
 
         let webView = TrackedWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -165,9 +247,20 @@ final class TabController: NSObject {
         #endif
         self.webView = webView
 
+        // Both fire on the main thread: WebKit updates these properties from the
+        // main run loop, which is the same isolation this class already lives on.
+        titleObservation = webView.observe(\.title, options: [.new]) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.recordTitle() }
+        }
+        // Covers the navigation a `pushState` route change makes without ever
+        // reaching `didCommit`.
+        urlObservation = webView.observe(\.url, options: [.new]) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.recordNavigation() }
+        }
+
         restoreSession(into: webView)
         startScrollPolling()
-        trace("tabs", "realize \(shortID) \(record.urlString)")
+        trace("tabs", "realize \(shortID) \(level.rawValue) \(record.urlString)")
         return webView
     }
 
@@ -199,6 +292,12 @@ final class TabController: NSObject {
 
     private func teardownWebView() {
         guard let webView else { return }
+        // Alongside the delegates, and for the same reason: an observation that
+        // outlived the web view would report the teardown itself as a navigation.
+        titleObservation?.invalidate()
+        titleObservation = nil
+        urlObservation?.invalidate()
+        urlObservation = nil
         // Stop loading before dropping delegates, or an in-flight navigation can
         // call back into a half-dismantled controller.
         webView.stopLoading()
@@ -325,12 +424,69 @@ final class TabController: NSObject {
 
     func stopLoading() { webView?.stopLoading() }
 
+    /// Move this tab to a level.
+    ///
+    /// Split by axis, because the two halves are genuinely different operations.
+    /// Everything above the strip layer is a message to a page that is already
+    /// loaded. The strip layer is not: WebKit compiles `css-display-none` into a
+    /// document when it loads and never revisits it, and a request already on the
+    /// wire cannot be recalled — so a blocking change describes the *next*
+    /// document, and the only honest way to apply it now is to fetch one.
+    func setLevel(_ level: PageLevel) {
+        let previous = self.level
+        guard level != previous else { return }
+        self.level = level
+
+        // The bootstrap script belongs to the configuration, so this governs the
+        // next navigation whether or not we reload for it now.
+        if let bridge {
+            // Mutated, not rebuilt. Reconstructing dropped every budget back to its
+            // default — harmless only for as long as nothing ever carries a
+            // non-default one, which is not a property worth relying on.
+            var configuration = bridge.currentConfiguration
+            configuration.level = level
+            configuration.mode = level.readerMode
+            bridge.updateConfiguration(configuration)
+        }
+
+        if PageLevel.requiresReload(from: previous, to: level) {
+            // Re-attach before reloading, or the new document loads under the old
+            // lists and the change appears not to have worked.
+            if let controller = webView?.configuration.userContentController {
+                Task {
+                    await Blocking.reattach(to: controller, shield: level.shield)
+                    reload()
+                }
+            }
+            return
+        }
+
+        readerMode = level.readerMode
+        guard let bridge, let webView else { return }
+        // `setLevel`, not `setMode`: the bundle caches what it is permitted to do
+        // when the page loads, so a mode change alone would be obeyed by a page
+        // that had already decided it may not render.
+        Task {
+            do {
+                try await bridge.send(.setLevel(level), to: webView)
+                trace("bridge", "tab \(shortID) setLevel \(level.rawValue)")
+            } catch {
+                trace("bridge", "tab \(shortID) setLevel failed: \(error)")
+            }
+        }
+    }
+
     /// ⌘\ — swap between Zentic's rendering and the site's own.
     ///
     /// Sent as a command rather than a reload: the original DOM is only ever
     /// hidden, never destroyed, so the toggle is instant. The bridge configuration
     /// is updated too, so the choice survives the next navigation.
     func toggleReaderMode() {
+        // Nothing to peek at below Reader: the site's own page is already what is on
+        // screen. Without this guard ⌘\ would write `.restructured` into a
+        // configuration whose level forbids it — the clamp catches that now, but a
+        // keystroke that silently does nothing is better than one that half-works.
+        guard level >= .reader else { return }
         setReaderMode(readerMode == .restructured ? .original : .restructured)
     }
 
@@ -513,17 +669,37 @@ final class TabController: NSObject {
 
     private var shortID: String { String(id.uuidString.prefix(4)) }
 
+    /// A new title arrived for the page already on screen.
+    private func recordTitle() {
+        guard
+            let webView, !isDiscarded,
+            let title = webView.title, !title.isEmpty,
+            title != record.title
+        else { return }
+        record.title = title
+        delegate?.tabControllerDidChangeChrome(self)
+    }
+
     private func recordNavigation() {
         guard let webView, let url = webView.url, !isDiscarded else { return }
+        let isNewPage = url != lastCommittedURL
         record.urlString = url.absoluteString
         record.canGoBack = webView.canGoBack
         record.canGoForward = webView.canGoForward
+
         if let title = webView.title, !title.isEmpty {
             record.title = title
+        } else if isNewPage {
+            // Nothing to show yet, and the field still holds the *previous* page's
+            // title. Keeping it would caption the new page with the old one's name
+            // until a title happens to arrive; clearing falls back to
+            // `displayTitle`, which shows the host — wrong in no case.
+            record.title = ""
         }
+
         delegate?.tabControllerDidChangeChrome(self)
 
-        guard url != lastCommittedURL else { return }
+        guard isNewPage else { return }
         lastCommittedURL = url
         delegate?.tabController(self, didCommit: url, title: record.title)
         Task { await loadFavicon(for: url) }
@@ -578,7 +754,54 @@ extension TabController: WKNavigationDelegate {
         if navigationAction.shouldPerformDownload {
             return (.download, preferences)
         }
+
+        await adoptLevel(for: navigationAction)
         return (.allow, preferences)
+    }
+
+    /// Re-resolve the level when a tab crosses to a different site.
+    ///
+    /// The level is per *origin*, but it was only ever read when the tab was built —
+    /// so following a link from a docs site to a shop carried the docs site's level
+    /// and its rule lists along with it. This is the one hook that runs after the
+    /// destination is known and before its document exists, which is what both the
+    /// bootstrap script and the rule lists need.
+    ///
+    /// Both writes are guarded on actually differing. `updateConfiguration` re-adds
+    /// the whole bundle source, and `reattach` awaits the blocker actor; doing
+    /// either on every same-site navigation would be a tax paid on every click.
+    private func adoptLevel(for navigationAction: WKNavigationAction) async {
+        guard
+            navigationAction.targetFrame?.isMainFrame ?? false,
+            let incoming = navigationAction.request.url?.zenticOrigin,
+            incoming != attachedOrigin,
+            !isDiscarded
+        else { return }
+
+        attachedOrigin = incoming
+        let resolved = resolveLevel(incoming)
+        guard resolved.level != level || resolved.automatic != automaticLevel else { return }
+
+        let previous = level
+        level = resolved.level
+        automaticLevel = resolved.automatic
+
+        if previous.shield != resolved.level.shield,
+            let controller = webView?.configuration.userContentController
+        {
+            await Blocking.reattach(to: controller, shield: resolved.level.shield)
+        }
+
+        if let bridge {
+            var configuration = bridge.currentConfiguration
+            configuration.level = resolved.level
+            configuration.mode = resolved.level.readerMode
+            bridge.updateConfiguration(configuration)
+        }
+
+        readerMode = resolved.level.readerMode
+        trace("level", "tab \(shortID) → \(resolved.level.rawValue) for \(incoming)")
+        delegate?.tabControllerDidChangeChrome(self)
     }
 
     func webView(
@@ -739,6 +962,9 @@ extension TabController: ReaderBridgeDelegate {
         case .extracted(let result):
             extraction = result
             trace("bridge", "\(shortID) extracted · \(result.archetype.rawValue) · \(result.wordCount)w")
+            if let url = webView?.url ?? record.url {
+                delegate?.tabController(self, didExtract: result, from: url)
+            }
             delegate?.tabControllerDidChangeChrome(self)
         case .needsRecipe(let skeleton):
             trace("bridge", "\(shortID) needsRecipe · \(skeleton.nodes.count) nodes")

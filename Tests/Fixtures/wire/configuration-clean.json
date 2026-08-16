@@ -3,10 +3,10 @@
   "instantOrigins" : [
 
   ],
-  "level" : "reader",
+  "level" : "clean",
   "minConfidence" : 0.55,
   "minWordCount" : 40,
-  "mode" : "restructured",
+  "mode" : "original",
   "passthroughOrigins" : [
     "https:\/\/mail.google.com"
   ],

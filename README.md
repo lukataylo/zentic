@@ -13,7 +13,7 @@ treadmill.
 ![Zentic showing swift.org restructured into its reading view](docs/screenshot.png)
 
 *swift.org, restructured. Sidebar tabs on frosted glass, breadcrumb address bar,
-and the Transformed/Original toggle at top right.*
+and the five-stop level rail at top right.*
 
 ---
 
@@ -29,6 +29,46 @@ The architectural point is that layers 1 and 2 need **no model calls at all**. A
 appears in exactly two places you choose to invoke: generating a design for a site
 (once, then cached), and rewriting prose on an explicit press. The common path is
 free, instant, offline and private.
+
+## One control
+
+The three layers used to be reached through three unrelated widgets, and the strip
+layer had no control at all — so the question that matters on any page had nowhere
+to be answered: *how much is this browser changing what I am looking at?*
+
+That is now a single five-stop rail in the toolbar, per site, with defaults inferred
+per page rather than guessed once.
+
+| Stop | What it does |
+|---|---|
+| **Original** | The site exactly as it shipped |
+| **Clean** | Ads and trackers blocked; the site's own layout, untouched |
+| **Calm** | Also the interstitials and the chum, and cookie walls answered |
+| **Reader** | Rebuilt in Zentic's type and spacing — every word still the publisher's |
+| **Rewritten** | Also re-voiced by a model. Badged, gated, one keystroke from the original |
+
+The ladder is strictly ordered, and the order is load-bearing: each stop does
+everything the one below it does and one thing more, which is what makes a slider an
+honest control for it. `ShieldState` and `ReaderMode` are projections of the level
+rather than separately settable — two controls that can disagree are two controls
+that will.
+
+Moving between Calm, Reader and Rewritten is instant. Changing what is *blocked*
+reloads, because WebKit bakes `css-display-none` into a document at load and a
+request already on the wire cannot be recalled. The rail says which is which before
+you click.
+
+**Smart defaults, not a remembered guess.** A site is not one kind of page — a
+registrar's front door is marketing and its blog is prose — so the default is
+resolved per page from the archetype, and a site can be left on `Automatic`, pinned
+to a level, or capped (`never above Calm`). Choosing the level a page would have
+picked anyway is stored as automatic, not as a pin, so it isn't frozen there when the
+site changes.
+
+**Design is a separate axis.** Presentation is lossless and reversible; tone changes
+what the words say. Conflating them would mean crossing a consent boundary while
+picking a font, so themes live in their own menu — six built-in looks, or describe
+one and a model returns validated tokens, never CSS.
 
 ## Performance
 
@@ -50,8 +90,8 @@ WKWebView, so per-page speed *is* Safari's; the wins are in the shell.
 ## Build
 
 ```sh
-swift build && swift test          # Swift: 88 tests
-cd web && npm run check            # typecheck + bundle tests + 76-page corpus
+swift build && swift test          # Swift: 118 tests
+cd web && npm run check            # typecheck + 42 bundle tests + 80-page corpus
 swift run ZenticMac                # run it
 ```
 
@@ -62,9 +102,10 @@ anything in `web/src/`, run `npm run build` and commit the result.
 
 | | |
 |---|---|
+| `⌥⌘[` / `⌥⌘]` | less / more — one stop along the level rail |
 | `⌘\` | the site's own page, and back |
 | `⌘⇧S` | simplify this page |
-| `⌥⌘D` | redesign this site |
+| `⌥⌘D` | describe a look for this site |
 | `⌥⌘S` / `⌥⌘T` | collapse the sidebar / toolbar to a hover-reveal edge |
 | `⌘⇧F` | focus mode |
 | `⌘K` | command palette |
@@ -118,14 +159,14 @@ key at all and is the default when Apple Intelligence is enabled.
 |---|---|
 | M0 Skeleton · M1 Shell | done |
 | M2 Strip | done |
-| M3 Restructure | done — 48 of 76 corpus pages restructure; the rest are apps, index pages and threads, declined on purpose |
+| M3 Restructure | done — 48 of 80 corpus pages restructure; the rest are apps, front doors, index pages and threads, declined on purpose |
 | M4 Recipes | not started |
-| M5 Rewrite / Redesign | working — presets, per-site designs, BYO key |
+| M5 Rewrite / Redesign | working — presets, built-in and prompted per-site designs, BYO key |
 | M6 iOS | not started |
 
 ## Verification
 
-The golden corpus is the safety net for the highest-risk component: 76 real pages
+The golden corpus is the safety net for the highest-risk component: 80 real pages
 saved as HTML, extraction pinned to a reviewed answer, run offline under vitest.
 
 ```sh

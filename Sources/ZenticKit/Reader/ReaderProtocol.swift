@@ -121,6 +121,15 @@ public enum ReaderCommand: Sendable, Hashable {
     case applyRecipe(SiteRecipe)
     /// Switch between the restructured view and the original document.
     case setMode(ReaderMode)
+    /// Move the live page to a level.
+    ///
+    /// Distinct from ``setMode`` rather than folded into it, because the bundle
+    /// caches what it is *permitted* to do at load time — whether it may render at
+    /// all, whether it may answer a cookie wall. `setMode` can only ask for a
+    /// rendering, so a page that loaded below Reader would take the mode change,
+    /// run the pipeline, and then decline to render because its cached permission
+    /// still said no. This carries the permission with the request.
+    case setLevel(PageLevel)
     /// Ask for a ``DOMSkeleton`` so a recipe can be inferred.
     case requestSkeleton
     /// Replace one section's prose with rewritten text. Streamed, so this
@@ -133,7 +142,8 @@ public enum ReaderCommand: Sendable, Hashable {
     case applyTheme(ReaderTheme)
 
     private enum Tag: String, Codable {
-        case applyRecipe, setMode, requestSkeleton, applyRewrite, discardRewrite, applyTheme
+        case applyRecipe, setMode, setLevel, requestSkeleton, applyRewrite, discardRewrite
+        case applyTheme
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -179,6 +189,8 @@ extension ReaderCommand: Codable {
             self = .applyRecipe(try container.decode(SiteRecipe.self, forKey: .payload))
         case .setMode:
             self = .setMode(try container.decode(ReaderMode.self, forKey: .payload))
+        case .setLevel:
+            self = .setLevel(try container.decode(PageLevel.self, forKey: .payload))
         case .requestSkeleton:
             self = .requestSkeleton
         case .applyRewrite:
@@ -200,6 +212,9 @@ extension ReaderCommand: Codable {
             try container.encode(payload, forKey: .payload)
         case .setMode(let payload):
             try container.encode(Tag.setMode, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .setLevel(let payload):
+            try container.encode(Tag.setLevel, forKey: .type)
             try container.encode(payload, forKey: .payload)
         case .requestSkeleton:
             try container.encode(Tag.requestSkeleton, forKey: .type)
@@ -224,7 +239,28 @@ extension ReaderCommand: Codable {
 /// is serialised into a bootstrap user script that runs ahead of the bundle.
 /// See ``ReaderBridge/updateConfiguration(_:)``.
 public struct ReaderConfiguration: Codable, Sendable, Hashable {
-    public var mode: ReaderMode
+    /// How much this page may be transformed. Decides whether the bundle hides the
+    /// document, dismisses a cookie wall, or runs the pipeline at all.
+    ///
+    /// ``mode`` remains separate because it is the *transient* state ⌘\ toggles —
+    /// a peek at the original that survives until the next navigation. The two
+    /// cannot disagree, though: ``init`` clamps `mode` to `.original` whenever the
+    /// level is below `.reader`, so "restructured at level Clean" is unrepresentable
+    /// rather than merely discouraged.
+    public var level: PageLevel { didSet { clampMode() } }
+    public var mode: ReaderMode { didSet { clampMode() } }
+
+    /// Keeps ``mode`` inside what ``level`` permits, on every write.
+    ///
+    /// The clamp used to live only in `init`, which made it advisory: both
+    /// properties are `var`, and the mode is edited in place on every ⌘\ — so a peek
+    /// at a page below Reader could leave a configuration claiming a rendering that
+    /// cannot exist. Re-entry terminates because the second pass finds nothing to
+    /// change.
+    private mutating func clampMode() {
+        let clamped: ReaderMode = level.readerMode == .original ? .original : mode
+        if clamped != mode { mode = clamped }
+    }
     /// Presentation tokens for the restructured view. Part of the bootstrap
     /// rather than a command so the first paint is already correctly styled.
     public var theme: ReaderTheme
@@ -233,6 +269,14 @@ public struct ReaderConfiguration: Codable, Sendable, Hashable {
     /// Origins that must never be restructured, from the bundled deny-list plus
     /// the user's own opt-outs.
     public var passthroughOrigins: Set<String>
+    /// Origins the app has learned do not get restructured, so their pages are
+    /// left visible from the first paint instead of hidden while the reader works.
+    ///
+    /// Distinct from ``passthroughOrigins``, and deliberately so: that set is a
+    /// *policy* — never restructure these — whereas this one is only a performance
+    /// prior. The pipeline still runs on an instant origin, so the app keeps
+    /// learning and a site that starts publishing is picked back up.
+    public var instantOrigins: Set<String>
     public var revealFailsafeMs: Int
     public var settleQuietPeriodMs: Int
     public var settleCeilingMs: Int
@@ -243,10 +287,12 @@ public struct ReaderConfiguration: Codable, Sendable, Hashable {
     public var debugLogging: Bool
 
     public init(
+        level: PageLevel = .reader,
         mode: ReaderMode = .restructured,
         theme: ReaderTheme = .zentic,
         recipe: SiteRecipe? = nil,
         passthroughOrigins: Set<String> = [],
+        instantOrigins: Set<String> = [],
         revealFailsafeMs: Int = Int(Budget.revealFailsafe.milliseconds),
         settleQuietPeriodMs: Int = Int(Budget.settleQuietPeriod.milliseconds),
         settleCeilingMs: Int = Int(Budget.settleCeiling.milliseconds),
@@ -255,10 +301,15 @@ public struct ReaderConfiguration: Codable, Sendable, Hashable {
         skeletonNodeLimit: Int = Budget.skeletonNodeLimit,
         debugLogging: Bool = false
     ) {
-        self.mode = mode
+        self.level = level
+        // The clamp, applied here so no call site can construct the contradiction.
+        // A page at Clean has not been hidden and has no overlay to show, so a
+        // `mode` of `.restructured` would describe a rendering that cannot exist.
+        self.mode = level.readerMode == .original ? .original : mode
         self.theme = theme
         self.recipe = recipe
         self.passthroughOrigins = passthroughOrigins
+        self.instantOrigins = instantOrigins
         self.revealFailsafeMs = revealFailsafeMs
         self.settleQuietPeriodMs = settleQuietPeriodMs
         self.settleCeilingMs = settleCeilingMs

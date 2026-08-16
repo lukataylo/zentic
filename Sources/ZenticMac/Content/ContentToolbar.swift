@@ -9,20 +9,27 @@ protocol ContentToolbarDelegate: AnyObject {
     func toolbarDidReload()
     func toolbar(_ toolbar: ContentToolbar, didSubmitAddress text: String)
     func toolbarDidRequestDownloads(_ sender: NSView)
-    /// The reader/original segmented control moved.
-    func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode)
-    /// The rewrite button. `sender` anchors the options menu.
-    func toolbarDidRequestRewrite(_ sender: NSView)
+    /// A stop on the level rail was clicked.
+    func toolbar(_ toolbar: ContentToolbar, didSelectLevel level: PageLevel)
+    /// A stop this page cannot reach was clicked. Answer, do not ignore.
+    func toolbar(_ toolbar: ContentToolbar, didSelectBlockedLevel level: PageLevel)
+    /// The rail's label was clicked. `sender` anchors the detail popover.
+    func toolbar(_ toolbar: ContentToolbar, didRequestLevelDetail sender: NSView)
     /// The AI badge was clicked — put the original text back.
     func toolbarDidRequestDiscardRewrite()
 }
 
 /// What the toolbar needs to know to draw the reader controls.
 struct ReaderControlState {
-    var mode: ReaderMode = .restructured
-    var canTransform = false
-    var canRewrite = false
     var rewrite: TabController.RewriteState = .none
+    /// Where this page currently sits on the ladder.
+    var level: PageLevel = .reader
+    /// Where it would sit with no override, drawn hollow when the two differ.
+    var automatic: PageLevel = .reader
+    /// The highest stop this page can actually reach.
+    var ceiling: PageLevel = .rewritten
+    /// Why, when that is lower than the top.
+    var ceilingReason: String?
 }
 
 /// The toolbar. Sits above the **content area**, never above the sidebar — that
@@ -39,14 +46,14 @@ final class ContentToolbar: PointerTrackingView {
     private let reloadButton = NSButton()
     private let downloadsButton = NSButton()
 
-    /// Reader ⇄ Original. The visible half of ⌘\.
+    /// The five-stop ladder, from the site as shipped to a model-rewritten page.
     ///
-    /// A segmented control rather than a single toggle button, because the two
-    /// states are not "on and off" — they are two renderings of the same page, and
-    /// the user needs to see which one they are looking at without clicking to
-    /// find out.
-    private let modeControl = NSSegmentedControl()
-    private let rewriteButton = NSButton()
+    /// Replaces the old two-segment Transformed/Original control and the separate
+    /// wand button. Those described two of the three layers through two unrelated
+    /// widgets and left the strip layer with no control at all, so the one question
+    /// worth answering — how much is this browser changing what I am looking at —
+    /// had no single place to read it.
+    let levelRail = LevelRailView(frame: .zero)
     /// Shown only while a rewrite is on screen. Invariant 6: rewritten text is
     /// badged for as long as it is displayed.
     private let aiBadge = NSButton()
@@ -78,7 +85,7 @@ final class ContentToolbar: PointerTrackingView {
         leftGroup.spacing = 2
         leftGroup.translatesAutoresizingMaskIntoConstraints = false
 
-        let rightGroup = NSStackView(views: [aiBadge, modeControl, rewriteButton, downloadsButton])
+        let rightGroup = NSStackView(views: [aiBadge, levelRail, downloadsButton])
         rightGroup.orientation = .horizontal
         rightGroup.spacing = 6
         rightGroup.translatesAutoresizingMaskIntoConstraints = false
@@ -107,34 +114,19 @@ final class ContentToolbar: PointerTrackingView {
     }
 
     private func buildReaderControls() {
-        // Icons, not words. Two labels cost about 150pt of a toolbar whose most
-        // valuable tenant is the address bar, and the pair reads fine as glyphs
-        // once you have used it twice. The tooltip carries the words until then.
-        modeControl.segmentCount = 2
-        modeControl.setImage(
-            NSImage(systemSymbolName: "textformat", accessibilityDescription: "Transformed"),
-            forSegment: 0
-        )
-        modeControl.setImage(
-            NSImage(systemSymbolName: "globe", accessibilityDescription: "Original page"),
-            forSegment: 1
-        )
-        modeControl.setWidth(28, forSegment: 0)
-        modeControl.setWidth(28, forSegment: 1)
-        modeControl.segmentStyle = .capsule
-        modeControl.trackingMode = .selectOne
-        modeControl.selectedSegment = 0
-        modeControl.target = self
-        modeControl.action = #selector(modeChanged)
-        modeControl.controlSize = .small
-        modeControl.translatesAutoresizingMaskIntoConstraints = false
-
-        configure(
-            rewriteButton,
-            symbol: "wand.and.stars",
-            action: #selector(requestRewrite),
-            tip: "Rewrite this page"
-        )
+        levelRail.translatesAutoresizingMaskIntoConstraints = false
+        levelRail.onSelect = { [weak self] level in
+            guard let self else { return }
+            delegate?.toolbar(self, didSelectLevel: level)
+        }
+        levelRail.onBlocked = { [weak self] level in
+            guard let self else { return }
+            delegate?.toolbar(self, didSelectBlockedLevel: level)
+        }
+        levelRail.onOpenDetail = { [weak self] in
+            guard let self else { return }
+            delegate?.toolbar(self, didRequestLevelDetail: levelRail)
+        }
 
         // Deliberately a button, not a label: the badge that tells the user they
         // are reading rewritten text is also the fastest way back to the original.
@@ -151,38 +143,28 @@ final class ContentToolbar: PointerTrackingView {
 
     /// Drive the reader controls from the selected tab.
     func apply(reader state: ReaderControlState) {
-        modeControl.isEnabled = state.canTransform
-        modeControl.selectedSegment = state.mode == .restructured ? 0 : 1
-        // Says *why* it is inert rather than just being inert. On a page Zentic
-        // left alone both segments show the same thing, and a control that appears
-        // to do nothing without explaining itself is the most annoying kind.
-        modeControl.toolTip = state.canTransform
-            ? "Zentic's transformed page, or the site's own (⌘\\)"
-            : "Zentic left this page as it is — there is nothing to switch between"
+        levelRail.apply(
+            level: state.level,
+            automatic: state.automatic,
+            ceiling: state.ceiling,
+            ceilingReason: state.ceilingReason
+        )
 
+        // The badge is the only rewrite affordance left in the toolbar now that the
+        // wand has become the ladder's top stop. It stays for invariant 6: rewritten
+        // text is badged for as long as it is shown, and the badge is also the
+        // fastest way back.
         switch state.rewrite {
-        case .none:
+        case .none, .failed:
             aiBadge.isHidden = true
-            rewriteButton.isEnabled = state.canRewrite
-            rewriteButton.toolTip = state.canRewrite
-                ? "Rewrite this page"
-                : "Rewriting needs the transformed page"
-            rewriteButton.contentTintColor = .secondaryLabelColor
         case .running(let done, let total):
-            aiBadge.isHidden = true
-            rewriteButton.isEnabled = false
-            rewriteButton.toolTip = "Rewriting \(done) of \(total)…"
-            rewriteButton.contentTintColor = .controlAccentColor
+            aiBadge.isHidden = false
+            aiBadge.title = "AI \(done)/\(total)"
+            aiBadge.toolTip = "Rewriting \(done) of \(total)…"
         case .shown:
             aiBadge.isHidden = false
-            rewriteButton.isEnabled = state.canRewrite
-            rewriteButton.contentTintColor = .controlAccentColor
-            rewriteButton.toolTip = "Rewrite again with different settings"
-        case .failed(let reason):
-            aiBadge.isHidden = true
-            rewriteButton.isEnabled = state.canRewrite
-            rewriteButton.contentTintColor = .systemOrange
-            rewriteButton.toolTip = reason
+            aiBadge.title = "AI"
+            aiBadge.toolTip = "Rewritten by a model. Click to restore the original text."
         }
     }
 
@@ -227,10 +209,5 @@ final class ContentToolbar: PointerTrackingView {
     @objc private func reload() { delegate?.toolbarDidReload() }
     @objc private func showDownloads() { delegate?.toolbarDidRequestDownloads(downloadsButton) }
 
-    @objc private func modeChanged() {
-        delegate?.toolbar(self, didSelectMode: modeControl.selectedSegment == 0 ? .restructured : .original)
-    }
-
-    @objc private func requestRewrite() { delegate?.toolbarDidRequestRewrite(rewriteButton) }
     @objc private func discardRewrite() { delegate?.toolbarDidRequestDiscardRewrite() }
 }

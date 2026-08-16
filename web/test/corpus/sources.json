@@ -7,7 +7,7 @@
   {
     "slug": "news-bbc-front",
     "url": "https://www.bbc.com/news",
-    "note": "front page — index, not an article"
+    "note": "front page \u2014 index, not an article"
   },
   {
     "slug": "news-guardian-article",
@@ -37,17 +37,17 @@
   {
     "slug": "news-cnn-article",
     "url": "https://lite.cnn.com/2024/01/17/business/red-sea-shipping-attacks",
-    "note": "news (CNN Lite — the full site ships a 6MB document, past the corpus size cap)"
+    "note": "news (CNN Lite \u2014 the full site ships a 6MB document, past the corpus size cap)"
   },
   {
     "slug": "news-aljazeera-index",
     "url": "https://www.aljazeera.com/news/",
-    "note": "news index page — must not be mistaken for an article"
+    "note": "news index page \u2014 must not be mistaken for an article"
   },
   {
     "slug": "news-apnews-hub",
     "url": "https://apnews.com/hub/science",
-    "note": "news hub — index, not an article"
+    "note": "news hub \u2014 index, not an article"
   },
   {
     "slug": "news-propublica",
@@ -57,7 +57,7 @@
   {
     "slug": "news-hackaday",
     "url": "https://hackaday.com/2024/01/01/",
-    "note": "date archive — index page"
+    "note": "date archive \u2014 index page"
   },
   {
     "slug": "blog-paulgraham",
@@ -167,7 +167,7 @@
   {
     "slug": "docs-swift-book",
     "url": "https://docs.swift.org/swift-book/documentation/the-swift-programming-language/optionalchaining/",
-    "note": "DocC — client-rendered, arrives as an empty shell"
+    "note": "DocC \u2014 client-rendered, arrives as an empty shell"
   },
   {
     "slug": "docs-vite",
@@ -212,7 +212,7 @@
   {
     "slug": "medical-mayoclinic",
     "url": "https://www.mayoclinic.org/diseases-conditions/migraine-headache/symptoms-causes/syc-20360201",
-    "note": "medical reference — fidelity-sensitive"
+    "note": "medical reference \u2014 fidelity-sensitive"
   },
   {
     "slug": "academic-sep",
@@ -222,12 +222,12 @@
   {
     "slug": "forum-hackernews",
     "url": "https://news.ycombinator.com/item?id=38859123",
-    "note": "thread — M4 territory, must not crash"
+    "note": "thread \u2014 M4 territory, must not crash"
   },
   {
     "slug": "forum-reddit-thread",
     "url": "https://old.reddit.com/r/programming/comments/1vlkr7o/five_programming_books_that_changed_how_i_think/",
-    "note": "thread — M4 territory"
+    "note": "thread \u2014 M4 territory"
   },
   {
     "slug": "forum-discourse",
@@ -267,7 +267,7 @@
   {
     "slug": "finance-yahoo-quote",
     "url": "https://finance.yahoo.com/quote/AAPL/",
-    "note": "quote dashboard — data app, not an article"
+    "note": "quote dashboard \u2014 data app, not an article"
   },
   {
     "slug": "legal-cornell-uscode",
@@ -347,13 +347,13 @@
   {
     "slug": "app-synthetic-gmail-inbox",
     "synthetic": true,
-    "note": "Hand-authored. Fetching a real mail client is impossible without credentials, and the unauthenticated shell exercises none of the heuristics that matter — a populated inbox does: role=main with a grid of one-line rows, high link and button density, near-zero prose.",
+    "note": "Hand-authored. Fetching a real mail client is impossible without credentials, and the unauthenticated shell exercises none of the heuristics that matter \u2014 a populated inbox does: role=main with a grid of one-line rows, high link and button density, near-zero prose.",
     "url": "https://mail.example-corp.com/u/0/inbox"
   },
   {
     "slug": "app-synthetic-docs-editor",
     "synthetic": true,
-    "note": "Hand-authored. A word processor: contenteditable surface with real prose inside it, plus a toolbar. The prose is the trap — a naive extractor sees an article. Editable region must veto.",
+    "note": "Hand-authored. A word processor: contenteditable surface with real prose inside it, plus a toolbar. The prose is the trap \u2014 a naive extractor sees an article. Editable region must veto.",
     "url": "https://writer.example.com/d/8f2c1a/edit"
   },
   {
@@ -383,5 +383,26 @@
     "slug": "academic-ar5iv",
     "url": "https://ar5iv.labs.arxiv.org/html/1706.03762",
     "note": "LaTeXML: math-dense paper, figures, references"
+  },
+  {
+    "slug": "commerce-squarespace",
+    "url": "https://www.squarespace.com/",
+    "note": "marketing home page \u2014 stands in for godaddy.com, which 403s any non-browser fetch. Root path, no publication marker, thousands of FAQ words: the shape that used to restructure."
+  },
+  {
+    "slug": "commerce-stripe",
+    "url": "https://stripe.com/",
+    "note": "SaaS marketing home page"
+  },
+  {
+    "slug": "commerce-shopify-pricing",
+    "url": "https://www.shopify.com/pricing",
+    "note": "pricing page \u2014 feature grid, no prose"
+  },
+  {
+    "slug": "commerce-synthetic-marketing-home",
+    "synthetic": true,
+    "note": "Hand-authored, and modelled measurement-for-measurement on godaddy.com/en-uk, which 403s every non-browser fetch and so cannot be committed. That page scored 0.90 and was restructured: 999 words of genuine FAQ prose, a locale-prefixed home path, no publication marker of any kind, and og:type=product. This fixture reproduces exactly that signature.",
+    "url": "https://www.example-registrar.com/en-uk"
   }
 ]
