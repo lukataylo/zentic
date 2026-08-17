@@ -69,6 +69,53 @@ struct PageLevelTests {
     }
 }
 
+@Suite("Design suggestions")
+struct DesignSuggestionTests {
+
+    /// The reason these exist: a reference page and an essay want opposite
+    /// typography, so a single generic list would be wrong for both.
+    @Test("Suggestions lead with something about this kind of page")
+    func archetypeLeadsTheList() {
+        let docs = DesignSuggestions.forPage(archetype: .docs)
+        let article = DesignSuggestions.forPage(archetype: .article)
+
+        #expect(docs.first != article.first)
+        #expect(docs.first?.contains("documentation") == true)
+        #expect(article.first?.contains("long-form") == true)
+    }
+
+    @Test("A page with no archetype still gets somewhere to start")
+    func alwaysOffersSomething() {
+        for archetype in Archetype.allCases.map(Optional.some) + [nil] {
+            let suggestions = DesignSuggestions.forPage(archetype: archetype)
+            #expect(!suggestions.isEmpty, "\(String(describing: archetype))")
+            #expect(suggestions.allSatisfy { !$0.isEmpty })
+        }
+    }
+
+    @Test("No duplicates, and the list stays short enough to read")
+    func listIsUsable() {
+        for archetype in Archetype.allCases.map(Optional.some) + [nil] {
+            let suggestions = DesignSuggestions.forPage(archetype: archetype)
+            #expect(Set(suggestions).count == suggestions.count)
+            // Twenty options is another blank field wearing a hat.
+            #expect(suggestions.count <= 8, "\(String(describing: archetype))")
+        }
+    }
+
+    /// A theme cannot change a word — but a joke design on a medical page is a
+    /// statement about how seriously to take it, and we should not be the ones
+    /// suggesting it.
+    @Test("Fidelity-sensitive pages are not offered a novelty look")
+    func sensitivePagesStaySober() {
+        let sensitive = DesignSuggestions.forPage(archetype: .article, isFidelitySensitive: true)
+        let ordinary = DesignSuggestions.forPage(archetype: .article, isFidelitySensitive: false)
+
+        #expect(!sensitive.contains { $0.contains("1997") })
+        #expect(ordinary.contains { $0.contains("1997") })
+    }
+}
+
 @Suite("Level persistence")
 @MainActor
 struct LevelStoreTests {

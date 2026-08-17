@@ -636,12 +636,14 @@ final class BrowserViewController: NSViewController {
         switchTo(space: space)
     }
 
-    /// Tabs that reached the top stop before extraction had anything to rewrite.
+    /// Tabs whose pinned rewrite has already been started or declined for the
+    /// document currently on screen.
     ///
-    /// Jumping from Calm to Rewritten asks for two things at once, and the second
-    /// cannot happen until the first has finished rendering. Rather than fail the
-    /// click, the request waits here for the reveal that makes it possible.
-    private var pendingRewriteTabs: Set<UUID> = []
+    /// The trigger is the chrome update, which fires many times per page, so without
+    /// this a declined confirm would be re-asked on the next favicon to arrive.
+    /// Cleared on navigation, which is what makes the pin apply per *document*
+    /// rather than once ever.
+    private var rewritingTabs: Set<UUID> = []
 
     private static let rewriteEnabledKey = "zentic.rewriteEnabled"
 
@@ -1316,14 +1318,38 @@ extension BrowserViewController: ContentToolbarDelegate {
         // Extraction has to have produced something rewritable first. Straight after
         // a jump from Calm the page may still be rendering, so this is not an error
         // — it is just not ready, and the honest answer is to wait for the reveal.
-        guard controller.canRewrite else {
-            if controller.level == .rewritten && !controller.didRestructure {
-                pendingRewriteTabs.insert(controller.id)
-            }
-            return
-        }
+        guard controller.canRewrite else { return }
         if !requestRewrite(.simplify) {
             setLevel(previous)
+        }
+    }
+
+    /// A site pinned to Rewritten rewrites on every visit, not only on the click
+    /// that pinned it.
+    ///
+    /// The pin is standing consent for *this origin*: the user chose the top stop
+    /// knowing what it does, and a rail that says "Rewritten" over prose nobody
+    /// rewrote is a control lying about the page. The guards that make that
+    /// defensible are unchanged — the global opt-in still has to be on, and a
+    /// fidelity-sensitive page still asks every time, because on those the standing
+    /// consent is to the *site*, not to a claim about what a particular article said.
+    ///
+    /// Driven from the chrome update because the reveal is the first moment
+    /// `canRewrite` can be true. Fires once per document: `rewriteState` leaving
+    /// `.none` is what stops it, and a navigation resets that.
+    private func maybeRewriteForPinnedLevel(_ controller: TabController) {
+        guard controller.level == .rewritten,
+            controller.id == selectedTabID,
+            controller.canRewrite,
+            case .none = controller.rewriteState,
+            !rewritingTabs.contains(controller.id)
+        else { return }
+
+        rewritingTabs.insert(controller.id)
+        if !requestRewrite(.simplify) {
+            // Declined at the confirm. Drop to Reader rather than sit on a stop the
+            // page is not at — and do not ask again for this document.
+            setLevel(.reader)
         }
     }
 
@@ -1544,14 +1570,7 @@ enum RewritePreset: Int, CaseIterable {
 
 extension BrowserViewController: TabControllerDelegate {
     func tabControllerDidChangeChrome(_ controller: TabController) {
-        // A rewrite asked for before the page had been rendered. The reveal is the
-        // first moment it can happen, and the request is honoured once or dropped —
-        // never retried on every chrome update.
-        if pendingRewriteTabs.contains(controller.id), controller.canRewrite {
-            pendingRewriteTabs.remove(controller.id)
-            if controller.id == selectedTabID { requestRewrite(.simplify) }
-        }
-
+        maybeRewriteForPinnedLevel(controller)
         sidebar.updateTab(
             id: controller.id,
             title: controller.title,
@@ -1570,6 +1589,8 @@ extension BrowserViewController: TabControllerDelegate {
 
     func tabController(_ controller: TabController, didCommit url: URL, title: String) {
         store.recordVisit(url: url, title: title)
+        // A new document is a new page to rewrite, and a new page to ask about.
+        rewritingTabs.remove(controller.id)
     }
 
     func tabController(
@@ -1742,10 +1763,18 @@ extension BrowserViewController {
     @objc func redesignSiteCommand(_ sender: Any?) {
         guard let controller = selectedController else { return }
         let origin = controller.url?.host()
+        // What the page turned out to be decides which suggestions are worth
+        // offering: a reference page and an essay want opposite things, and a list
+        // that ignores the difference is a list nobody reads.
+        let suggestions = DesignSuggestions.forPage(
+            archetype: controller.extraction?.archetype,
+            isFidelitySensitive: controller.extraction?.isFidelitySensitive ?? false
+        )
         Task { @MainActor in
             guard
                 let theme = await RedesignController.shared.promptForDesign(
                     origin: origin,
+                    suggestions: suggestions,
                     over: view.window
                 )
             else { return }

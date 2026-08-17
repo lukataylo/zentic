@@ -19,8 +19,18 @@ final class RedesignController {
     ///
     /// Returns nil when the user cancels or generation fails; the caller has
     /// already got a perfectly good page on screen either way.
-    func promptForDesign(origin: String?, over window: NSWindow?) async -> ReaderTheme? {
-        guard let prompt = await askForPrompt(origin: origin, over: window) else { return nil }
+    func promptForDesign(
+        origin: String?,
+        suggestions: [String] = [],
+        over window: NSWindow?
+    ) async -> ReaderTheme? {
+        guard
+            let prompt = await askForPrompt(
+                origin: origin,
+                suggestions: suggestions,
+                over: window
+            )
+        else { return nil }
 
         switch await provider.availability() {
         case .available:
@@ -71,12 +81,16 @@ final class RedesignController {
 
     // MARK: - Prompt
 
-    private func askForPrompt(origin: String?, over window: NSWindow?) async -> String? {
+    private func askForPrompt(
+        origin: String?,
+        suggestions: [String],
+        over window: NSWindow?
+    ) async -> String? {
         let alert = NSAlert()
         alert.messageText = origin.map { "Redesign \($0)" } ?? "Redesign every site"
         alert.informativeText = """
-            Describe the look you want. The design is saved for this site and \
-            reused on every visit.
+            Describe the look you want, or start from one of the suggestions and \
+            edit it. The design is saved for this site and reused on every visit.
 
             The model returns typography, colour and spacing values — never CSS — \
             so a generated design cannot load a webfont, fetch an image, or reach \
@@ -85,9 +99,23 @@ final class RedesignController {
         alert.addButton(withTitle: "Redesign")
         alert.addButton(withTitle: "Cancel")
 
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = "minimal, generous whitespace, warm greys"
-        field.stringValue = (await store.design(for: origin))?.prompt ?? ""
+        // A combo box rather than a text field: it is still free text — anything can
+        // be typed — but it opens with answers rather than with a blank. The
+        // suggestions are tailored to the page, so the first one is usually close
+        // enough to edit instead of compose.
+        let field = NSComboBox(frame: NSRect(x: 0, y: 0, width: 380, height: 26))
+        field.completes = true
+        field.hasVerticalScroller = suggestions.count > 6
+        field.numberOfVisibleItems = 8
+        field.addItems(withObjectValues: suggestions)
+        field.placeholderString = suggestions.first ?? "minimal, generous whitespace, warm greys"
+
+        // A design already saved for this site wins: editing what you have is the
+        // common case once a site has been designed once.
+        if let existing = (await store.design(for: origin))?.prompt, !existing.isEmpty {
+            field.stringValue = existing
+        }
+
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
 
@@ -98,7 +126,12 @@ final class RedesignController {
             response = alert.runModal()
         }
         guard response == .alertFirstButtonReturn else { return nil }
-        let prompt = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // `stringValue` is empty when a suggestion was picked from the list without
+        // the field being edited, so fall back to the selection.
+        let typed = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chosen = typed.isEmpty ? (field.objectValueOfSelectedItem as? String ?? "") : typed
+        let prompt = chosen.trimmingCharacters(in: .whitespacesAndNewlines)
         return prompt.isEmpty ? nil : prompt
     }
 

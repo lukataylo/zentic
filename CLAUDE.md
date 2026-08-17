@@ -64,12 +64,20 @@ These are not style preferences. Each one is load-bearing, and each has a test.
    which would beacon on every page read. `ThemeTokens.validated()` clamps ranges and
    repairs contrast. Fonts come from the closed `FontKey` set — all local, no webfonts.
 
-6. **Rewriting is opt-in and reversible.** Off by default, badged while shown,
-   original always one keystroke away (⌘\). The original DOM is hidden, never
-   destroyed. Fidelity-sensitive content (news, medical, legal, financial) needs an
-   explicit confirm. Every guard lives in `BrowserViewController.requestRewrite` —
-   the model is not reached by any other path, because a guard that sits in a button's
-   handler belongs to that button rather than to rewriting.
+6. **Rewriting is opt-in and reversible.** Off by default behind a global switch,
+   badged while shown, original always one keystroke away (⌘\). The original DOM is
+   hidden, never destroyed. Every guard lives in
+   `BrowserViewController.requestRewrite` — the model is not reached by any other
+   path, because a guard that sits in a button's handler belongs to that button
+   rather than to rewriting.
+
+   Pinning a site to `.rewritten` is **standing consent for that origin**, and its
+   pages are rewritten on every visit: a rail reading "Rewritten" over prose nobody
+   rewrote is a control lying about the page. `LevelPolicy.resolve` still never
+   *infers* the top stop — it is only ever reached by an explicit pin.
+   Fidelity-sensitive content (news, medical, legal, financial) confirms **per page**
+   regardless, because there the standing consent is to the site, not to a claim
+   about what a particular article said.
 
 9. **`PageLevel` is the single source of truth for how much a page is changed.**
    `ShieldState`, `ReaderMode`, cookie-wall dismissal and theming are *projections* of

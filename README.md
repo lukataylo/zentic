@@ -27,8 +27,8 @@ and the five-stop level rail at top right.*
 
 The architectural point is that layers 1 and 2 need **no model calls at all**. AI
 appears in exactly two places you choose to invoke: generating a design for a site
-(once, then cached), and rewriting prose on an explicit press. The common path is
-free, instant, offline and private.
+(once, then cached), and rewriting prose on sites you have pinned to it. The common
+path is free, instant, offline and private.
 
 ## One control
 
@@ -65,10 +65,21 @@ to a level, or capped (`never above Calm`). Choosing the level a page would have
 picked anyway is stored as automatic, not as a pin, so it isn't frozen there when the
 site changes.
 
+**Rewritten is persistent, and it is the one stop that carries consent.** Pinning a
+site to it is standing consent for that origin — its pages are re-voiced on every
+visit, because a control reading "Rewritten" over prose nobody rewrote is a control
+lying about the page. It is never reached automatically: only an explicit pin gets
+you there, and news, medical, legal and financial pages still ask every time.
+
 **Design is a separate axis.** Presentation is lossless and reversible; tone changes
 what the words say. Conflating them would mean crossing a consent boundary while
 picking a font, so themes live in their own menu — six built-in looks, or describe
 one and a model returns validated tokens, never CSS.
+
+The prompt opens with suggestions drawn from what the page turned out to be, because
+a blank field is a bad way to ask for a design: a reference page wants a tight
+measure and legible code, an essay wants the opposite, and neither wants what the
+other wants. Pick one and edit it, or ignore them and write your own.
 
 ## Performance
 
