@@ -16,6 +16,7 @@ Full design: `~/.claude/plans/hazy-swimming-flame.md`.
 | `Sources/ZenticMac/` | macOS shell. Arc-style sidebar, spaces, ⌘K palette, tab suspension. |
 | `web/` | TypeScript injected into every page. Builds to `Sources/ZenticKit/Resources/zentic.js`. |
 | `Tests/Fixtures/wire/` | Golden files. The bridge contract, shared by both languages. |
+| `search/` | **Loam** — a separate sub-project. A local search engine over ~1000 hand-seeded sites, reusing `web/src/extract` so the index holds exactly what the browser renders. No ads, nothing leaves the machine. |
 
 ## Build
 

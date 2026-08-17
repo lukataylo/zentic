@@ -1,0 +1,26 @@
+{
+  "name": "loam",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A small, hand-tended search index over the part of the web worth reading.",
+  "scripts": {
+    "seed": "tsx src/cli.ts seed",
+    "crawl": "tsx src/cli.ts crawl",
+    "rank": "tsx src/cli.ts rank",
+    "serve": "tsx src/cli.ts serve",
+    "stats": "tsx src/cli.ts stats",
+    "search": "tsx src/cli.ts search",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.2.0",
+    "jsdom": "^27.0.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
