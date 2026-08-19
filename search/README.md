@@ -48,10 +48,22 @@ Two details that matter more at this scale than at web scale:
   each other form a loop that rank cannot escape.
 - **Links to pages outside the index are dropped** rather than counted in a page's
   out-degree, which would quietly dilute every real link it makes.
+- **Only links inside the article count.** Every page of a site carries the same
+  footer, so counting navigation gives boilerplate more in-links than any piece of
+  writing can earn: at 400 pages the highest-ranked results were a status page, a
+  terms-of-use page and a privacy policy. Links are still *collected* from the whole
+  document — a blogroll in a sidebar is the best discovery source a crawl like this
+  has — but the rank graph sees only what an author wrote into a sentence. On the
+  test index that is 1,753 links rather than 26,324: **93% of what looked like a
+  link graph was site chrome.**
 
 On a 185-page test crawl the top-ranked page was *Choose Boring Technology*, and the
 second result for `boring technology` was the Tailscale post that cites it. That is
 the behaviour working.
+
+Changing what counts as a link invalidates the graph, so `rank` after a recrawl
+rather than after an edit to the crawler: pages fetched under the old rules keep the
+links they were stored with.
 
 ## How advertising stays out
 

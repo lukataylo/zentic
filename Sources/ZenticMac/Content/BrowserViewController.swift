@@ -545,6 +545,11 @@ final class BrowserViewController: NSViewController {
         // and an async suspension would then write captured state into a deleted
         // object, which SwiftData turns into a crash rather than a no-op.
         controllers.removeValue(forKey: tabID)?.discard()
+        // Every per-tab side table has to be cleared here, not only the ones that
+        // hold memory. `rewritingTabs` was only ever cleared on navigation, so a
+        // tab pinned to Rewritten and then closed left its id behind for the life
+        // of the session.
+        rewritingTabs.remove(tabID)
         if selectedTabID == tabID { selectedTabID = nil }
         store.close(record)
         rebuildSidebar()

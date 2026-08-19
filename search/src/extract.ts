@@ -32,8 +32,25 @@ export interface Extracted {
   lang?: string | undefined;
   byline?: string | undefined;
   published?: string | undefined;
-  /** Absolute, crawlable, deduplicated links found in the *content*. */
+  /**
+   * Every crawlable link on the page, for the frontier.
+   *
+   * Taken from the whole document including navigation, because a blog's roll of
+   * other blogs lives in exactly the furniture extraction throws away, and that
+   * roll is the best discovery source a crawl like this has.
+   */
   links: string[];
+  /**
+   * Links that appeared inside the *article*, for the rank graph.
+   *
+   * The distinction is the whole of link-based ranking. A link an author wrote
+   * into a sentence is an endorsement; a link in a footer is site furniture that
+   * appears on every page of the site. Counting both put githubstatus.com,
+   * docker.com/legal/terms-use and policies.google.com/privacy at the top of the
+   * index the moment it grew past a few hundred pages — every site links to its
+   * own terms, so boilerplate out-ranks writing on in-links alone.
+   */
+  contentLinks: string[];
 }
 
 export type ExtractOutcome =
@@ -115,6 +132,7 @@ export function extractPage(html: string, url: string): ExtractOutcome {
     return {
       kind: "ok",
       page: {
+        contentLinks: markdownLinks(text, url),
         title: result.title || hostOf(url),
         text,
         wordCount: result.wordCount,
@@ -163,6 +181,31 @@ function collectLinks(document: Document, base: string): string[] {
 
     found.add(target.href);
     if (found.size >= 300) break;
+  }
+  return [...found];
+}
+
+/**
+ * Links written into the prose, pulled back out of the extracted markdown.
+ *
+ * Extraction has already discarded navigation, headers and footers by this point,
+ * so anything still carrying a link here was in the body of the piece.
+ */
+function markdownLinks(markdown: string, base: string): string[] {
+  const found = new Set<string>();
+  for (const match of markdown.matchAll(/\]\(([^()\s]+)/g)) {
+    const href = match[1];
+    if (!href || href.startsWith("#")) continue;
+    try {
+      const target = new URL(href, base);
+      if (target.protocol !== "https:" && target.protocol !== "http:") continue;
+      if (!isCrawlable(target.hostname)) continue;
+      target.hash = "";
+      if (looksLikeAsset(target.pathname)) continue;
+      found.add(target.href);
+    } catch {
+      continue;
+    }
   }
   return [...found];
 }

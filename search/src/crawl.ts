@@ -81,67 +81,99 @@ export async function crawl(
     await Promise.all(
       wave.map(async (item) => {
         if (stopping || progress.fetched >= limit) return;
+        try {
+          const seen = hostPages.get(item.host) ?? store.pagesForHost(item.host);
+          if (seen >= Budget.maxPagesPerHost) {
+            store.markFrontier(item.url, "skipped", "host page cap");
+            progress.skipped += 1;
+            return;
+          }
 
-        const seen = hostPages.get(item.host) ?? store.pagesForHost(item.host);
-        if (seen >= Budget.maxPagesPerHost) {
-          store.markFrontier(item.url, "skipped", "host page cap");
-          progress.skipped += 1;
-          return;
-        }
+          const outcome = await fetcher.fetchPage(item.url);
+          progress.fetched += 1;
+          hostPages.set(item.host, seen + 1);
 
-        const outcome = await fetcher.fetchPage(item.url);
-        progress.fetched += 1;
-        hostPages.set(item.host, seen + 1);
+          if (outcome.kind === "skipped") {
+            store.markFrontier(item.url, "skipped", outcome.reason);
+            progress.skipped += 1;
+            return;
+          }
+          if (outcome.kind === "failed") {
+            store.markFrontier(item.url, "failed", outcome.reason);
+            progress.failed += 1;
+            return;
+          }
 
-        if (outcome.kind === "skipped") {
-          store.markFrontier(item.url, "skipped", outcome.reason);
-          progress.skipped += 1;
-          return;
-        }
-        if (outcome.kind === "failed") {
-          store.markFrontier(item.url, "failed", outcome.reason);
-          progress.failed += 1;
-          return;
-        }
+          const extracted = extractPage(outcome.html, outcome.finalUrl);
+          if (extracted.kind === "rejected") {
+            // Still a successful fetch: its links are followed even though its
+            // content is not kept. An index page is not worth indexing and is often
+            // the best source of links there is.
+            store.markFrontier(item.url, "skipped", extracted.reason);
+            progress.skipped += 1;
+            return;
+          }
 
-        const extracted = extractPage(outcome.html, outcome.finalUrl);
-        if (extracted.kind === "rejected") {
-          // Still a successful fetch: its links are followed even though its
-          // content is not kept. An index page is not worth indexing and is often
-          // the best source of links there is.
-          store.markFrontier(item.url, "skipped", extracted.reason);
-          progress.skipped += 1;
-          return;
-        }
+          const page = extracted.page;
+          store.transaction(() => {
+            store.savePage({
+              url: outcome.finalUrl,
+              host: item.host,
+              title: page.title,
+              text: page.text,
+              wordCount: page.wordCount,
+              archetype: page.archetype,
+              confidence: page.confidence,
+              lang: page.lang,
+              byline: page.byline,
+              published: page.published,
+            });
 
-        const page = extracted.page;
-        store.transaction(() => {
-          store.savePage({
-            url: outcome.finalUrl,
-            host: item.host,
-            title: page.title,
-            text: page.text,
-            wordCount: page.wordCount,
-            archetype: page.archetype,
-            confidence: page.confidence,
-            lang: page.lang,
-            byline: page.byline,
-            published: page.published,
+            index(store, outcome.finalUrl, page.title, page.text);
+
+            // Two different jobs, two different link sets. Everything on the page
+            // feeds the frontier, because discovery wants the blogroll in the
+            // sidebar. Only links from inside the article feed the rank graph,
+            // because that is the difference between an endorsement and a footer.
+            for (const link of page.contentLinks) {
+              store.addLink(outcome.finalUrl, link);
+            }
+            if (item.depth < Budget.maxDepth) {
+              for (const link of page.links) {
+                const host = hostOf(link);
+                if (host) store.enqueue(link, host, item.depth + 1, item.source);
+              }
+            }
+            store.markFrontier(item.url, "done");
+            // A redirect landed us somewhere else. Mark that URL done too, or the
+            // crawl will fetch the same document again when the link that pointed at
+            // the destination comes up in the frontier.
+            if (outcome.finalUrl !== item.url) {
+              const host = hostOf(outcome.finalUrl);
+              if (host) {
+                store.enqueue(outcome.finalUrl, host, item.depth, item.source);
+                store.markFrontier(outcome.finalUrl, "done");
+              }
+            }
           });
 
-          index(store, outcome.finalUrl, page.title, page.text);
-
-          for (const link of page.links) {
-            store.addLink(outcome.finalUrl, link);
-            if (item.depth < Budget.maxDepth) {
-              const host = hostOf(link);
-              if (host) store.enqueue(link, host, item.depth + 1, item.source);
-            }
-          }
-          store.markFrontier(item.url, "done");
-        });
-
-        progress.indexed += 1;
+            progress.indexed += 1;
+        } catch (error) {
+          // One page must never be able to end the crawl.
+          //
+          // Fifty thousand pages of arbitrary HTML will eventually produce
+          // something that throws — a document jsdom chokes on, a title longer than
+          // SQLite will take, a machine briefly out of memory. Left unguarded that
+          // rejects the whole `Promise.all` and kills the run, and because the URL
+          // is only marked *inside* the transaction it stays pending: the next
+          // resumed crawl reaches the same page and dies at the same point. A
+          // poison pill in a crawl that is meant to be resumable.
+          //
+          // Marked failed outside any transaction, so the mark survives whatever
+          // the rollback undid.
+          store.markFrontier(item.url, "failed", `threw: ${(error as Error).message}`);
+          progress.failed += 1;
+        }
       }),
     );
 

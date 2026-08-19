@@ -299,3 +299,29 @@ describe("crawlable hosts", () => {
     expect(isCrawlable("myx.com")).toBe(true);
   });
 });
+
+describe("editorial vs boilerplate links", () => {
+  /// The failure this prevents, seen the moment the index passed a few hundred
+  /// pages: githubstatus.com, docker.com/legal/terms-use and
+  /// policies.google.com/privacy came out as the highest-ranked pages in the
+  /// index. Every site links to its own terms from every page, so counting
+  /// navigation gives boilerplate more in-links than any piece of writing can earn.
+  it("rank comes from links inside the article, not the footer", () => {
+    // Two blogs. Both carry the same footer link to a terms page; one of them
+    // actually cites an essay in its prose.
+    const ranks = pageRank({
+      nodes: [
+        "https://blog-a.example/post",
+        "https://blog-b.example/post",
+        "https://essay.example/the-piece",
+      ],
+      edges: [
+        // Only content links reach the graph, so the footer links to
+        // vendor.example/terms simply are not here — that is the fix.
+        { src: "https://blog-a.example/post", dst: "https://essay.example/the-piece" },
+        { src: "https://blog-b.example/post", dst: "https://essay.example/the-piece" },
+      ],
+    });
+    expect(ranks.get("https://essay.example/the-piece")).toBe(1);
+  });
+});
