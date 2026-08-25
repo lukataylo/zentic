@@ -907,20 +907,28 @@ private final class LensRowView: NSView {
         label.textColor = colour
         label.translatesAutoresizingMaskIntoConstraints = false
 
-        let box = NSView()
-        box.wantsLayer = true
-        box.layer?.cornerRadius = 4
-        box.layer?.cornerCurve = .continuous
-        box.layer?.backgroundColor = colour.withAlphaComponent(0.14).cgColor
+        // `NSBox`, not a layer background. `.cgColor` resolves the colour *now*,
+        // against whatever appearance happens to be current, and then never
+        // changes — so a chip built from `.secondaryLabelColor` keeps a light-mode
+        // grey on a dark popover, and switching appearance with the popover open
+        // leaves it there. The label above re-resolves because `textColor` takes a
+        // dynamic `NSColor`; `fillColor` is the same deal for a fill, and it is
+        // already how the stripes and the meter segments in this file are drawn.
+        let box = NSBox()
+        box.boxType = .custom
+        box.borderWidth = 0
+        box.cornerRadius = 4
+        box.fillColor = colour.withAlphaComponent(0.14)
         box.translatesAutoresizingMaskIntoConstraints = false
         box.toolTip = tip
-        box.addSubview(label)
+        box.contentView = NSView()
+        box.contentView?.addSubview(label)
 
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 5),
             label.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -5),
-            label.topAnchor.constraint(equalTo: box.topAnchor, constant: 2),
-            label.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -2),
+            label.centerYAnchor.constraint(equalTo: box.centerYAnchor),
+            box.heightAnchor.constraint(equalTo: label.heightAnchor, constant: 4),
         ])
         return box
     }
