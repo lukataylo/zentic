@@ -58,7 +58,9 @@ enum LevelCeiling {
         guard let outcome else { return nil }
         // The reader was never asked, so nothing was declined. Below Reader the
         // bundle passes every page through, including the ones it would rebuild.
-        guard outcome.level >= .reader else { return nil }
+        // The same rule stops one of these evicting a real verdict from the tab's
+        // memory — see ``RevealOutcome/isVerdict``.
+        guard outcome.isVerdict else { return nil }
 
         switch outcome.reason {
         case .rendered:
@@ -993,6 +995,9 @@ final class BrowserViewController: NSViewController {
                 automatic: min(controller?.automaticLevel ?? .reader, cap.level),
                 ceiling: cap.level,
                 ceilingReason: cap.reason,
+                // Cached on the controller, not fetched here: this runs on every
+                // title change, favicon and reveal, and it is a store read.
+                preference: controller?.levelPreference ?? .auto,
                 lens: controller?.lensState ?? LensState()
             )
         )
@@ -1386,7 +1391,7 @@ extension BrowserViewController: ContentToolbarDelegate {
         guard let controller = selectedController, let origin = controller.url?.zenticOrigin else {
             return
         }
-        presentLevelMenu(from: sender, origin: origin, current: controller.level)
+        presentLevelMenu(from: sender, origin: origin, automatic: controller.automaticLevel)
     }
 
     /// Move this site to a level, remember it, and apply it.
@@ -1403,7 +1408,12 @@ extension BrowserViewController: ContentToolbarDelegate {
         guard level != previous else { return }
 
         if let origin = controller.url?.zenticOrigin {
-            store.setPreference(.pinned(level), for: origin)
+            store.setPreference(.pinned(level), for: origin, isRewriteEnabled: isRewriteEnabled)
+            // The store may have stored `.auto` instead — a choice that matches the
+            // automatic answer is agreement, not a decision. Either way the cached
+            // copy the rail is drawn from is now stale, and the rail is the control
+            // that has just been asked to show what the user set.
+            controller.refreshLevelResolution()
         }
 
         controller.setLevel(level)
@@ -1469,7 +1479,11 @@ extension BrowserViewController: ContentToolbarDelegate {
 
     /// The detail menu behind the rail's label: the per-site memory, and the way
     /// back to letting the page decide.
-    private func presentLevelMenu(from sender: NSView, origin: String, current: PageLevel) {
+    /// `automatic` is the *site's* answer, not the rail's. The rail's is capped by
+    /// what one document turned out to be, and every item in this menu is a
+    /// standing choice about the whole site — the pins are already exempt from the
+    /// ceiling for the same reason.
+    private func presentLevelMenu(from sender: NSView, origin: String, automatic: PageLevel) {
         let menu = NSMenu()
         let host = URL(string: origin)?.host() ?? origin
         menu.addItem(withTitle: host, action: nil, keyEquivalent: "").isEnabled = false
@@ -1478,13 +1492,20 @@ extension BrowserViewController: ContentToolbarDelegate {
         let preference = store.preference(for: origin)
         let cap = levelCeiling(for: selectedController)
 
+        // The default names the level it resolves to. "Automatic" on its own is a
+        // setting whose value the user has to guess at — and it is the *default*,
+        // so it is the one they are most often looking at. The rail could not tell
+        // them either: its hollow marker is suppressed exactly when the automatic
+        // answer and the current stop agree, which under this preference is almost
+        // always.
         let auto = NSMenuItem(
-            title: "Automatic",
+            title: LevelRailCopy.automaticMenuTitle(automatic),
             action: #selector(setLevelAutoCommand(_:)),
             keyEquivalent: ""
         )
         auto.target = self
         auto.state = preference == .auto ? .on : .off
+        auto.toolTip = "Where a page from this site lands with no override."
         menu.addItem(auto)
 
         menu.addItem(.separator())
@@ -2373,12 +2394,23 @@ extension BrowserViewController: NSMenuItemValidation {
             menuItem.state = store.preference(for: origin) == .auto ? .on : .off
             return true
 
-        // The design axis only exists where the page is ours to draw. Below Reader
-        // a theme would be applied to an overlay that is not on screen, which is a
-        // menu item that appears to work and does nothing.
+        // The design axis only exists where the page is ours to draw.
+        //
+        // `level.allowsTheme` is the wrong question, and asking it was a bug: the
+        // level is what was *requested*, and a page can sit at Reader having
+        // declined to be one — google.com reports too little prose, gets passed
+        // through, and left these four enabled to theme an overlay that is not on
+        // screen. That is exactly the "appears to work and does nothing" this guard
+        // exists to prevent, committed by the guard itself.
+        //
+        // `isTransformed` asks whether our document is actually in front of the
+        // user, which is the real precondition. It is deliberately not the
+        // *effective* level either: a page whose render was merely withheld does not
+        // lower the ceiling, so the ceiling stays high on pages where nothing of
+        // ours is drawn.
         case #selector(applyBuiltInThemeCommand), #selector(redesignSiteCommand),
             #selector(rebuildPageCommand), #selector(resetDesignCommand):
-            return selectedController?.level.allowsTheme ?? false
+            return selectedController?.isTransformed ?? false
 
         default: return true
         }

@@ -274,7 +274,8 @@ public final class BrowsingStore {
         automatic.preference = .auto
         return LevelResolution(
             level: LevelPolicy.resolve(inputs),
-            automatic: LevelPolicy.resolve(automatic)
+            automatic: LevelPolicy.resolve(automatic),
+            preference: inputs.preference
         )
     }
 

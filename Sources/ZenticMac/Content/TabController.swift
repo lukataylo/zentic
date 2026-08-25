@@ -43,6 +43,101 @@ struct RevealOutcome: Equatable {
     var level: PageLevel
     /// What extraction reported for this load, or nil if it never reported.
     var confidence: Double?
+
+    /// Whether this outcome is an answer about the **document** rather than about
+    /// the level it was reached under.
+    ///
+    /// Below `.reader` the bundle is not permitted to render, so it declines every
+    /// page — including the ones it would have rebuilt. A decline there is the
+    /// level talking, not the page, and reading it as a verdict would cap the rail
+    /// on evidence that says nothing.
+    ///
+    /// Defined once and used twice: ``LevelCeiling`` will not draw a cap from a
+    /// non-verdict, and ``VerdictMemory`` will not let one displace a verdict
+    /// already standing for the same document. Those are two halves of one rule and
+    /// they must not be able to disagree.
+    var isVerdict: Bool { level >= .reader }
+}
+
+/// Which document a verdict is about.
+///
+/// The URL with its fragment dropped, and nothing else normalised. Three
+/// requirements pin this down, and one key meets all three:
+///
+///  - **A reload is the same document.** Reloading preserves the URL exactly, so
+///    anything keyed off it survives — including the reload a level change fires
+///    for itself, which is the defect this exists for.
+///  - **A different query is a different document.** `?q=cats` and `?q=dogs` are
+///    two pages, and `?page=2` is a different article. Keying on host and path
+///    alone — the way ``TabController/LensPlan`` does, because a lens matches on a
+///    path pattern — would carry one page's verdict onto another.
+///  - **A different fragment is not a navigation at all.** `#install` creates no
+///    document and produces no reveal, so a key that kept the fragment would throw
+///    the verdict away for a page still on screen the moment the user clicked an
+///    anchor, and the rail would start offering stops the page had already
+///    declined.
+struct DocumentKey: Hashable {
+    private let value: String
+
+    init?(_ url: URL?) {
+        guard let url else { return nil }
+        if var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            parts.fragment = nil
+            if let stripped = parts.string {
+                value = stripped
+                return
+            }
+        }
+        // `URLComponents` declines a few exotic URLs. Falling back to the whole
+        // string is stricter rather than wrong: an anchor click on one of those
+        // drops the verdict, which is the safe direction to be wrong in.
+        value = url.absoluteString
+    }
+}
+
+/// A tab's memory of what the document in front of the user said it could be.
+///
+/// The lifetime is the point, and it is why this is a type rather than an optional
+/// field. A verdict is a fact about a *document*, not about one navigation attempt
+/// at one level, and the two rules that keep it honest are only correct together:
+///
+///  1. It is kept while the tab is on the same document, so a same-URL reload —
+///     including the one a level change fires for itself — does not lose it.
+///  2. A reveal that is not a verdict (see ``RevealOutcome/isVerdict``) never
+///     displaces one that is.
+///
+/// Rule 1 alone left a reload at Calm overwriting a Reader verdict with a decline
+/// that says nothing. Rule 2 alone left the level change's own reload wiping the
+/// slot before the non-verdict could be ignored. Either way the cap evaporated the
+/// moment the user stepped down the rail and could never come back — a rail
+/// offering Reader on a page that had twice said it has no article to rebuild,
+/// which is invariant 8 wearing a different hat.
+struct VerdictMemory: Equatable {
+    private var standing: RevealOutcome?
+    private var document: DocumentKey?
+
+    /// Take in what a reveal said about the page at `url`.
+    ///
+    /// A non-verdict is dropped rather than stored. The only consumer is the
+    /// ceiling, which would ignore it anyway, and storing it would evict the answer
+    /// the page gave when it *was* allowed to render.
+    mutating func record(_ outcome: RevealOutcome, for url: URL?) {
+        guard outcome.isVerdict, let key = DocumentKey(url) else { return }
+        standing = outcome
+        document = key
+    }
+
+    /// The standing verdict, if it is about the page at `url`.
+    ///
+    /// Checked on read rather than cleared on navigation, and that is what keeps
+    /// the rail steady through a reload: there is no moment where the answer is
+    /// thrown away and waited for again, so no stop is struck mid-load and restored
+    /// on reveal. A genuine navigation moves the web view's URL and the answer stops
+    /// applying by itself; a reload does not, and it keeps applying.
+    func outcome(at url: URL?) -> RevealOutcome? {
+        guard let document, document == DocumentKey(url) else { return nil }
+        return standing
+    }
 }
 
 /// One browser tab: its record, and — only while resident — its `WKWebView` and
@@ -106,7 +201,26 @@ final class TabController: NSObject {
     /// finished deciding, so it is the moment the chrome may act on the answer.
     ///
     /// See ``RevealOutcome`` for why the level and the extraction ride along with it.
-    private(set) var revealOutcome: RevealOutcome?
+    ///
+    /// Keyed to the document it was reached on rather than cleared when a
+    /// navigation starts. Clearing was the more obvious rule and it was wrong: a
+    /// level change reloads, the reload cleared the verdict, and the reload happened
+    /// at a level too low to produce a new one — so stepping down the rail once
+    /// destroyed the page's answer for good. See ``VerdictMemory``.
+    var revealOutcome: RevealOutcome? { verdicts.outcome(at: documentURL) }
+
+    private var verdicts = VerdictMemory()
+
+    /// The document the chrome is describing, for keying the verdict.
+    ///
+    /// The web view's URL first: on a same-document navigation it is the only one
+    /// that has moved, and on a provisional load it is already the page being
+    /// navigated to, which is exactly when the previous page's verdict should stop
+    /// applying.
+    private var documentURL: URL? {
+        guard !isDiscarded else { return nil }
+        return webView?.url ?? record.url
+    }
 
     /// Whether the page on screen is Zentic's rendering or the site's own.
     ///
@@ -288,6 +402,14 @@ final class TabController: NSObject {
     /// demand: the toolbar reads it on every title change, favicon and reveal, and
     /// resolving it touches the store.
     private(set) var automaticLevel: PageLevel = .reader
+    /// The standing choice for this origin, cached alongside the two levels it
+    /// helped resolve.
+    ///
+    /// The rail needs it and cannot derive it: `level` and `automatic` agreeing
+    /// tells you nothing about whether that is the page's own answer or a pin that
+    /// happens to match, so without this the control has no way to show the user
+    /// what they set.
+    private(set) var levelPreference: SitePreference = .auto
     /// The origin the current level and rule lists were resolved for, so a
     /// same-site navigation costs nothing and a cross-site one is noticed.
     private var attachedOrigin: String?
@@ -315,6 +437,7 @@ final class TabController: NSObject {
     func refreshLevelResolution() {
         let resolved = resolveLevel(record.url?.zenticOrigin)
         automaticLevel = resolved.automatic
+        levelPreference = resolved.preference
     }
 
     deinit {
@@ -351,6 +474,7 @@ final class TabController: NSObject {
         let resolved = resolveLevel(attachedOrigin)
         level = resolved.level
         automaticLevel = resolved.automatic
+        levelPreference = resolved.preference
 
         let configuration = WKWebViewConfiguration()
         // Shared data store: cookies and logins must survive suspension, and a
@@ -1132,10 +1256,14 @@ final class TabController: NSObject {
         rewriteState = .none
         extraction = nil
         didRestructure = false
-        // The verdict belonged to the document being replaced. Cleared rather than
-        // left standing, so the rail spends the load offering every stop and is
-        // capped only by what the new page turns out to say.
-        revealOutcome = nil
+        // The verdict is deliberately *not* cleared here. It is keyed to the
+        // document it was reached on, so a navigation to a different one stops it
+        // applying by itself while a reload of the same one keeps it — which is
+        // what a level change fires, and clearing it there is how the cap used to
+        // evaporate the first time the user stepped down the rail. It also means
+        // the rail does not blink every stop back on for the length of a reload.
+        // See ``VerdictMemory``.
+        //
         // Reports and the catalog describe the document being replaced. The lens
         // *set* is not cleared: it was resolved for the URL being navigated to, and
         // is already in the bootstrap script for the page now loading.
@@ -1288,11 +1416,19 @@ extension TabController: WKNavigationDelegate {
 
         attachedOrigin = incoming
         let resolved = resolveLevel(incoming)
-        guard resolved.level != level || resolved.automatic != automaticLevel else { return }
+        // The preference is in the guard because it is drawn: two origins can
+        // resolve to the same pair of levels while one is following the page and
+        // the other is pinned there, and the rail says different things about those.
+        guard
+            resolved.level != level
+                || resolved.automatic != automaticLevel
+                || resolved.preference != levelPreference
+        else { return }
 
         let previous = level
         level = resolved.level
         automaticLevel = resolved.automatic
+        levelPreference = resolved.preference
 
         if previous.shield != resolved.level.shield,
             let controller = webView?.configuration.userContentController
@@ -1480,10 +1616,13 @@ extension TabController: ReaderBridgeDelegate {
                 // to — the bundle posts it on its way through the pipeline and
                 // reveals when the pipeline returns — so this is the last moment
                 // the pair is certainly about one page.
-                revealOutcome = RevealOutcome(
-                    reason: payload.reason,
-                    level: level,
-                    confidence: extraction?.confidence
+                verdicts.record(
+                    RevealOutcome(
+                        reason: payload.reason,
+                        level: level,
+                        confidence: extraction?.confidence
+                    ),
+                    for: documentURL
                 )
                 applySavedDesign()
             }

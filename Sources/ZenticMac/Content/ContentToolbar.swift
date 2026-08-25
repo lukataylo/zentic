@@ -36,6 +36,10 @@ struct ReaderControlState {
     var ceiling: PageLevel = .rewritten
     /// Why, when that is lower than the top.
     var ceilingReason: String?
+    /// What the user has standing for this site, if anything. The rail cannot
+    /// derive it — a pin and the page's own answer look identical from `level` and
+    /// `automatic` alone — so it has to be told.
+    var preference: SitePreference = .auto
     /// Lenses on this page, and what they actually did. See ``LensState`` — the
     /// counts come from the page's own reports or they are not shown at all.
     var lens = LensState()
@@ -185,7 +189,8 @@ final class ContentToolbar: PointerTrackingView {
             level: state.level,
             automatic: state.automatic,
             ceiling: state.ceiling,
-            ceilingReason: state.ceilingReason
+            ceilingReason: state.ceilingReason,
+            preference: state.preference
         )
 
         // The badge is the only rewrite affordance left in the toolbar now that the

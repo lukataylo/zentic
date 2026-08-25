@@ -225,8 +225,15 @@ export function resolveFingerprint(doc: Document, print: RegionFingerprint): Ele
 /**
  * How well one element answers to this fingerprint, from 0 to 1.
  *
- * Exported for tests and for diagnosis. `resolveFingerprint` is the function with
- * an opinion; this one just reports.
+ * No production caller, and it keeps its place for one reason: it is the seam that
+ * lets a test say *why* a candidate was rejected. `resolveFingerprint` answers
+ * yes-or-no, and a test asserting only "returned nothing" cannot tell the threshold
+ * from the margin, the identity floor or the tag gate — so a change that broke one
+ * of the four and left the others compensating would still look green.
+ *
+ * It is four lines over the same `rawScore`/`maxima` the resolver uses, not a
+ * second implementation, so there is nothing here that can drift away from the
+ * behaviour it reports on.
  */
 export function scoreFingerprint(element: Element, print: RegionFingerprint): number {
   const scale = maxima(print);

@@ -45,18 +45,28 @@ public enum SitePreference: Codable, Sendable, Hashable {
     case ceiling(PageLevel)
 }
 
-/// A level and the answer it would have had with no override.
+/// A level, the answer it would have had with no override, and the override.
 ///
-/// Returned as a pair because the caller needs both to draw the control, and
-/// deriving them separately means two fetches on a path that runs on every title
-/// change, favicon and reveal.
+/// Returned as one value because the caller needs all three to draw the control,
+/// and deriving them separately means three fetches on a path that runs on every
+/// title change, favicon and reveal.
+///
+/// The preference rides along rather than being fetched where it is drawn for
+/// exactly that reason. It is also the only one of the three that says *why* the
+/// level is what it is: `level` and `automatic` agreeing tells you nothing about
+/// whether that is the page's own answer or a standing choice that happens to
+/// match it, and a control that cannot tell those apart cannot show the user what
+/// they set.
 public struct LevelResolution: Sendable, Hashable {
     public var level: PageLevel
     public var automatic: PageLevel
+    /// What the user asked for on this site, if anything.
+    public var preference: SitePreference
 
-    public init(level: PageLevel, automatic: PageLevel) {
+    public init(level: PageLevel, automatic: PageLevel, preference: SitePreference = .auto) {
         self.level = level
         self.automatic = automatic
+        self.preference = preference
     }
 }
 

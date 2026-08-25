@@ -161,6 +161,42 @@ struct LevelStoreTests {
         #expect(store.level(for: origin) == .calm)
     }
 
+    /// The chrome caches one resolution per tab and redraws from it on every title
+    /// change, favicon and reveal. If the standing choice were not in there it would
+    /// have to be fetched where it is drawn, on that same path — so in practice it
+    /// was not drawn at all, and the rail had no way to show what the user set.
+    @Test("The resolution carries the standing choice, not just the two levels")
+    func resolutionCarriesThePreference() throws {
+        let store = try BrowsingStore(url: nil)
+        store.recordExtraction(origin: origin, archetype: .article, isFidelitySensitive: false)
+
+        #expect(store.resolution(for: origin).preference == .auto)
+
+        store.setPreference(.ceiling(.calm), for: origin)
+        let capped = store.resolution(for: origin)
+        #expect(capped.preference == .ceiling(.calm))
+        // The two levels alone cannot tell a ceiling that bites from a page that
+        // simply landed low, which is the whole reason the preference has to travel.
+        #expect(capped.level == .calm)
+        #expect(capped.automatic == .reader)
+
+        store.setPreference(.pinned(.original), for: origin)
+        #expect(store.resolution(for: origin).preference == .pinned(.original))
+    }
+
+    /// A choice that agrees with the automatic answer is stored as `auto` on
+    /// purpose. That is deliberate and tested elsewhere; what matters here is that
+    /// the resolution reports what was *stored*, so the menu's checkmark and the
+    /// rail's sentence describe the same thing rather than disagreeing.
+    @Test("Agreement is reported as automatic, not as a pin")
+    func agreementResolvesAsAutomatic() throws {
+        let store = try BrowsingStore(url: nil)
+        store.recordExtraction(origin: origin, archetype: .article, isFidelitySensitive: false)
+        store.setPreference(.pinned(.reader), for: origin)
+
+        #expect(store.resolution(for: origin).preference == .auto)
+    }
+
     @Test("A real pin is not cleared when the archetype agrees later")
     func realPinsPersist() throws {
         let store = try BrowsingStore(url: nil)
