@@ -14,11 +14,13 @@ Full design: `~/.claude/plans/hazy-swimming-flame.md`.
 | Path | What |
 |---|---|
 | `Sources/ZenticKit/` | Shared core. Contracts, models, policy. No UI. |
+| `Sources/ZenticKit/Level/` | `PageLevel` and its resolution. The one control's model. |
 | `Sources/ZenticMac/` | macOS shell. Arc-style sidebar, spaces, ⌘K palette, tab suspension. |
 | `Sources/ZenticKit/Lens/` | Lenses: model, validation, per-origin store, drift accounting. |
 | `web/` | TypeScript injected into every page. Builds to `Sources/ZenticKit/Resources/zentic.js`. |
 | `web/src/lens/` | The lens engine: segmentation, op runner, feed observer, editor overlay. |
 | `Tests/Fixtures/wire/` | Golden files. The bridge contract, shared by both languages. |
+| `search/` | **Loam** — a separate sub-project. A local search engine over ~1000 hand-seeded sites, reusing `web/src/extract` so the index holds exactly what the browser renders. No ads, nothing leaves the machine. |
 
 ## Build
 
@@ -82,10 +84,27 @@ These are not style preferences. Each one is load-bearing, and each has a test.
    which would beacon on every page read. `ThemeTokens.validated()` clamps ranges and
    repairs contrast. Fonts come from the closed `FontKey` set — all local, no webfonts.
 
-6. **Rewriting is opt-in and reversible.** Off by default, badged while shown,
-   original always one keystroke away (⌘\). The original DOM is hidden, never
-   destroyed. Fidelity-sensitive content (news, medical, legal, financial) needs an
-   explicit confirm.
+6. **Rewriting is opt-in and reversible.** Off by default behind a global switch,
+   badged while shown, original always one keystroke away (⌘\). The original DOM is
+   hidden, never destroyed. Every guard lives in
+   `BrowserViewController.requestRewrite` — the model is not reached by any other
+   path, because a guard that sits in a button's handler belongs to that button
+   rather than to rewriting.
+
+   Pinning a site to `.rewritten` is **standing consent for that origin**, and its
+   pages are rewritten on every visit: a rail reading "Rewritten" over prose nobody
+   rewrote is a control lying about the page. `LevelPolicy.resolve` still never
+   *infers* the top stop — it is only ever reached by an explicit pin.
+   Fidelity-sensitive content (news, medical, legal, financial) confirms **per page**
+   regardless, because there the standing consent is to the site, not to a claim
+   about what a particular article said.
+
+9. **`PageLevel` is the single source of truth for how much a page is changed.**
+   `ShieldState`, `ReaderMode`, cookie-wall dismissal and theming are *projections* of
+   it, never independently settable — two controls that can disagree are two controls
+   that will. The ladder is strictly ordered, and `PageLevel.requiresReload` is exactly
+   the strip delta: WebKit bakes `css-display-none` in at load, so a blocking change
+   describes the next document, not the one on screen.
 
 7. **No telemetry.** Nothing about browsing leaves the device. `RevealPayload.elapsedMs`
    is for local diagnosis only.

@@ -475,6 +475,7 @@ describe("LensEngine reporting", () => {
 const COMMAND_OWNER = {
   applyRecipe: "reader",
   setMode: "reader",
+  setLevel: "reader",
   requestSkeleton: "reader",
   applyRewrite: "reader",
   discardRewrite: "reader",

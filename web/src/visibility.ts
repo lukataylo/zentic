@@ -59,6 +59,7 @@ const COVER_CHECK_MS = 250;
 export class VisibilityController {
   private hidden = false;
   private didReveal = false;
+  private reportedReason: RevealReason | undefined;
   private failsafeTimer: ReturnType<typeof setTimeout> | undefined;
   private coverTimer: ReturnType<typeof setInterval> | undefined;
   private readonly startedAt = performance.now();
@@ -120,6 +121,30 @@ export class VisibilityController {
   }
 
   /**
+   * Report what the pipeline actually did.
+   *
+   * `reveal` reports first-wins, which is correct for un-hiding a document — it
+   * must happen once — but wrong as a *description* of the page. On a slow site
+   * the failsafe fires first and the pipeline renders a moment later; the reader
+   * overlay is then on screen, but the only thing the app was ever told is
+   * "failsafe". It concludes the page was not restructured and disables the
+   * control that switches back to the original — on a page that is very much
+   * restructured. So an outcome that contradicts what was already reported is
+   * sent once more, and the last word describes what the user is looking at.
+   *
+   * Always routed through `reveal`, including after the first one: that is what
+   * keeps the document's visibility following the overlay. A `rendered` arriving
+   * behind a spent failsafe has to conceal the page, not merely re-describe it.
+   */
+  settle(reason: RevealReason): void {
+    const wasRevealed = this.didReveal;
+    this.reveal(reason);
+    if (!wasRevealed || reason === this.reportedReason) return;
+    this.reportedReason = reason;
+    this.onReveal({ reason, elapsedMs: Math.round(performance.now() - this.startedAt) });
+  }
+
+  /**
    * Reveal the document. Idempotent as an *event* — the first reason wins and the
    * app hears about the cycle once.
    *
@@ -137,6 +162,7 @@ export class VisibilityController {
       return;
     }
     this.didReveal = true;
+    this.reportedReason = reason;
 
     if (this.failsafeTimer !== undefined) {
       clearTimeout(this.failsafeTimer);

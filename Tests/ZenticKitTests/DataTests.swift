@@ -100,6 +100,115 @@ struct TabResidencyTests {
     }
 }
 
+@Suite("Instant origins")
+@MainActor
+struct InstantOriginTests {
+
+    private let origin = "https://shop.example"
+
+    private func decline(_ store: BrowsingStore, times: Int) {
+        for _ in 0..<times {
+            store.recordReaderOutcome(origin: origin, wouldRestructure: false)
+        }
+    }
+
+    @Test("An origin becomes instant only after a run of pass-throughs")
+    func streakMustBeSustained() throws {
+        let store = try BrowsingStore(url: nil)
+
+        decline(store, times: Budget.instantOriginStreak - 1)
+        #expect(store.instantOrigins().isEmpty)
+
+        decline(store, times: 1)
+        #expect(store.instantOrigins() == [origin])
+    }
+
+    @Test("One restructurable page takes the origin back off the instant list")
+    func oneGoodPageResets() throws {
+        // The reason the pipeline still runs on an instant origin: a site that
+        // starts publishing has to be able to earn its way back, or the first
+        // quiet week would disable the reader there permanently.
+        let store = try BrowsingStore(url: nil)
+        decline(store, times: Budget.instantOriginStreak)
+        #expect(store.instantOrigins() == [origin])
+
+        store.recordReaderOutcome(origin: origin, wouldRestructure: true)
+
+        #expect(store.instantOrigins().isEmpty)
+        #expect(store.siteStat(for: origin)?.passthroughStreak == 0)
+    }
+
+    @Test("The streak is clamped, so a long-quiet origin is not held to a grudge")
+    func streakDoesNotRunAway() throws {
+        let store = try BrowsingStore(url: nil)
+        decline(store, times: Budget.instantOriginStreak + 50)
+
+        // Capped at the threshold, so a single good page still clears it.
+        #expect(store.siteStat(for: origin)?.passthroughStreak == Budget.instantOriginStreak)
+        store.recordReaderOutcome(origin: origin, wouldRestructure: true)
+        #expect(store.instantOrigins().isEmpty)
+    }
+
+    @Test("Origins are tracked separately")
+    func originsDoNotBleed() throws {
+        let store = try BrowsingStore(url: nil)
+        decline(store, times: Budget.instantOriginStreak)
+        store.recordReaderOutcome(origin: "https://news.example", wouldRestructure: false)
+
+        #expect(store.instantOrigins() == [origin])
+    }
+}
+
+@Suite("Tab insertion order")
+@MainActor
+struct TabOrderTests {
+
+    private func store() throws -> (BrowsingStore, Space) {
+        let store = try BrowsingStore(url: nil)
+        return (store, store.addSpace(title: "S", tintHex: "#112233", symbolName: "circle"))
+    }
+
+    @Test("A new tab lands at the requested position, not on top of its neighbour")
+    func explicitIndexTakesItsOwnSlot() throws {
+        let (store, space) = try store()
+        for name in ["a", "b", "c"] {
+            store.addTab(to: space, url: URL(string: "https://\(name).example"))
+        }
+
+        // Opened from "a", so it belongs directly below it.
+        store.addTab(to: space, url: URL(string: "https://new.example"), at: 1)
+
+        let ordered = store.loadedTabs(in: space)
+        #expect(
+            ordered.map { $0.url?.host() ?? "" }
+                == ["a.example", "new.example", "b.example", "c.example"]
+        )
+        // The order above can come out right by luck while the new tab and the one
+        // it displaced still share an index — a tie sorts arbitrarily, so it would
+        // hold until it did not. The run has to be genuinely renumbered.
+        #expect(ordered.map(\.sortIndex) == [0, 1, 2, 3])
+    }
+
+    @Test("Appending after closures does not reuse a live sortIndex")
+    func sparseIndicesDoNotCollide() throws {
+        // `close` deletes without renumbering, so the surviving run is sparse.
+        // Deriving the next index from the sibling *count* against that run used to
+        // produce an index a live tab already held, dropping the new tab into the
+        // middle of the sidebar instead of the end.
+        let (store, space) = try store()
+        let tabs = ["a", "b", "c", "d", "e"].map {
+            store.addTab(to: space, url: URL(string: "https://\($0).example"))
+        }
+        store.close(tabs[1])
+        store.close(tabs[2])
+
+        store.addTab(to: space, url: URL(string: "https://new.example"))
+
+        let hosts = store.loadedTabs(in: space).map { $0.url?.host() ?? "" }
+        #expect(hosts == ["a.example", "d.example", "e.example", "new.example"])
+    }
+}
+
 @Suite("Suspension round trip")
 @MainActor
 struct SuspensionTests {

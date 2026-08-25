@@ -17,7 +17,14 @@ public enum Budget {
     public static let revealFailsafe: Duration = .milliseconds(1500)
 
     /// Quiet period with no DOM mutations before the page counts as settled.
-    public static let settleQuietPeriod: Duration = .milliseconds(120)
+    ///
+    /// Measured across 22 real sites, most pages recorded *zero* mutations during
+    /// the wait — the DOM had already stopped moving before the observer was
+    /// attached, so this was paid in full as dead time on nearly every navigation.
+    /// The observer now starts at `document-start` (see `main.ts`), which usually
+    /// absorbs the wait into page load; 60ms is what remains for the pages where it
+    /// genuinely has to watch something.
+    public static let settleQuietPeriod: Duration = .milliseconds(60)
 
     /// Longest we wait for a settle before extracting whatever is present.
     public static let settleCeiling: Duration = .milliseconds(900)
@@ -75,6 +82,20 @@ public enum Budget {
     /// Candidates offered to the model. Caps prompt size, like
     /// ``Budget/skeletonNodeLimit``.
     public static let lensRegionCandidateLimit: Int = 120
+
+    // MARK: Instant origins
+
+    /// Consecutive pass-throughs before an origin stops being hidden on arrival.
+    ///
+    /// Hiding a page costs the user the whole extraction before they see anything,
+    /// and measured across 22 sites only three were restructured — so most of that
+    /// waiting bought nothing. After this many visits that all declined, the origin
+    /// is taken at its word and its pages are left visible from the first paint.
+    ///
+    /// Three rather than one: a single article on a news site must not teach us
+    /// that the site is worth hiding, and a single interstitial must not teach us
+    /// the opposite.
+    public static let instantOriginStreak: Int = 3
 
     // MARK: Tabs
 

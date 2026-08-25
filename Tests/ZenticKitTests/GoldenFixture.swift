@@ -163,6 +163,23 @@ enum Sample {
 
     static var configuration: ReaderConfiguration {
         ReaderConfiguration(
+            level: .reader,
+            mode: .restructured,
+            theme: theme,
+            recipe: recipe,
+            passthroughOrigins: ["https://mail.google.com"],
+            debugLogging: true
+        )
+    }
+
+    /// A second configuration below the reader threshold.
+    ///
+    /// One golden file cannot pin a clamp: `mode` is asked for as `.restructured`
+    /// here and must come out `.original`, and the only way to hold both languages
+    /// to that is a fixture where the two fields disagree with the request.
+    static var cleanConfiguration: ReaderConfiguration {
+        ReaderConfiguration(
+            level: .clean,
             mode: .restructured,
             theme: theme,
             recipe: recipe,

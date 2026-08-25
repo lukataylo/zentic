@@ -1,8 +1,12 @@
 {
   "debugLogging" : true,
+  "instantOrigins" : [
+
+  ],
   "lenses" : [
 
   ],
+  "level" : "reader",
   "minConfidence" : 0.55,
   "minWordCount" : 40,
   "mode" : "restructured",
@@ -30,7 +34,7 @@
   },
   "revealFailsafeMs" : 1500,
   "settleCeilingMs" : 900,
-  "settleQuietPeriodMs" : 120,
+  "settleQuietPeriodMs" : 60,
   "skeletonNodeLimit" : 220,
   "theme" : {
     "createdAt" : "2025-07-31T22:13:20Z",

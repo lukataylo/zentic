@@ -20,6 +20,14 @@ export const WIRE_VERSION = 3;
 
 export type Archetype = "article" | "docs" | "feed" | "thread" | "app";
 
+/**
+ * How much a page may be transformed. Mirrors `PageLevel` in Swift.
+ *
+ * The order is load-bearing — every stop does everything the one below it does
+ * and one thing more. See `level.ts` for what each grants.
+ */
+export type PageLevel = "original" | "clean" | "calm" | "reader" | "rewritten";
+
 export type RevealReason =
   | "rendered"
   | "passthrough"
@@ -500,7 +508,15 @@ export interface ReaderConfiguration {
   mode: ReaderMode;
   theme: ReaderTheme;
   recipe?: SiteRecipe;
+  /** How much this page may be transformed. See `level.ts`. */
+  level: PageLevel;
   passthroughOrigins: string[];
+  /**
+   * Origins the app has learned do not get restructured. Their pages are not
+   * hidden on arrival — the reader still runs, but it may not render, because
+   * swapping a visible page for the reader is the flash this design prevents.
+   */
+  instantOrigins: string[];
   revealFailsafeMs: number;
   settleQuietPeriodMs: number;
   settleCeilingMs: number;
@@ -567,6 +583,7 @@ export interface GeneratedDocument {
 export type ReaderCommand =
   | { v: number; type: "applyRecipe"; payload: SiteRecipe }
   | { v: number; type: "setMode"; payload: ReaderMode }
+  | { v: number; type: "setLevel"; payload: PageLevel }
   | { v: number; type: "requestSkeleton" }
   | { v: number; type: "applyRewrite"; payload: RewritePatch }
   | { v: number; type: "discardRewrite" }

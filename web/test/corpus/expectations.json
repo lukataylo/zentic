@@ -1038,5 +1038,70 @@
     ],
     "fidelitySensitive": false,
     "restructured": true
+  },
+  {
+    "slug": "commerce-squarespace",
+    "archetype": "article",
+    "title": "Website Builder – Easily Create Your Own Website",
+    "words": 3120,
+    "confidence": 0.4,
+    "kinds": [
+      "embed",
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "commerce-stripe",
+    "archetype": "article",
+    "title": "Financial Infrastructure to Grow Your Revenue",
+    "words": 843,
+    "confidence": 0.4,
+    "kinds": [
+      "figure",
+      "heading",
+      "list",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "commerce-shopify-pricing",
+    "archetype": "article",
+    "title": "Shopify Pricing: Find the Right Plan for Your Business",
+    "words": 602,
+    "confidence": 0.4,
+    "kinds": [
+      "embed",
+      "figure",
+      "heading",
+      "list",
+      "paragraph",
+      "table"
+    ],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "confidence 0.40"
+  },
+  {
+    "slug": "commerce-synthetic-marketing-home",
+    "archetype": "article",
+    "title": "Domain Names, Websites & Hosting",
+    "words": 461,
+    "confidence": 0.4,
+    "kinds": [
+      "heading",
+      "paragraph"
+    ],
+    "fidelitySensitive": false,
+    "restructured": false,
+    "declined": "confidence 0.40"
   }
 ]

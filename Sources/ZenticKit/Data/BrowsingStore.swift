@@ -109,12 +109,20 @@ public final class BrowsingStore {
         group: TabGroup? = nil,
         at index: Int? = nil
     ) -> Tab {
-        let siblings = space.tabs.filter { $0.isPinned == pinned && $0.group === group }
+        // In sidebar order, because the insertion point is a position in that
+        // order rather than a raw `sortIndex`. `close` deletes without renumbering,
+        // so a run that has lost tabs is sparse — deriving a new index from
+        // `siblings.count` against a sparse run lands the tab in the middle of it.
+        let siblings = space.tabs
+            .filter { $0.isPinned == pinned && $0.group === group }
+            .sorted { $0.sortIndex < $1.sortIndex }
+        let position = min(max(index ?? siblings.count, 0), siblings.count)
+
         let tab = Tab(
             urlString: url?.absoluteString ?? "",
             title: title,
             isPinned: pinned,
-            sortIndex: index ?? siblings.count,
+            sortIndex: position,
             space: space,
             group: group
         )
@@ -123,6 +131,16 @@ public final class BrowsingStore {
         // materialises that after a save; the sidebar reads `space.tabs`
         // immediately, so link both sides now.
         space.tabs.append(tab)
+
+        // Renumber the whole run so the new tab owns its slot. Without this an
+        // explicit index ties with the tab already holding it, and a tie sorts
+        // arbitrarily — the new tab lands either side of its neighbour by luck.
+        var ordered = siblings
+        ordered.insert(tab, at: position)
+        for (offset, sibling) in ordered.enumerated() where sibling.sortIndex != offset {
+            sibling.sortIndex = offset
+        }
+
         save()
         return tab
     }
@@ -195,16 +213,138 @@ public final class BrowsingStore {
         }
 
         if let origin = url.zenticOrigin {
-            let stat = siteStat(for: origin) ?? {
-                let created = SiteStat(origin: origin, visitCount: 0, lastVisitedAt: date)
-                context.insert(created)
-                return created
-            }()
+            let stat = fetchOrCreateStat(origin, at: date)
             stat.visitCount += 1
             stat.lastVisitedAt = date
         }
 
         save()
+    }
+
+    /// Record what the reader decided about a page, so the next visit to this
+    /// origin need not re-derive it from behind a hidden page.
+    ///
+    /// Keyed by origin rather than by URL: the point is to answer "should the next
+    /// page here be hidden on arrival", which is asked before that page's URL is
+    /// known. A single restructurable page resets the streak outright — being one
+    /// page late to hide costs a single unstyled pageview, whereas staying wrong
+    /// costs every pageview after it.
+    public func recordReaderOutcome(origin: String, wouldRestructure: Bool, at date: Date = .now) {
+        let stat = fetchOrCreateStat(origin, at: date)
+
+        if wouldRestructure {
+            guard stat.passthroughStreak != 0 else { return }
+            stat.passthroughStreak = 0
+        } else {
+            // Stops climbing once it is past the threshold. Without the clamp a
+            // site visited daily for a year would need a year of articles to earn
+            // its way back, which is not a memory — it is a grudge.
+            guard stat.passthroughStreak < Budget.instantOriginStreak else { return }
+            stat.passthroughStreak += 1
+        }
+        save()
+    }
+
+    // MARK: - Levels
+
+    /// The level a page from this origin should load at.
+    ///
+    /// Synchronous, and that is the requirement the whole design is built around:
+    /// this decides `ReaderConfiguration.mode`, which rides on a `WKUserScript` and
+    /// so has to be known *before* the web view is built. An actor-isolated store —
+    /// `DesignStore`, `BlockerEngine` — cannot answer in time. A saved design can be
+    /// applied after the reveal; a level cannot.
+    public func level(for origin: String?, isRewriteEnabled: Bool = false) -> PageLevel {
+        resolution(for: origin, isRewriteEnabled: isRewriteEnabled).level
+    }
+
+    /// The level and its no-override counterpart, in one fetch.
+    ///
+    /// One call rather than two, because the toolbar needs both and this reads the
+    /// store — and the toolbar is refreshed on every title change, every favicon
+    /// and every reveal. Callers cache the result and refresh it when the origin's
+    /// memory actually changes, which is once per extraction rather than per frame.
+    public func resolution(for origin: String?, isRewriteEnabled: Bool = false) -> LevelResolution {
+        guard let origin, let stat = siteStat(for: origin) else {
+            let fallback = LevelPolicy.resolve(SiteLevelInputs(isRewriteEnabled: isRewriteEnabled))
+            return LevelResolution(level: fallback, automatic: fallback)
+        }
+        let inputs = stat.levelInputs(isRewriteEnabled: isRewriteEnabled)
+        var automatic = inputs
+        automatic.preference = .auto
+        return LevelResolution(
+            level: LevelPolicy.resolve(inputs),
+            automatic: LevelPolicy.resolve(automatic)
+        )
+    }
+
+    public func preference(for origin: String) -> SitePreference {
+        siteStat(for: origin)?.preference ?? .auto
+    }
+
+    /// Record what the user asked for on this origin.
+    ///
+    /// A choice that matches what would have happened anyway is stored as `auto`
+    /// rather than as a pin — the same trick `BlockerEngine.setShield` uses for
+    /// `.standard`, and it earns its keep twice here: a site whose archetype memory
+    /// later changes then follows the new default, instead of being frozen by a
+    /// "choice" that was only ever agreement.
+    public func setPreference(
+        _ preference: SitePreference,
+        for origin: String,
+        isRewriteEnabled: Bool = false
+    ) {
+        let stat = fetchOrCreateStat(origin)
+
+        if case .pinned(let level) = preference {
+            var automatic = stat.levelInputs(isRewriteEnabled: isRewriteEnabled)
+            automatic.preference = .auto
+            if LevelPolicy.resolve(automatic) == level {
+                stat.preference = .auto
+                save()
+                return
+            }
+        }
+
+        stat.preference = preference
+        save()
+    }
+
+    /// Remember what a page here turned out to be, so the *next* page from this
+    /// origin can be resolved before it has been looked at.
+    public func recordExtraction(
+        origin: String,
+        archetype: Archetype,
+        isFidelitySensitive: Bool
+    ) {
+        let stat = fetchOrCreateStat(origin)
+        var changed = false
+        if stat.archetypeRaw != archetype.rawValue {
+            stat.archetypeRaw = archetype.rawValue
+            changed = true
+        }
+        // Monotone — one medical article makes this a site that publishes them.
+        if isFidelitySensitive && !stat.fidelitySensitiveSeen {
+            stat.fidelitySensitiveSeen = true
+            changed = true
+        }
+        if changed { save() }
+    }
+
+    private func fetchOrCreateStat(_ origin: String, at date: Date = .now) -> SiteStat {
+        if let existing = siteStat(for: origin) { return existing }
+        let created = SiteStat(origin: origin, visitCount: 0, lastVisitedAt: date)
+        context.insert(created)
+        return created
+    }
+
+    /// Origins whose pages should be left visible while the reader works.
+    public func instantOrigins() -> Set<String> {
+        let threshold = Budget.instantOriginStreak
+        let descriptor = FetchDescriptor<SiteStat>(
+            predicate: #Predicate { $0.passthroughStreak >= threshold }
+        )
+        return Set((try? context.fetch(descriptor))?.map(\.origin) ?? [])
     }
 
     public func siteStat(for origin: String) -> SiteStat? {

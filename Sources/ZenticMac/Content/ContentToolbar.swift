@@ -9,24 +9,33 @@ protocol ContentToolbarDelegate: AnyObject {
     func toolbarDidReload()
     func toolbar(_ toolbar: ContentToolbar, didSubmitAddress text: String)
     func toolbarDidRequestDownloads(_ sender: NSView)
-    /// The reader/original segmented control moved.
-    func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode)
-    /// The rewrite button. `sender` anchors the options menu.
-    func toolbarDidRequestRewrite(_ sender: NSView)
+    /// A stop on the level rail was clicked.
+    func toolbar(_ toolbar: ContentToolbar, didSelectLevel level: PageLevel)
+    /// A stop this page cannot reach was clicked. Answer, do not ignore.
+    func toolbar(_ toolbar: ContentToolbar, didSelectBlockedLevel level: PageLevel)
+    /// The rail's label was clicked. `sender` anchors the detail popover.
+    func toolbar(_ toolbar: ContentToolbar, didRequestLevelDetail sender: NSView)
     /// The AI badge was clicked — put the original text back.
     func toolbarDidRequestDiscardRewrite()
-    /// The shield. `sender` anchors the blocking menu.
-    func toolbarDidRequestShield(_ sender: NSView)
     /// The lens button. `sender` anchors the lens popover.
     func toolbarDidRequestLenses(_ sender: NSView)
 }
 
 /// What the toolbar needs to know to draw the reader controls.
+///
+/// Two axes, deliberately not one. The level is *depth* — how much of this page
+/// Zentic is changing — and the rail is its whole control. A lens is *shape*, per
+/// site, and neither is a setting of the other.
 struct ReaderControlState {
-    var mode: ReaderMode = .restructured
-    var canTransform = false
-    var canRewrite = false
     var rewrite: TabController.RewriteState = .none
+    /// Where this page currently sits on the ladder.
+    var level: PageLevel = .reader
+    /// Where it would sit with no override, drawn hollow when the two differ.
+    var automatic: PageLevel = .reader
+    /// The highest stop this page can actually reach.
+    var ceiling: PageLevel = .rewritten
+    /// Why, when that is lower than the top.
+    var ceilingReason: String?
     /// Lenses on this page, and what they actually did. See ``LensState`` — the
     /// counts come from the page's own reports or they are not shown at all.
     var lens = LensState()
@@ -46,20 +55,18 @@ final class ContentToolbar: PointerTrackingView {
     private let reloadButton = NSButton()
     private let downloadsButton = NSButton()
 
-    /// Reader ⇄ Original. The visible half of ⌘\.
+    /// The five-stop ladder, from the site as shipped to a model-rewritten page.
     ///
-    /// A segmented control rather than a single toggle button, because the two
-    /// states are not "on and off" — they are two renderings of the same page, and
-    /// the user needs to see which one they are looking at without clicking to
-    /// find out.
-    private let modeControl = NSSegmentedControl()
-    private let rewriteButton = NSButton()
-    /// Blocking, for this origin. State only — invariant 8: WebKit reports no
-    /// counts back, so a "127 trackers blocked" badge would be a fabrication.
-    private let shieldButton = NSButton()
-    /// Lenses, for this page. Unlike the shield this one *may* carry a number,
-    /// because the page reports what each op did — but only ever that number. See
-    /// ``applyLens(_:)``.
+    /// Replaces the old two-segment Transformed/Original control, the separate
+    /// wand button and the shield. Those described two of the three layers through
+    /// three unrelated widgets and left the strip layer with no honest control at
+    /// all, so the one question worth answering — how much is this browser changing
+    /// what I am looking at — had no single place to read it.
+    let levelRail = LevelRailView(frame: .zero)
+    /// Lenses, for this page. A separate control because it answers a separate
+    /// question: the rail sets how deep the change goes, a lens sets its shape.
+    /// Unlike the rail this one *may* carry a number, because the page reports what
+    /// each op did — but only ever that number. See ``applyLens(_:)``.
     private let lensButton = NSButton()
     private let lensBadge = NSTextField(labelWithString: "")
     /// Shown only while a rewrite is on screen. Invariant 6: rewritten text is
@@ -100,9 +107,7 @@ final class ContentToolbar: PointerTrackingView {
         lensGroup.spacing = 1
         lensGroup.translatesAutoresizingMaskIntoConstraints = false
 
-        let rightGroup = NSStackView(views: [
-            aiBadge, lensGroup, shieldButton, modeControl, rewriteButton, downloadsButton,
-        ])
+        let rightGroup = NSStackView(views: [aiBadge, lensGroup, levelRail, downloadsButton])
         rightGroup.orientation = .horizontal
         rightGroup.spacing = 6
         rightGroup.translatesAutoresizingMaskIntoConstraints = false
@@ -131,40 +136,6 @@ final class ContentToolbar: PointerTrackingView {
     }
 
     private func buildReaderControls() {
-        // Icons, not words. Two labels cost about 150pt of a toolbar whose most
-        // valuable tenant is the address bar, and the pair reads fine as glyphs
-        // once you have used it twice. The tooltip carries the words until then.
-        modeControl.segmentCount = 2
-        modeControl.setImage(
-            NSImage(systemSymbolName: "textformat", accessibilityDescription: "Transformed"),
-            forSegment: 0
-        )
-        modeControl.setImage(
-            NSImage(systemSymbolName: "globe", accessibilityDescription: "Original page"),
-            forSegment: 1
-        )
-        modeControl.setWidth(28, forSegment: 0)
-        modeControl.setWidth(28, forSegment: 1)
-        modeControl.segmentStyle = .capsule
-        modeControl.trackingMode = .selectOne
-        modeControl.selectedSegment = 0
-        modeControl.target = self
-        modeControl.action = #selector(modeChanged)
-        modeControl.controlSize = .small
-        modeControl.translatesAutoresizingMaskIntoConstraints = false
-
-        configure(
-            rewriteButton,
-            symbol: "wand.and.stars",
-            action: #selector(requestRewrite),
-            tip: "Rewrite this page"
-        )
-        configure(
-            shieldButton,
-            symbol: "shield.lefthalf.filled",
-            action: #selector(requestShield),
-            tip: "Blocking"
-        )
         configure(
             lensButton,
             symbol: "camera.filters",
@@ -174,12 +145,26 @@ final class ContentToolbar: PointerTrackingView {
 
         // The one number in this corner of the toolbar, and only ever the page's own
         // count of what ran. Tabular figures so `3/4` and `11/12` occupy the same
-        // width — a badge that shifts the shield sideways as ops report reads as the
+        // width — a badge that shifts the rail sideways as ops report reads as the
         // toolbar twitching.
         lensBadge.font = .monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold)
         lensBadge.textColor = .secondaryLabelColor
         lensBadge.isHidden = true
         lensBadge.translatesAutoresizingMaskIntoConstraints = false
+
+        levelRail.translatesAutoresizingMaskIntoConstraints = false
+        levelRail.onSelect = { [weak self] level in
+            guard let self else { return }
+            delegate?.toolbar(self, didSelectLevel: level)
+        }
+        levelRail.onBlocked = { [weak self] level in
+            guard let self else { return }
+            delegate?.toolbar(self, didSelectBlockedLevel: level)
+        }
+        levelRail.onOpenDetail = { [weak self] in
+            guard let self else { return }
+            delegate?.toolbar(self, didRequestLevelDetail: levelRail)
+        }
 
         // Deliberately a button, not a label: the badge that tells the user they
         // are reading rewritten text is also the fastest way back to the original.
@@ -194,49 +179,30 @@ final class ContentToolbar: PointerTrackingView {
         aiBadge.translatesAutoresizingMaskIntoConstraints = false
     }
 
-    /// Anchors an explanation popped from the mode control.
-    var modeAnchor: NSView { modeControl }
-
     /// Drive the reader controls from the selected tab.
     func apply(reader state: ReaderControlState) {
-        // Deliberately still enabled with nothing to switch to. A disabled control
-        // answers "why?" only on hover, and a toolbar corner that swallows clicks
-        // reads as broken — the delegate says why instead. See `explain(_:from:)`.
-        modeControl.isEnabled = true
-        modeControl.selectedSegment = state.mode == .restructured ? 0 : 1
-        // Says *why* it is inert rather than just being inert. On a page Zentic
-        // left alone both segments show the same thing, and a control that appears
-        // to do nothing without explaining itself is the most annoying kind.
-        modeControl.toolTip = state.canTransform
-            ? "Zentic's transformed page, or the site's own (⌘\\)"
-            : "Zentic left this page as it is — there is nothing to switch between"
+        levelRail.apply(
+            level: state.level,
+            automatic: state.automatic,
+            ceiling: state.ceiling,
+            ceilingReason: state.ceilingReason
+        )
 
+        // The badge is the only rewrite affordance left in the toolbar now that the
+        // wand has become the ladder's top stop. It stays for invariant 6: rewritten
+        // text is badged for as long as it is shown, and the badge is also the
+        // fastest way back.
         switch state.rewrite {
-        case .none:
+        case .none, .failed:
             aiBadge.isHidden = true
-            rewriteButton.isEnabled = true
-            rewriteButton.toolTip = state.canRewrite
-                ? "Rewrite this page"
-                : "Rewriting needs the transformed page"
-            // Dimmed rather than disabled, for the reason above.
-            rewriteButton.contentTintColor = state.canRewrite
-                ? .secondaryLabelColor
-                : .tertiaryLabelColor
         case .running(let done, let total):
-            aiBadge.isHidden = true
-            rewriteButton.isEnabled = false
-            rewriteButton.toolTip = "Rewriting \(done) of \(total)…"
-            rewriteButton.contentTintColor = .controlAccentColor
+            aiBadge.isHidden = false
+            aiBadge.title = "AI \(done)/\(total)"
+            aiBadge.toolTip = "Rewriting \(done) of \(total)…"
         case .shown:
             aiBadge.isHidden = false
-            rewriteButton.isEnabled = true
-            rewriteButton.contentTintColor = .controlAccentColor
-            rewriteButton.toolTip = "Rewrite again with different settings"
-        case .failed(let reason):
-            aiBadge.isHidden = true
-            rewriteButton.isEnabled = true
-            rewriteButton.contentTintColor = .systemOrange
-            rewriteButton.toolTip = reason
+            aiBadge.title = "AI"
+            aiBadge.toolTip = "Rewritten by a model. Click to restore the original text."
         }
 
         applyLens(state.lens)
@@ -254,8 +220,9 @@ final class ContentToolbar: PointerTrackingView {
     /// hopeful `4/4`. A number that turns out to be wrong about what the user is
     /// looking at is worse than no number, because they cannot tell which it was.
     private func applyLens(_ state: LensState) {
-        // Enabled even when it does nothing, like the mode control: a toolbar corner
-        // that swallows clicks reads as broken, and the tooltip does the explaining.
+        // Enabled even when it does nothing, like the rail's blocked stops: a toolbar
+        // corner that swallows clicks reads as broken, and the tooltip does the
+        // explaining.
         lensButton.isEnabled = true
         lensBadge.stringValue = state.tally ?? ""
         lensBadge.isHidden = state.tally == nil
@@ -363,25 +330,6 @@ final class ContentToolbar: PointerTrackingView {
     @objc private func reload() { delegate?.toolbarDidReload() }
     @objc private func showDownloads() { delegate?.toolbarDidRequestDownloads(downloadsButton) }
 
-    @objc private func modeChanged() {
-        delegate?.toolbar(self, didSelectMode: modeControl.selectedSegment == 0 ? .restructured : .original)
-    }
-
-    /// Reflect this origin's shield. Three states, three glyphs — no numbers.
-    func setShield(_ state: ShieldState) {
-        let (symbol, tip, tint): (String, String, NSColor) = switch state {
-        case .standard:
-            ("shield.lefthalf.filled", "Blocking ads, trackers and cookie walls", .secondaryLabelColor)
-        case .blockingOnly:
-            ("shield", "Blocking ads and trackers, not hiding elements", .secondaryLabelColor)
-        case .off:
-            ("shield.slash", "Blocking is off for this site", .systemOrange)
-        }
-        shieldButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)
-        shieldButton.toolTip = tip
-        shieldButton.contentTintColor = tint
-    }
-
     /// The strip around the controls is chrome: drag moves the window, and a
     /// double-click is the title-bar gesture. Anything over a button or the
     /// address field never reaches here.
@@ -397,8 +345,6 @@ final class ContentToolbar: PointerTrackingView {
         }
     }
 
-    @objc private func requestShield() { delegate?.toolbarDidRequestShield(shieldButton) }
     @objc private func requestLenses() { delegate?.toolbarDidRequestLenses(lensButton) }
-    @objc private func requestRewrite() { delegate?.toolbarDidRequestRewrite(rewriteButton) }
     @objc private func discardRewrite() { delegate?.toolbarDidRequestDiscardRewrite() }
 }

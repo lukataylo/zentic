@@ -4,7 +4,7 @@ import { countWords, textOf } from "../dom.js";
 import { LENS_NODE_SELECTOR } from "../lens/harvest.js";
 import { sanitizeHTML } from "../render/sanitize.js";
 import type { Archetype, ExtractionResult, SiteRecipe } from "../wire.js";
-import { detectApp, type AppVerdict } from "./appdetect.js";
+import { detectApp, openGraphType, publicationMarkers, type AppVerdict } from "./appdetect.js";
 import { isFidelitySensitive } from "./fidelity.js";
 import { buildSections } from "./sections.js";
 
@@ -139,6 +139,37 @@ function detectDocs(doc: Document, url: string, sectionKinds: string[]): boolean
 }
 
 /**
+ * A lone path segment that is unambiguously a locale: `en-uk`, `pt_BR`, `zh-hans`.
+ *
+ * The hyphenated form only. A bare two-letter segment is the same shape as plenty
+ * of real page names — `/ai`, `/id`, `/it`, `/go` — and declining one of those on
+ * a guess is exactly the kind of over-reach invariant 2 exists to prevent. The
+ * cost of the narrower pattern is that `example.com/en` is not recognised as a
+ * front door; that page is nearly always caught by its own `og:type` instead.
+ */
+const LOCALE_SEGMENT = /^[a-z]{2}[-_][a-z0-9]{2,4}$/i;
+
+/**
+ * Commercial Open Graph types. A page that says it is a product is not an article
+ * — this is the site's own declaration about itself, not an inference.
+ */
+const COMMERCE_OG_TYPES = /^(product|place|business)/;
+
+/**
+ * Whether this URL is the site's front door.
+ *
+ * Not just `/`. A localised site puts its home page one segment down —
+ * godaddy.com/en-uk, and most large commercial sites do the same — and that page
+ * is every bit as much a front door as the bare root.
+ */
+function isFrontDoor(url: URL): boolean {
+  const segments = url.pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return true;
+  if (segments.length > 1) return false;
+  return LOCALE_SEGMENT.test(segments[0] ?? "");
+}
+
+/**
  * Extraction self-assessment, 0…1.
  *
  * Not a probability — a deterministic score that has to be *ordered* correctly:
@@ -168,6 +199,12 @@ interface ConfidenceInput {
   fellBackToBody: boolean;
   hasTitle: boolean;
   hasAttribution: boolean;
+  /** The site's front door: the URL has no path of its own. */
+  isHomePage: boolean;
+  /** `<article>`, `og:type=article`, schema.org, or a `<time datetime>`. */
+  hasPublicationMarker: boolean;
+  /** The page's own `og:type` says it is a product, a place or a business. */
+  declaresCommerce: boolean;
   minWordCount: number;
 }
 
@@ -222,6 +259,27 @@ function estimateConfidence(input: ConfidenceInput): number {
   // then invariant 2 applies and we pass the page through.
   if (input.postBlocks >= 3) return Math.min(score, 0.4);
 
+  // A marketing page is statistically indistinguishable from an essay by every
+  // measure above: godaddy.com/en-uk carries 999 words and scored 0.90, because a
+  // page full of FAQ answers *is* real multi-sentence prose. No amount of tuning
+  // the prose signals separates the two, so both rules below read what the page
+  // says about itself instead.
+  //
+  // The page declares itself commercial. `og:type=product` is the site's own
+  // statement of what it is, which beats any inference we can make from its text.
+  if (input.declaresCommerce) return Math.min(score, 0.4);
+
+  // A front door with nothing claiming to be published content: no `<article>`, no
+  // `og:type=article`, no schema.org type, no date — sitting at the path where a
+  // site puts its product rather than its writing.
+  //
+  // Neither half is sufficient alone. Plenty of legitimately restructured pages
+  // have no publication marker (every docs page in the corpus), and a single-page
+  // essay site does live at `/` — but that page carries a date or an `<article>`,
+  // so it keeps its score. Like `postBlocks` these pages hit the 0.98 cap, so the
+  // ceiling drops rather than an additive penalty that would never be enough.
+  if (input.isHomePage && !input.hasPublicationMarker) return Math.min(score, 0.4);
+
   return Math.min(0.98, Math.max(0.05, score));
 }
 
@@ -244,8 +302,13 @@ export function extract(doc: Document, options: ExtractOptions): ExtractionOutco
   };
 
   let hostname = "";
+  // Fails closed to `false`: an unparseable URL must not be treated as a home
+  // page, or a page we cannot identify would be declined on that basis alone.
+  let isHomePage = false;
   try {
-    hostname = new URL(options.url).hostname;
+    const parsedURL = new URL(options.url);
+    hostname = parsedURL.hostname;
+    isHomePage = isFrontDoor(parsedURL);
   } catch {
     hostname = "";
   }
@@ -268,6 +331,38 @@ export function extract(doc: Document, options: ExtractOptions): ExtractionOutco
         wordCount: 0,
         sections: [],
         confidence: app.confidence,
+        isFidelitySensitive: false,
+        ...(lang ? { lang } : {}),
+      },
+    };
+  }
+
+  // Too little on the page to clear `minWordCount`, whatever the parse returns.
+  //
+  // `defuddle` is 90–95% of extraction across every page measured — 810ms of 914,
+  // 913 of 965 — and half of all that time went to pages that were then passed
+  // through anyway. One measured site spent 602ms parsing to discover it had 84
+  // words. `app.signals.proseWords` is already computed by the app check above, so
+  // this test is free, and it is a genuine bound rather than a guess: it counts
+  // `<pre>` along with every prose element, and falls back to raw text runs, which
+  // is what catches prose in `<div>`s and table cells.
+  //
+  // Tables are the one thing it does not see, so a structured page is never
+  // short-circuited on this path — a reference page can be almost entirely tables
+  // and still be worth rendering.
+  const tableLike = doc.body ? doc.body.querySelectorAll("table").length : 0;
+  if (app.signals.proseWords < options.minWordCount && tableLike < 3) {
+    return {
+      app,
+      empty: true,
+      timings,
+      result: {
+        url: options.url,
+        archetype: "article",
+        title: (doc.title ?? "").trim(),
+        wordCount: 0,
+        sections: [],
+        confidence: 0.05,
         isFidelitySensitive: false,
         ...(lang ? { lang } : {}),
       },
@@ -327,6 +422,9 @@ export function extract(doc: Document, options: ExtractOptions): ExtractionOutco
     fellBackToBody: /^\s*<body/i.test(parsed.content ?? ""),
     hasTitle: title.length > 0,
     hasAttribution: Boolean(parsed.author || parsed.published),
+    isHomePage,
+    hasPublicationMarker: publicationMarkers(doc).length > 0,
+    declaresCommerce: COMMERCE_OG_TYPES.test(openGraphType(doc)),
     minWordCount: options.minWordCount,
   });
 

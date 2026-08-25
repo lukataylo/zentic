@@ -120,16 +120,11 @@ export function collectAppSignals(doc: Document, hostname: string): AppSignals {
     }
   });
 
-  const articleMarkers: string[] = [];
-  if (doc.querySelector("article")) articleMarkers.push("article");
-  const ogType = doc
-    .querySelector('meta[property="og:type"], meta[name="og:type"]')
-    ?.getAttribute("content");
-  if (ogType && /article|book|blog/i.test(ogType)) articleMarkers.push(`og:type=${ogType}`);
-  if (doc.querySelector('meta[property^="article:"]')) articleMarkers.push("article:*");
-  if (hasArticleSchema(doc)) articleMarkers.push("schema.org");
-  if (doc.querySelector("time[datetime]")) articleMarkers.push("time");
+  const articleMarkers = publicationMarkers(doc);
   if (doc.querySelector('link[rel="canonical"]') && paragraphs.length >= 5) {
+    // Deliberately last, and deliberately not a *publication* marker: a canonical
+    // link plus some paragraphs is true of almost every page on the web, marketing
+    // home pages included. It is weak corroboration, never evidence on its own.
     articleMarkers.push("canonical+prose");
   }
 
@@ -154,6 +149,41 @@ export function collectAppSignals(doc: Document, hostname: string): AppSignals {
     shellMarkers,
     articleMarkers,
   };
+}
+
+/**
+ * Positive evidence that a document is *published content* rather than a page
+ * that merely contains words.
+ *
+ * Every one of these is something an author or a CMS emits on purpose: an
+ * `<article>` element, an Open Graph type, a schema.org type, a machine-readable
+ * date. Marketing pages carry none of them — they are pages about a product, and
+ * nothing about them claims otherwise.
+ *
+ * Exported because two callers need the same definition: app detection scores it
+ * as evidence against being an app, and confidence scoring uses its *absence* to
+ * recognise a front door. Two copies of this list would drift.
+ */
+export function publicationMarkers(doc: Document): string[] {
+  const markers: string[] = [];
+  if (doc.querySelector("article")) markers.push("article");
+  const ogType = openGraphType(doc);
+  if (ogType && /article|book|blog/i.test(ogType)) markers.push(`og:type=${ogType}`);
+  if (doc.querySelector('meta[property^="article:"]')) markers.push("article:*");
+  if (hasArticleSchema(doc)) markers.push("schema.org");
+  if (doc.querySelector("time[datetime]")) markers.push("time");
+  return markers;
+}
+
+/** The page's declared Open Graph type, lowercased. Empty when absent. */
+export function openGraphType(doc: Document): string {
+  return (
+    doc
+      .querySelector('meta[property="og:type"], meta[name="og:type"]')
+      ?.getAttribute("content")
+      ?.trim()
+      .toLowerCase() ?? ""
+  );
 }
 
 /**

@@ -430,7 +430,14 @@ final class BrowserViewController: NSViewController {
 
     private func controller(for record: Tab) -> TabController {
         if let existing = controllers[record.id] { return existing }
-        let controller = TabController(record: record, faviconService: faviconService)
+        let controller = TabController(
+            record: record,
+            faviconService: faviconService,
+            instantOrigins: { [store] in store.instantOrigins() },
+            resolveLevel: { [store, weak self] origin in
+                store.resolution(for: origin, isRewriteEnabled: self?.isRewriteEnabled ?? false)
+            }
+        )
         controller.delegate = self
         controllers[record.id] = controller
         return controller
@@ -494,10 +501,37 @@ final class BrowserViewController: NSViewController {
     @discardableResult
     func newTab(url: URL?, pinned: Bool = false) -> Tab? {
         guard let space = activeSpace else { return nil }
-        let tab = store.addTab(to: space, url: url, pinned: pinned)
+        let tab = store.addTab(
+            to: space,
+            url: url,
+            pinned: pinned,
+            at: insertionIndex(in: space, pinned: pinned)
+        )
         rebuildSidebar()
         select(tabID: tab.id)
         return tab
+    }
+
+    /// Directly below the selected tab, which is where Safari and Arc both put a
+    /// new one: a tab opened from the page you are reading — especially by
+    /// ⌘-click — belongs beside its parent, not at the bottom of a long sidebar.
+    ///
+    /// Returns nil, meaning "at the end", when there is nothing comparable to sit
+    /// after: no selection, or a selection in a different run (pinned, or inside a
+    /// group) from the tab being created.
+    private func insertionIndex(in space: Space, pinned: Bool) -> Int? {
+        guard
+            let selectedTabID,
+            let current = space.tabs.first(where: { $0.id == selectedTabID }),
+            current.isPinned == pinned,
+            current.group == nil
+        else { return nil }
+
+        let siblings = space.tabs
+            .filter { $0.isPinned == pinned && $0.group == nil }
+            .sorted { $0.sortIndex < $1.sortIndex }
+        guard let position = siblings.firstIndex(where: { $0.id == current.id }) else { return nil }
+        return position + 1
     }
 
     func closeSelectedTab() {
@@ -527,6 +561,11 @@ final class BrowserViewController: NSViewController {
         // and an async suspension would then write captured state into a deleted
         // object, which SwiftData turns into a crash rather than a no-op.
         controllers.removeValue(forKey: tabID)?.discard()
+        // Every per-tab side table has to be cleared here, not only the ones that
+        // hold memory. `rewritingTabs` was only ever cleared on navigation, so a
+        // tab pinned to Rewritten and then closed left its id behind for the life
+        // of the session.
+        rewritingTabs.remove(tabID)
         if selectedTabID == tabID { selectedTabID = nil }
         store.close(record)
         rebuildSidebar()
@@ -618,6 +657,31 @@ final class BrowserViewController: NSViewController {
         switchTo(space: space)
     }
 
+    /// Tabs whose pinned rewrite has already been started or declined for the
+    /// document currently on screen.
+    ///
+    /// The trigger is the chrome update, which fires many times per page, so without
+    /// this a declined confirm would be re-asked on the next favicon to arrive.
+    /// Cleared on navigation, which is what makes the pin apply per *document*
+    /// rather than once ever.
+    private var rewritingTabs: Set<UUID> = []
+
+    private static let rewriteEnabledKey = "zentic.rewriteEnabled"
+
+    /// The global rewrite opt-in, off by default.
+    ///
+    /// Invariant 6's first clause. A per-site pin at Rewritten is a standing
+    /// *permission*, and this is the switch that says permissions of that kind may
+    /// be granted at all — so a user who has never opted in cannot reach the top
+    /// stop by dragging a slider they were exploring.
+    var isRewriteEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.rewriteEnabledKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Self.rewriteEnabledKey)
+            updateToolbar()
+        }
+    }
+
     private static let tintStrengthKey = "zentic.tintStrength"
 
     /// How much of the space colour sits over the vibrancy. Persisted, because it
@@ -625,7 +689,7 @@ final class BrowserViewController: NSViewController {
     private var tintStrength: TintStrength {
         get {
             UserDefaults.standard.string(forKey: Self.tintStrengthKey)
-                .flatMap(TintStrength.init(rawValue:)) ?? .glass
+                .flatMap(TintStrength.init(rawValue:)) ?? .clear
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Self.tintStrengthKey)
@@ -827,22 +891,39 @@ final class BrowserViewController: NSViewController {
             canGoForward: controller?.canGoForward ?? false,
             isLoading: controller?.isLoading ?? false
         )
+        let cap = levelCeiling(for: controller)
         toolbar.apply(
             reader: ReaderControlState(
-                mode: controller?.readerMode ?? .restructured,
-                canTransform: controller?.didRestructure ?? false,
-                canRewrite: controller?.canRewrite ?? false,
                 rewrite: controller?.rewriteState ?? .none,
+                level: controller?.level ?? .reader,
+                automatic: controller?.automaticLevel ?? .reader,
+                ceiling: cap.level,
+                ceilingReason: cap.reason,
                 lens: controller?.lensState ?? LensState()
             )
         )
         view.window?.title = controller?.title ?? "Zentic"
+    }
 
-        if let origin = controller?.url?.host() {
-            Task { @MainActor in toolbar.setShield(await Blocking.engine.shield(for: origin)) }
-        } else {
-            toolbar.setShield(.standard)
+    /// The highest stop this page can actually reach, and why.
+    ///
+    /// Invariant 2 is the interesting case: the bundle will decline to restructure
+    /// an app whatever the control says, so offering Reader there would be offering
+    /// something that cannot happen. Saying *why* beats being quietly inert.
+    private func levelCeiling(for controller: TabController?) -> (level: PageLevel, reason: String?) {
+        guard let controller else { return (.rewritten, nil) }
+
+        if controller.extraction?.archetype == .app {
+            return (
+                .calm,
+                "Zentic won't restructure an app. Mangling your mail client costs your"
+                    + " trust; leaving it alone costs nothing."
+            )
         }
+        if !isRewriteEnabled {
+            return (.reader, "Rewriting is off. Zentic ▸ Allow Rewriting turns it on.")
+        }
+        return (.rewritten, nil)
     }
 
     func focusAddressBar() {
@@ -1167,97 +1248,234 @@ extension BrowserViewController: ContentToolbarDelegate {
         downloads.showPopover(relativeTo: sender)
     }
 
-    func toolbar(_ toolbar: ContentToolbar, didSelectMode mode: ReaderMode) {
-        guard let controller = selectedController else { return }
-        guard controller.didRestructure else {
-            // Snap back, then say why. Silently ignoring the click is what made
-            // this corner of the toolbar feel broken.
-            updateToolbar()
-            explain(
-                "Zentic left this page as it is, so there is nothing to switch between.",
-                from: toolbar.modeAnchor
-            )
+    func toolbar(_ toolbar: ContentToolbar, didSelectLevel level: PageLevel) {
+        setLevel(level)
+    }
+
+    /// A stop the page cannot reach was clicked.
+    ///
+    /// The two reasons are not the same kind of thing, so they get different
+    /// answers. Rewriting being off is the user's own setting and the click is them
+    /// asking to change it — so offer. An app being unrestructurable is a decision
+    /// the browser has made on their behalf, so explain it instead of offering a
+    /// switch that does not exist.
+    func toolbar(_ toolbar: ContentToolbar, didSelectBlockedLevel level: PageLevel) {
+        let cap = levelCeiling(for: selectedController)
+
+        if level == .rewritten && !isRewriteEnabled {
+            let alert = NSAlert()
+            alert.messageText = "Allow Zentic to rewrite pages?"
+            alert.informativeText = """
+                Rewriting sends a page's prose to a model and shows you its version. \
+                Code, tables, maths and embeds are never sent.
+
+                Rewritten text stays badged while it is shown, and ⌘\\ brings the \
+                original straight back. Pages where exact wording matters ask again \
+                each time.
+                """
+            alert.addButton(withTitle: "Allow Rewriting")
+            alert.addButton(withTitle: "Not Now")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+            isRewriteEnabled = true
+            setLevel(.rewritten)
             return
         }
-        controller.setReaderMode(mode)
+
+        guard let reason = cap.reason else { return }
+        let alert = NSAlert()
+        alert.messageText = "\(level.title) isn't available here"
+        alert.informativeText = reason
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    func toolbar(_ toolbar: ContentToolbar, didRequestLevelDetail sender: NSView) {
+        guard let controller = selectedController, let origin = controller.url?.zenticOrigin else {
+            return
+        }
+        presentLevelMenu(from: sender, origin: origin, current: controller.level)
+    }
+
+    /// Move this site to a level, remember it, and apply it.
+    ///
+    /// The two halves of "apply" are not the same kind of operation. Anything above
+    /// the strip layer is live: entering the reader re-runs extraction against the
+    /// DOM already in front of the user, and leaving it un-hides a document that was
+    /// never destroyed. Changing what is *blocked* is not live — WebKit bakes
+    /// `css-display-none` in at load and a request already sent cannot be recalled —
+    /// so that one, and only that one, costs a reload.
+    func setLevel(_ level: PageLevel) {
+        guard let controller = selectedController else { return }
+        let previous = controller.level
+        guard level != previous else { return }
+
+        if let origin = controller.url?.zenticOrigin {
+            store.setPreference(.pinned(level), for: origin)
+        }
+
+        controller.setLevel(level)
         updateToolbar()
         sidebar.updateTransform(id: controller.id, state: transformState(for: controller.id))
+        trace(
+            "level",
+            "\(previous.rawValue) → \(level.rawValue)"
+                + (PageLevel.requiresReload(from: previous, to: level) ? " · reloading" : "")
+        )
+
+        // The top stop is the only one that *does* something beyond changing what
+        // the page is allowed to be. Reaching it has to actually start a rewrite,
+        // or it is a control that moves and achieves nothing.
+        if level == .rewritten {
+            startRewriteForTopStop(on: controller, revertingTo: previous)
+        } else if previous == .rewritten {
+            controller.discardRewrite()
+            updateToolbar()
+        }
     }
 
-    /// The blocking menu: this origin's shield, and the state of the lists.
+    /// Run the default rewrite on arrival at the top stop, and fall back down if it
+    /// cannot happen — the rail must never sit on a level the page is not at.
+    private func startRewriteForTopStop(on controller: TabController, revertingTo previous: PageLevel) {
+        // Extraction has to have produced something rewritable first. Straight after
+        // a jump from Calm the page may still be rendering, so this is not an error
+        // — it is just not ready, and the honest answer is to wait for the reveal.
+        guard controller.canRewrite else { return }
+        if !requestRewrite(.simplify) {
+            setLevel(previous)
+        }
+    }
+
+    /// A site pinned to Rewritten rewrites on every visit, not only on the click
+    /// that pinned it.
     ///
-    /// State, never a count. `WKContentRuleList` matches inside the network
-    /// process and tells the app nothing about what it stopped, so the only
-    /// honest numbers here are the ones we produced ourselves at compile time.
-    func toolbarDidRequestShield(_ sender: NSView) {
-        guard let controller = selectedController, let origin = controller.url?.host() else {
-            explain("Blocking applies to a loaded site.", from: sender)
-            return
-        }
-        Task { @MainActor in
-            let current = await Blocking.engine.shield(for: origin)
-            let menu = NSMenu()
-            let header = NSMenuItem(title: origin, action: nil, keyEquivalent: "")
-            header.isEnabled = false
-            menu.addItem(header)
-            menu.addItem(.separator())
-
-            for state in ShieldState.allCases {
-                let item = NSMenuItem(
-                    title: Self.shieldTitle(state),
-                    action: #selector(self.setShieldCommand(_:)),
-                    keyEquivalent: ""
-                )
-                item.target = self
-                item.tag = ShieldState.allCases.firstIndex(of: state) ?? 0
-                item.state = state == current ? .on : .off
-                menu.addItem(item)
-            }
-
-            menu.addItem(.separator())
-            let update = NSMenuItem(
-                title: "Update Filter Lists Now",
-                action: #selector(self.updateFilterListsCommand(_:)),
-                keyEquivalent: ""
-            )
-            update.target = self
-            menu.addItem(update)
-
-            let counts = (try? await Blocking.engine.installedRuleLists().count) ?? 0
-            let status = NSMenuItem(
-                title: counts == 0
-                    ? "No filter lists compiled yet"
-                    : "\(counts) compiled rule lists installed",
-                action: nil,
-                keyEquivalent: ""
-            )
-            status.isEnabled = false
-            menu.addItem(status)
-
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
-        }
-    }
-
-    private static func shieldTitle(_ state: ShieldState) -> String {
-        switch state {
-        case .standard: "Standard — ads, trackers, cookie walls"
-        case .blockingOnly: "Blocking only — do not hide elements"
-        case .off: "Off for this site"
-        }
-    }
-
-    @objc private func setShieldCommand(_ sender: Any?) {
-        guard let item = sender as? NSMenuItem,
-            let state = ShieldState.allCases[safe: item.tag],
-            let controller = selectedController,
-            let origin = controller.url?.host()
+    /// The pin is standing consent for *this origin*: the user chose the top stop
+    /// knowing what it does, and a rail that says "Rewritten" over prose nobody
+    /// rewrote is a control lying about the page. The guards that make that
+    /// defensible are unchanged — the global opt-in still has to be on, and a
+    /// fidelity-sensitive page still asks every time, because on those the standing
+    /// consent is to the *site*, not to a claim about what a particular article said.
+    ///
+    /// Driven from the chrome update because the reveal is the first moment
+    /// `canRewrite` can be true. Fires once per document: `rewriteState` leaving
+    /// `.none` is what stops it, and a navigation resets that.
+    private func maybeRewriteForPinnedLevel(_ controller: TabController) {
+        guard controller.level == .rewritten,
+            controller.id == selectedTabID,
+            controller.canRewrite,
+            case .none = controller.rewriteState,
+            !rewritingTabs.contains(controller.id)
         else { return }
-        Task { @MainActor in
-            await Blocking.engine.setShield(state, for: origin)
-            controller.applyShield()
-            toolbar.setShield(state)
-            trace("blocking", "shield \(state.rawValue) for \(origin)")
+
+        rewritingTabs.insert(controller.id)
+        if !requestRewrite(.simplify) {
+            // Declined at the confirm. Drop to Reader rather than sit on a stop the
+            // page is not at — and do not ask again for this document.
+            setLevel(.reader)
         }
+    }
+
+    /// The detail menu behind the rail's label: the per-site memory, and the way
+    /// back to letting the page decide.
+    private func presentLevelMenu(from sender: NSView, origin: String, current: PageLevel) {
+        let menu = NSMenu()
+        let host = URL(string: origin)?.host() ?? origin
+        menu.addItem(withTitle: host, action: nil, keyEquivalent: "").isEnabled = false
+        menu.addItem(.separator())
+
+        let preference = store.preference(for: origin)
+        let cap = levelCeiling(for: selectedController)
+
+        let auto = NSMenuItem(
+            title: "Automatic",
+            action: #selector(setLevelAutoCommand(_:)),
+            keyEquivalent: ""
+        )
+        auto.target = self
+        auto.state = preference == .auto ? .on : .off
+        menu.addItem(auto)
+
+        menu.addItem(.separator())
+        for level in PageLevel.allCases {
+            let item = NSMenuItem(
+                title: "Always \(level.title)",
+                action: #selector(setLevelPinCommand(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.tag = level.ordinal
+            item.state = preference == .pinned(level) ? .on : .off
+            item.isEnabled = level <= cap.level
+            item.toolTip = level <= cap.level ? level.summary : cap.reason
+            menu.addItem(item)
+        }
+
+        menu.addItem(.separator())
+        for level in PageLevel.allCases where level < .rewritten {
+            let item = NSMenuItem(
+                title: "Never above \(level.title)",
+                action: #selector(setLevelCeilingCommand(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.tag = level.ordinal
+            item.state = preference == .ceiling(level) ? .on : .off
+            menu.addItem(item)
+        }
+
+        // The strip layer's one piece of upkeep, and this is where it belongs now
+        // that the rail owns blocking: the lists behind Clean and Calm are the only
+        // part of a level that goes stale on its own.
+        menu.addItem(.separator())
+        let update = NSMenuItem(
+            title: "Update Filter Lists Now",
+            action: #selector(updateFilterListsCommand(_:)),
+            keyEquivalent: ""
+        )
+        update.target = self
+        menu.addItem(update)
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
+    }
+
+    private func applyPreference(_ preference: SitePreference) {
+        guard let controller = selectedController, let origin = controller.url?.zenticOrigin
+        else { return }
+        store.setPreference(preference, for: origin, isRewriteEnabled: isRewriteEnabled)
+        let resolved = store.resolution(for: origin, isRewriteEnabled: isRewriteEnabled)
+        controller.setLevel(resolved.level)
+        controller.refreshLevelResolution()
+        updateToolbar()
+    }
+
+    @objc func setLevelAutoCommand(_ sender: Any?) { applyPreference(.auto) }
+    /// Invariant 6's opt-in. Off until asked for, and asked for in one place.
+    @objc func toggleRewriteEnabledCommand(_ sender: Any?) {
+        isRewriteEnabled.toggle()
+    }
+
+    @objc func levelDownCommand(_ sender: Any?) { stepLevel(by: -1) }
+    @objc func levelUpCommand(_ sender: Any?) { stepLevel(by: 1) }
+
+    @objc func setLevelPinCommand(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem, let level = PageLevel.allCases[safe: item.tag]
+        else { return }
+        applyPreference(.pinned(level))
+    }
+
+    @objc func setLevelCeilingCommand(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem, let level = PageLevel.allCases[safe: item.tag]
+        else { return }
+        applyPreference(.ceiling(level))
+    }
+
+    /// ⌥⌘[ and ⌥⌘] — one stop down or up.
+    func stepLevel(by delta: Int) {
+        guard let controller = selectedController else { return }
+        let all = PageLevel.allCases
+        let cap = levelCeiling(for: controller).level
+        let next = min(max(controller.level.ordinal + delta, 0), cap.ordinal)
+        setLevel(all[next])
     }
 
     @objc private func updateFilterListsCommand(_ sender: Any?) {
@@ -1505,26 +1723,6 @@ extension BrowserViewController: ContentToolbarDelegate {
         }
     }
 
-    func toolbarDidRequestRewrite(_ sender: NSView) {
-        guard let controller = selectedController else { return }
-        guard controller.canRewrite else {
-            explain(Self.rewriteBlockReason(for: controller), from: sender)
-            return
-        }
-        presentRewriteMenu(from: sender, for: controller)
-    }
-
-    /// Why the rewrite button cannot run right now, in the user's terms.
-    private static func rewriteBlockReason(for controller: TabController) -> String {
-        if !controller.didRestructure {
-            return "Zentic left this page as it is, so there is no prose to rewrite."
-        }
-        if controller.readerMode == .original {
-            return "Switch to the transformed page (⌘\\) to rewrite it."
-        }
-        return "This page has nothing rewritable — only code, tables or embeds."
-    }
-
     /// A one-line answer anchored to the control that was pressed.
     ///
     /// A menu rather than an alert: it is dismissed by the next click, it points at
@@ -1543,48 +1741,28 @@ extension BrowserViewController: ContentToolbarDelegate {
         rebuildSidebar()
     }
 
-    /// The rewrite menu: one-click presets, then the axes spelled out.
-    private func presentRewriteMenu(from sender: NSView, for controller: TabController) {
-        let menu = NSMenu()
-        menu.addItem(withTitle: "Rewrite this page", action: nil, keyEquivalent: "").isEnabled = false
-        menu.addItem(.separator())
 
-        for preset in RewritePreset.allCases {
-            let item = NSMenuItem(
-                title: preset.title,
-                action: #selector(runRewritePreset(_:)),
-                keyEquivalent: preset.keyEquivalent
-            )
-            item.keyEquivalentModifierMask = [.command, .shift]
-            item.target = self
-            item.tag = preset.rawValue
-            item.toolTip = preset.detail
-            menu.addItem(item)
-        }
-
-        if case .shown = controller.rewriteState {
-            menu.addItem(.separator())
-            let restore = NSMenuItem(
-                title: "Show Original Text",
-                action: #selector(discardRewriteCommand(_:)),
-                keyEquivalent: ""
-            )
-            restore.target = self
-            menu.addItem(restore)
-        }
-
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
+    @objc func runRewritePreset(_ sender: NSMenuItem) {
+        guard let preset = RewritePreset(rawValue: sender.tag) else { return }
+        _ = requestRewrite(preset)
     }
 
-    @objc private func runRewritePreset(_ sender: NSMenuItem) {
-        guard let preset = RewritePreset(rawValue: sender.tag),
-            let controller = selectedController,
-            controller.canRewrite
-        else { return }
+    /// The one door to the rewrite layer.
+    ///
+    /// Every guard invariant 6 asks for lives here, and nowhere else: the model is
+    /// never reached except through this function. The fidelity confirm used to sit
+    /// inline in the menu handler, which made it a property of *that button* rather
+    /// than of rewriting — so the level rail, arriving later as a second caller,
+    /// would have walked straight past it.
+    ///
+    /// - Returns: whether a rewrite actually started.
+    @discardableResult
+    func requestRewrite(_ preset: RewritePreset) -> Bool {
+        guard let controller = selectedController, controller.canRewrite else { return false }
 
-        // Invariant 6: news, medical, legal and financial pages need an explicit
-        // confirm, because on those a re-voiced sentence stops being a style
-        // choice and becomes a claim about what someone said.
+        // News, medical, legal and financial pages need an explicit confirm,
+        // because on those a re-voiced sentence stops being a style choice and
+        // becomes a claim about what someone said.
         if controller.needsFidelityConfirmation {
             let alert = NSAlert()
             alert.messageText = "Rewrite this page?"
@@ -1597,7 +1775,7 @@ extension BrowserViewController: ContentToolbarDelegate {
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Rewrite")
             alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            guard alert.runModal() == .alertFirstButtonReturn else { return false }
         }
 
         controller.rewrite(
@@ -1606,17 +1784,11 @@ extension BrowserViewController: ContentToolbarDelegate {
             readingLevel: preset.readingLevel
         )
         updateToolbar()
+        return true
     }
 
     @objc func discardRewriteCommand(_ sender: Any?) { toolbarDidRequestDiscardRewrite() }
 
-    /// ⌘⇧S — the headline action, straight to Simplify with no menu.
-    @objc func simplifyCommand(_ sender: Any?) {
-        guard let controller = selectedController, controller.canRewrite else { return }
-        let item = NSMenuItem()
-        item.tag = RewritePreset.simplify.rawValue
-        runRewritePreset(item)
-    }
 }
 
 /// The rewrite presets offered in the UI.
@@ -1689,6 +1861,7 @@ enum RewritePreset: Int, CaseIterable {
 
 extension BrowserViewController: TabControllerDelegate {
     func tabControllerDidChangeChrome(_ controller: TabController) {
+        maybeRewriteForPinnedLevel(controller)
         sidebar.updateTab(
             id: controller.id,
             title: controller.title,
@@ -1712,6 +1885,35 @@ extension BrowserViewController: TabControllerDelegate {
 
     func tabController(_ controller: TabController, didCommit url: URL, title: String) {
         store.recordVisit(url: url, title: title)
+        // A new document is a new page to rewrite, and a new page to ask about.
+        rewritingTabs.remove(controller.id)
+    }
+
+    func tabController(
+        _ controller: TabController,
+        didExtract result: ExtractionResult,
+        from url: URL
+    ) {
+        guard let origin = url.zenticOrigin else { return }
+        // The extraction's own verdict, not whether the reader rendered: on an
+        // origin already treated as instant the page is deliberately left alone
+        // even when it would have restructured, and reading the render back would
+        // then confirm its own assumption forever.
+        store.recordReaderOutcome(
+            origin: origin,
+            wouldRestructure: result.confidence >= Budget.minConfidence
+        )
+        // What this page turned out to be, so the *next* page from this origin can
+        // be levelled before anyone has looked at it.
+        store.recordExtraction(
+            origin: origin,
+            archetype: result.archetype,
+            isFidelitySensitive: result.isFidelitySensitive
+        )
+        // The one moment the origin's memory changes, so the one moment the cached
+        // resolution needs re-reading. Doing it here rather than in `updateToolbar`
+        // is the difference between a store fetch per extraction and one per frame.
+        controller.refreshLevelResolution()
     }
 
     func tabController(_ controller: TabController, wantsNewTabFor url: URL) {
@@ -1836,14 +2038,39 @@ extension BrowserViewController {
         rebuildSidebar()
     }
 
+    /// Apply one of the built-in looks to this site, and remember it.
+    ///
+    /// Presentation is a separate axis from tone: a theme is lossless and
+    /// reversible, so it carries no confirm, no badge and no ceremony — unlike a
+    /// rewrite, which changes what the words say. That distinction is why these are
+    /// a menu of their own rather than stops on the level rail.
+    @objc func applyBuiltInThemeCommand(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+            let theme = ReaderTheme.allBuiltIn[safe: item.tag],
+            let controller = selectedController
+        else { return }
+
+        let origin = controller.url?.host()
+        controller.applyDesign(theme)
+        Task { await RedesignController.shared.adopt(theme, for: origin) }
+    }
+
     /// ⌥⌘D — describe a look, and keep it for this site.
     @objc func redesignSiteCommand(_ sender: Any?) {
         guard let controller = selectedController else { return }
         let origin = controller.url?.host()
+        // What the page turned out to be decides which suggestions are worth
+        // offering: a reference page and an essay want opposite things, and a list
+        // that ignores the difference is a list nobody reads.
+        let suggestions = DesignSuggestions.forPage(
+            archetype: controller.extraction?.archetype,
+            isFidelitySensitive: controller.extraction?.isFidelitySensitive ?? false
+        )
         Task { @MainActor in
             guard
                 let theme = await RedesignController.shared.promptForDesign(
                     origin: origin,
+                    suggestions: suggestions,
                     over: view.window
                 )
             else { return }
@@ -1857,7 +2084,7 @@ extension BrowserViewController {
         guard let extraction = controller.currentExtraction, controller.didRestructure else {
             explain(
                 "Zentic left this page as it is, so there is nothing to rebuild.",
-                from: toolbar.modeAnchor
+                from: toolbar.levelRail
             )
             return
         }
@@ -2005,17 +2232,45 @@ extension BrowserViewController: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(goBackCommand): return selectedController?.canGoBack ?? false
         case #selector(goForwardCommand): return selectedController?.canGoForward ?? false
+
         case #selector(lensEditorCommand), #selector(newLensCommand),
             #selector(manageLensesCommand):
             // A lens is per-origin and acts on a live DOM, so both halves have to
             // exist: a blank tab has no site to save one for, and a `file:` or
-            // `about:` page has no host to key one on.
+            // `about:` page has no host to key one on. Deliberately not gated on the
+            // level: a lens is shape, not depth, and it is most useful exactly where
+            // the reader never runs.
             return selectedController?.url?.host() != nil
+
         case #selector(setDesignModelCommand):
             menuItem.state =
                 RedesignController.DesignModel.allCases[safe: menuItem.tag]
                 == RedesignController.shared.designModel ? .on : .off
             return true
+
+        case #selector(toggleRewriteEnabledCommand):
+            menuItem.state = isRewriteEnabled ? .on : .off
+            return true
+
+        // The ladder's own state, ticked here rather than at build time: the menu
+        // bar is assembled once at launch and these change per tab.
+        case #selector(setLevelPinCommand):
+            guard let level = PageLevel.allCases[safe: menuItem.tag] else { return false }
+            menuItem.state = selectedController?.level == level ? .on : .off
+            return level <= levelCeiling(for: selectedController).level
+
+        case #selector(setLevelAutoCommand):
+            guard let origin = selectedController?.url?.zenticOrigin else { return false }
+            menuItem.state = store.preference(for: origin) == .auto ? .on : .off
+            return true
+
+        // The design axis only exists where the page is ours to draw. Below Reader
+        // a theme would be applied to an overlay that is not on screen, which is a
+        // menu item that appears to work and does nothing.
+        case #selector(applyBuiltInThemeCommand), #selector(redesignSiteCommand),
+            #selector(rebuildPageCommand), #selector(resetDesignCommand):
+            return selectedController?.level.allowsTheme ?? false
+
         default: return true
         }
     }

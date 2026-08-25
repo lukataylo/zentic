@@ -233,10 +233,73 @@ public final class SiteStat {
     /// (``Budget/recipeMaxAge``). Unused until M4.
     public var recipeGeneratedAt: Date?
 
+    /// Consecutive page loads on this origin that extraction declined to
+    /// restructure. Reset by the first page here that is worth restructuring, so a
+    /// site that starts publishing is picked back up rather than written off.
+    public var passthroughStreak: Int = 0
+
+    // MARK: Level
+
+    /// The level the user chose here, if they chose one. Nil is `auto`.
+    ///
+    /// Stored as two plain properties rather than an encoded ``SitePreference``:
+    /// SwiftData handles a `String?` and a `Bool` as a lightweight migration, and
+    /// an enum with associated values in a persisted model is a schema problem
+    /// waiting to happen. It is also legible in the store, which matters the day
+    /// someone has to explain why a site renders the way it does.
+    public var levelPinRaw: String?
+    /// Whether ``levelPinRaw`` is a cap on the automatic answer rather than a
+    /// fixed choice.
+    public var levelPinIsCeiling: Bool = false
+
+    /// The archetype last seen at this origin, so the level for its *next* page can
+    /// be resolved before that page has been looked at.
+    public var archetypeRaw: String?
+    /// Whether fidelity-sensitive content has ever been seen here. Monotone: a site
+    /// that published one medical article does not stop being one that might.
+    public var fidelitySensitiveSeen: Bool = false
+
     public init(origin: String, visitCount: Int = 0, lastVisitedAt: Date = .now) {
         self.origin = origin
         self.visitCount = visitCount
         self.lastVisitedAt = lastVisitedAt
+    }
+
+    /// Whether pages from this origin should be left visible while the reader
+    /// works, rather than hidden on arrival. See ``Budget/instantOriginStreak``.
+    public var isInstant: Bool { passthroughStreak >= Budget.instantOriginStreak }
+
+    /// What the user asked for here, reassembled from storage.
+    public var preference: SitePreference {
+        get {
+            guard let raw = levelPinRaw, let level = PageLevel(rawValue: raw) else { return .auto }
+            return levelPinIsCeiling ? .ceiling(level) : .pinned(level)
+        }
+        set {
+            switch newValue {
+            case .auto:
+                levelPinRaw = nil
+                levelPinIsCeiling = false
+            case .pinned(let level):
+                levelPinRaw = level.rawValue
+                levelPinIsCeiling = false
+            case .ceiling(let level):
+                levelPinRaw = level.rawValue
+                levelPinIsCeiling = true
+            }
+        }
+    }
+
+    public var archetype: Archetype? { archetypeRaw.flatMap(Archetype.init(rawValue:)) }
+
+    /// Everything the level resolver needs from this origin's memory.
+    public func levelInputs(isRewriteEnabled: Bool) -> SiteLevelInputs {
+        SiteLevelInputs(
+            preference: preference,
+            archetype: archetype,
+            isFidelitySensitive: fidelitySensitiveSeen,
+            isRewriteEnabled: isRewriteEnabled
+        )
     }
 
     /// Whether this origin has earned background recipe inference.

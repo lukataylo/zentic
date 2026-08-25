@@ -232,7 +232,7 @@ final class TintView: ChromeView {
     private let gradient = CAGradientLayer()
     private let bloom = CAGradientLayer()
     private var color: NSColor = .systemIndigo
-    private var strength: TintStrength = .glass
+    private var strength: TintStrength = .clear
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -293,9 +293,9 @@ final class TintView: ChromeView {
 /// are the presets, lightest first; `frosted` is the old behaviour, kept for anyone
 /// who wants the colour to dominate.
 enum TintStrength: String, CaseIterable, Codable {
-    /// Barely there. The desktop reads clearly through the sidebar.
+    /// The default: barely there, so the desktop reads clearly through the sidebar.
     case clear
-    /// The default: enough colour to identify the space, still obviously glass.
+    /// Enough colour to identify the space, still obviously glass.
     case glass
     /// Colour-forward, vibrancy still visible.
     case tinted

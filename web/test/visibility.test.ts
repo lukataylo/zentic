@@ -155,6 +155,38 @@ describe("VisibilityController", () => {
     expect(reveals).toHaveLength(1);
     expect(reveals[0]?.reason).toBe("failsafe");
   });
+
+  // On a slow page the failsafe fires while the pipeline is still working, and the
+  // pipeline then renders anyway — the reader overlay is opaque and covers the
+  // viewport, so it lands on top of the already-revealed original. The app decides
+  // whether the page can be switched back to the original from the reveal reason,
+  // so being told only "failsafe" left the mode toggle disabled on a page that had
+  // in fact been restructured.
+  it("reports a render that lands after the failsafe already revealed", () => {
+    controller.hide(1500);
+    vi.advanceTimersByTime(1500);
+    expect(reveals.map((r) => r.reason)).toEqual(["failsafe"]);
+
+    controller.settle("rendered");
+
+    expect(reveals.map((r) => r.reason)).toEqual(["failsafe", "rendered"]);
+  });
+
+  it("does not repeat an outcome that matches what was already reported", () => {
+    controller.hide(1500);
+    controller.settle("rendered");
+    controller.settle("rendered");
+
+    expect(reveals.map((r) => r.reason)).toEqual(["rendered"]);
+  });
+
+  it("settle reveals normally when the failsafe has not fired", () => {
+    controller.hide(1500);
+    controller.settle("rendered");
+
+    expect(rootVisibility()).toBe("");
+    expect(reveals.map((r) => r.reason)).toEqual(["rendered"]);
+  });
 });
 
 // The reader's overlay is translucent, so the original document can no longer be
