@@ -2,6 +2,92 @@ import AppKit
 import WebKit
 import ZenticKit
 
+/// The highest stop a page can actually reach, derived from what it did.
+///
+/// A pure function of one value so the rule can be held still by a test, because
+/// the failure it exists to prevent is silent: a rail that offers Reader on a page
+/// the bundle already declined moves, changes nothing, and teaches the user the
+/// control is broken. That is invariant 8 wearing a different hat — a control
+/// claiming a state the page is not in is as much a fabrication as a made-up
+/// tracker count.
+///
+/// It reads the page's own verdict rather than an archetype. Archetype was the
+/// wrong source for a mechanical reason: the bundle never posts `extracted` for a
+/// page it recognised as an app — sending one would invite something downstream to
+/// render a mail client — so `extraction?.archetype == .app` was a condition that
+/// could not become true, and every app in the browser drew a full, live rail.
+enum LevelCeiling {
+
+    /// Reasons, one per case we can honestly tell apart. Public to the target so a
+    /// test asserts the mapping rather than the prose.
+    static let declinedAsApp = """
+        This page reported no article to rebuild, which is what an app looks like \
+        from here — so Zentic passed it through. Mangling your mail client costs \
+        your trust; leaving it alone costs nothing.
+        """
+    static let declinedAsUnsure = """
+        Zentic wasn't sure enough about this page's shape to rebuild it, so it left \
+        the site's own layout alone. A wrong guess here reads as a mangled page, \
+        not as a reading view.
+        """
+    static let declinedAsThin = """
+        There is too little prose here to rebuild into a reading view. Reader needs \
+        an article to work from; this page is something else.
+        """
+    static let rewritingOff = "Rewriting is off. Zentic ▸ Allow Rewriting turns it on."
+
+    static func resolve(
+        outcome: RevealOutcome?,
+        isRewriteEnabled: Bool
+    ) -> (level: PageLevel, reason: String?) {
+        if let declined = declineReason(outcome) { return (.calm, declined) }
+        if !isRewriteEnabled { return (.reader, rewritingOff) }
+        return (.rewritten, nil)
+    }
+
+    /// Why this page cannot be rebuilt, when it has said so.
+    ///
+    /// Only the answers a level change cannot undo. A page that declined because it
+    /// was not *allowed* to render — the level was Calm, or the origin was one we
+    /// leave visible on arrival — is not a page that cannot be rebuilt, and pressing
+    /// Reader on it re-plans its permissions and runs the pipeline again. Capping
+    /// those would take the working control away from the pages it works on.
+    private static func declineReason(_ outcome: RevealOutcome?) -> String? {
+        // No answer yet. Every stop stays offered through a load rather than
+        // collapsing to Calm and springing back when the page reports.
+        guard let outcome else { return nil }
+        // The reader was never asked, so nothing was declined. Below Reader the
+        // bundle passes every page through, including the ones it would rebuild.
+        guard outcome.level >= .reader else { return nil }
+
+        switch outcome.reason {
+        case .rendered:
+            return nil
+        case .failsafe:
+            // Budget overrun, not a verdict. A render that lands after the failsafe
+            // fired arrives as a second reveal saying `rendered`, so a cap here
+            // would be a sentence the page is in the middle of contradicting.
+            return nil
+        case .userRequested:
+            // ⌘\ is the user's own doing and is never recorded as an outcome. Here
+            // for totality: an answer about the reader's *mode* is not an answer
+            // about what the page can be.
+            return nil
+        case .extractionEmpty:
+            return declinedAsThin
+        case .passthrough:
+            // No extraction behind the decline means the bundle stopped before it
+            // would have posted one, which it does for exactly one reason: it
+            // recognised an app. Everything downstream of that point posts
+            // `extracted` first, whatever it goes on to decide.
+            guard let confidence = outcome.confidence else { return declinedAsApp }
+            // It looked, and it was not sure enough. Trying again gets the same
+            // answer from the same document, so the stop is genuinely out of reach.
+            return confidence < Budget.minConfidence ? declinedAsUnsure : nil
+        }
+    }
+}
+
 /// The one window's contents, and the coordinator everything else reports to.
 ///
 /// Holds the store, the tab controllers, and the residency policy. That is a lot in
@@ -15,6 +101,9 @@ final class BrowserViewController: NSViewController {
     private let downloads = DownloadsController()
     private let palette = CommandPalette()
     private let lensPopover = LensPopover()
+    /// Bumped for every popover refresh, so a slow rebuild cannot land on top of a
+    /// newer one. See ``refreshLensPopover()``.
+    private var lensPopoverGeneration = 0
 
     private var spaces: [Space] = []
     private var activeSpace: Space?
@@ -896,7 +985,12 @@ final class BrowserViewController: NSViewController {
             reader: ReaderControlState(
                 rewrite: controller?.rewriteState ?? .none,
                 level: controller?.level ?? .reader,
-                automatic: controller?.automaticLevel ?? .reader,
+                // Clamped, because the hollow marker is a claim about where this
+                // page would land if the user stopped overriding it — and it cannot
+                // land above the ceiling. Unclamped it drew a ring on a struck-out
+                // stop: "left alone you would be at Reader", on a page that had
+                // already declined to be one.
+                automatic: min(controller?.automaticLevel ?? .reader, cap.level),
                 ceiling: cap.level,
                 ceilingReason: cap.reason,
                 lens: controller?.lensState ?? LensState()
@@ -906,24 +1000,14 @@ final class BrowserViewController: NSViewController {
     }
 
     /// The highest stop this page can actually reach, and why.
-    ///
-    /// Invariant 2 is the interesting case: the bundle will decline to restructure
-    /// an app whatever the control says, so offering Reader there would be offering
-    /// something that cannot happen. Saying *why* beats being quietly inert.
     private func levelCeiling(for controller: TabController?) -> (level: PageLevel, reason: String?) {
+        // No tab is not a page that declined. The start page has nothing to say
+        // about itself, and striking stops on it would be a verdict on nothing.
         guard let controller else { return (.rewritten, nil) }
-
-        if controller.extraction?.archetype == .app {
-            return (
-                .calm,
-                "Zentic won't restructure an app. Mangling your mail client costs your"
-                    + " trust; leaving it alone costs nothing."
-            )
-        }
-        if !isRewriteEnabled {
-            return (.reader, "Rewriting is off. Zentic ▸ Allow Rewriting turns it on.")
-        }
-        return (.rewritten, nil)
+        return LevelCeiling.resolve(
+            outcome: controller.revealOutcome,
+            isRewriteEnabled: isRewriteEnabled
+        )
     }
 
     func focusAddressBar() {
@@ -1250,11 +1334,20 @@ extension BrowserViewController: ContentToolbarDelegate {
     ///
     /// The two reasons are not the same kind of thing, so they get different
     /// answers. Rewriting being off is the user's own setting and the click is them
-    /// asking to change it — so offer. An app being unrestructurable is a decision
-    /// the browser has made on their behalf, so explain it instead of offering a
-    /// switch that does not exist.
+    /// asking to change it — so offer. A page that reported it could not be rebuilt
+    /// is a fact about the document in front of them, so explain it instead of
+    /// offering a switch that would not move it.
+    ///
+    /// The page's verdict is checked first for exactly that reason: when both are in
+    /// the way, turning rewriting on would grant a permission and change nothing,
+    /// which is a worse answer than the true one.
     func toolbar(_ toolbar: ContentToolbar, didSelectBlockedLevel level: PageLevel) {
         let cap = levelCeiling(for: selectedController)
+
+        if cap.level < .reader, let reason = cap.reason {
+            explainBlockedLevel(level, reason: reason)
+            return
+        }
 
         if level == .rewritten && !isRewriteEnabled {
             let alert = NSAlert()
@@ -1277,6 +1370,11 @@ extension BrowserViewController: ContentToolbarDelegate {
         }
 
         guard let reason = cap.reason else { return }
+        explainBlockedLevel(level, reason: reason)
+    }
+
+    /// Why a stop is out of reach, said once and in one place.
+    private func explainBlockedLevel(_ level: PageLevel, reason: String) {
         let alert = NSAlert()
         alert.messageText = "\(level.title) isn't available here"
         alert.informativeText = reason
@@ -1399,7 +1497,13 @@ extension BrowserViewController: ContentToolbarDelegate {
             item.target = self
             item.tag = level.ordinal
             item.state = preference == .pinned(level) ? .on : .off
-            item.isEnabled = level <= cap.level
+            // Never disabled by the ceiling, unlike the rail. These two controls
+            // answer different questions: the rail is about the document on screen,
+            // where the ceiling is a fact, and a pin is a standing preference for
+            // the whole site. One photo gallery that had no prose to rebuild must
+            // not be able to withhold "Always Reader" from the news site it is on.
+            // The reason still rides along, so the page can say what it will do
+            // with the pin once it has it.
             item.toolTip = level <= cap.level ? level.summary : cap.reason
             menu.addItem(item)
         }
@@ -1542,11 +1646,22 @@ extension BrowserViewController: ContentToolbarDelegate {
             let controller = selectedController,
             let url = controller.url
         else { return }
+
+        // Reports arrive in bursts: the engine re-checks a region that had not
+        // rendered yet at 80, 240, 560, 1200ms and on out to eight seconds, so two
+        // refreshes are routinely in flight at once. Each one awaits the store, and
+        // nothing makes those resume in the order they started — so without a
+        // generation the older rebuild can finish last and write the *stale* tally
+        // over the corrected one, leaving the popover saying 0/3 while the toolbar
+        // beside it says 2/3. Both read the same state; only the ordering differs.
+        lensPopoverGeneration &+= 1
+        let generation = lensPopoverGeneration
+
         Task { @MainActor in
-            lensPopover.update(
-                rows: await lensRows(for: controller, url: url),
-                actions: lensActions(for: controller)
-            )
+            let rows = await lensRows(for: controller, url: url)
+            // The await is the whole hazard: re-check on the far side of it.
+            guard generation == lensPopoverGeneration, lensPopover.isShown else { return }
+            lensPopover.update(rows: rows, actions: lensActions(for: controller))
         }
     }
 

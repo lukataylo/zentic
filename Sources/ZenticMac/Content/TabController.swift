@@ -22,6 +22,29 @@ protocol TabControllerDelegate: AnyObject {
     func tabController(_ controller: TabController, didStart download: WKDownload)
 }
 
+/// What the page answered about one load, and the evidence it answered with.
+///
+/// The three fields travel together because none of them is a verdict on its own.
+/// A `passthrough` reported at Calm says nothing about whether the page *could*
+/// have been restructured — at Calm the bundle is not permitted to render, so it
+/// declines every page, including the ones it would have rebuilt. And a decline
+/// with no extraction behind it is a different fact from a decline with a shaky
+/// one: the bundle posts `extracted` on its way past every page it looked at and
+/// deliberately does not post one for a page it recognised as an app, so the
+/// absence *is* the evidence rather than the lack of it.
+///
+/// ``confidence`` rather than the whole ``ExtractionResult``: the ceiling needs to
+/// know how sure extraction was, not what the page said.
+struct RevealOutcome: Equatable {
+    /// The page's own reason, straight off the wire. Never `.userRequested` — that
+    /// is ⌘\ echoing back, not an answer about the load. See ``TabController``.
+    var reason: RevealReason
+    /// The level the document was under when it answered.
+    var level: PageLevel
+    /// What extraction reported for this load, or nil if it never reported.
+    var confidence: Double?
+}
+
 /// One browser tab: its record, and — only while resident — its `WKWebView` and
 /// `ReaderBridge`.
 ///
@@ -71,6 +94,19 @@ final class TabController: NSObject {
     /// control that read "Transformed" on a page that was passed through would be
     /// stating the opposite of what the user is looking at.
     private(set) var didRestructure = false
+
+    /// The page's answer for the load in front of the user, or nil until it has
+    /// given one.
+    ///
+    /// Nil is "not settled yet", and the distinction is the whole reason this is an
+    /// optional. Every other signal here — ``didRestructure``, ``extraction`` — reads
+    /// as "no" during a load and as "no" on a page that declined, so anything drawn
+    /// from them alone drops to its declined state the instant a navigation starts
+    /// and climbs back a second later. The reveal is the one moment the bundle has
+    /// finished deciding, so it is the moment the chrome may act on the answer.
+    ///
+    /// See ``RevealOutcome`` for why the level and the extraction ride along with it.
+    private(set) var revealOutcome: RevealOutcome?
 
     /// Whether the page on screen is Zentic's rendering or the site's own.
     ///
@@ -1096,6 +1132,10 @@ final class TabController: NSObject {
         rewriteState = .none
         extraction = nil
         didRestructure = false
+        // The verdict belonged to the document being replaced. Cleared rather than
+        // left standing, so the rail spends the load offering every stop and is
+        // capped only by what the new page turns out to say.
+        revealOutcome = nil
         // Reports and the catalog describe the document being replaced. The lens
         // *set* is not cleared: it was resolved for the URL being navigated to, and
         // is already in the bootstrap script for the page now loading.
@@ -1434,6 +1474,17 @@ extension TabController: ReaderBridgeDelegate {
             // dead. Only a page-load outcome may change this.
             if payload.reason != .userRequested {
                 didRestructure = payload.reason == .rendered
+                // The load's verdict, stamped with what it was reached under. The
+                // extraction is read here rather than at the point the ceiling is
+                // drawn because `extracted` always precedes the reveal it belongs
+                // to — the bundle posts it on its way through the pipeline and
+                // reveals when the pipeline returns — so this is the last moment
+                // the pair is certainly about one page.
+                revealOutcome = RevealOutcome(
+                    reason: payload.reason,
+                    level: level,
+                    confidence: extraction?.confidence
+                )
                 applySavedDesign()
             }
             trace("bridge", "\(shortID) revealed · \(payload.reason.rawValue) · \(payload.elapsedMs)ms")
