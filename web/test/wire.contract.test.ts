@@ -94,7 +94,11 @@ describe("bootstrap configuration", () => {
     expect(clean.mode).toBe("original");
     const allowed = plan(clean, true, false);
     expect(allowed.hide).toBe(false);
-    expect(allowed.consent).toBe(false);
+    expect(allowed.pipeline).toBe(false);
+    // Consent is the one thing Clean does beyond handing WebKit its rule lists.
+    // A cookie wall is the tracking-consent apparatus rather than the site's own
+    // layout, so it goes with what Clean already removes; see `level.ts`.
+    expect(allowed.consent).toBe(true);
   });
 
   it("carries the eligibility inputs", () => {

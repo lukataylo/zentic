@@ -35,10 +35,14 @@ const NOTHING: LevelPlan = { hide: false, consent: false, pipeline: false, rende
 /**
  * - `original` — nothing whatsoever. The bundle still reports `ready`, so the app
  *   can tell "declined" from "the bundle never ran".
- * - `clean` — network rules only, and those are WebKit's job. Notably no consent:
- *   a level that promised to block requests must not also press buttons.
- * - `calm` — consent and extraction run, but the page is never hidden and the
- *   overlay never shown. Extraction still reports, which is how the app learns
+ * - `clean` — network rules only, which are WebKit's job, plus the cookie wall.
+ *   Consent used to start at `calm` on the reasoning that a level promising to
+ *   block requests must not also press buttons. That was the wrong line: a consent
+ *   wall is not the site's own layout, it is the tracking-consent apparatus, so it
+ *   belongs with "ads and trackers blocked" rather than with the annoyances. Still
+ *   no extraction — the page's own layout is untouched.
+ * - `calm` — also the cosmetic rule lists and extraction, but the page is never
+ *   hidden and the overlay never shown. Extraction still reports, which is how the app learns
  *   this origin's archetype for next time.
  * - `reader` and up — the full path, subject to `eligible` and to whether the
  *   origin has earned an unhidden first paint.
@@ -54,7 +58,7 @@ export function plan(
   if (config.level === "original") return NOTHING;
 
   if (config.level === "clean") {
-    return { hide: false, consent: false, pipeline: false, render: false };
+    return { hide: false, consent: true, pipeline: false, render: false };
   }
 
   if (config.level === "calm") {

@@ -25,13 +25,23 @@ describe("plan", () => {
     });
   });
 
-  it("does not press consent buttons at Clean", () => {
-    // Clean blocks requests. Dismissing a cookie wall is a click made in the
-    // user's name, and they did not ask for that at this level.
+  it("dismisses the cookie wall at Clean, and does nothing else", () => {
+    // Consent used to start at Calm, on the reasoning that blocking a request and
+    // pressing a button in the user's name are different kinds of thing. The line
+    // moved because a consent wall is not the site's own layout — it is the
+    // tracking-consent apparatus, so it belongs with what Clean already removes.
+    // Everything else at Clean stays untouched: no hiding, no extraction.
     const allowed = plan(config("clean"), true, false);
-    expect(allowed.consent).toBe(false);
+    expect(allowed.consent).toBe(true);
     expect(allowed.hide).toBe(false);
     expect(allowed.pipeline).toBe(false);
+    expect(allowed.render).toBe(false);
+  });
+
+  it("presses nothing at Original", () => {
+    // The stop that means untouched. Pressing a button is a touch, so this is the
+    // one level where a cookie wall is left exactly as the site put it.
+    expect(plan(config("original"), true, false).consent).toBe(false);
   });
 
   it("extracts but never renders or hides at Calm", () => {
@@ -95,9 +105,11 @@ describe("plan", () => {
     expect(plan(raised, true, false).render).toBe(true);
   });
 
-  it("re-planning at a lower level withdraws consent", () => {
+  it("re-planning down to Original withdraws consent", () => {
+    // Clean keeps it now; Original is where it stops.
     expect(plan(config("reader"), true, false).consent).toBe(true);
-    expect(plan(config("clean"), true, false).consent).toBe(false);
+    expect(plan(config("clean"), true, false).consent).toBe(true);
+    expect(plan(config("original"), true, false).consent).toBe(false);
   });
 
   it("only ever hides when it also renders", () => {

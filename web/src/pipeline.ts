@@ -70,9 +70,11 @@ export interface PipelineContext {
    * render is skipped, and the next visit hides and restructures properly.
    */
   mayRender: boolean;
-  /// Whether this level permits pressing a consent dialog's button. Below Calm it
-  /// does not: blocking a request and acting in the user's name are different
-  /// kinds of thing, and only one of them was asked for.
+  /// Whether this level permits pressing a consent dialog's button. Below Clean it
+  /// does not — Original means untouched, and pressing a button is a touch. From
+  /// Clean up it does, because a consent wall is the tracking-consent apparatus
+  /// rather than the site's own layout, so it belongs with what Clean already
+  /// removes.
   dismissesCookieWalls: boolean;
 }
 
