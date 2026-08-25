@@ -42,6 +42,18 @@ final class ContentCardView: ChromeView {
         clip.layer?.masksToBounds = true
         clip.translatesAutoresizingMaskIntoConstraints = false
 
+        // The web view is clipped by its *own* parent, not only by `clip`.
+        //
+        // `WKWebView` draws in a remote layer tree hosted out of process, and a
+        // corner radius on an ancestor does not reliably survive that boundary —
+        // the rounded card is drawn, and then the page paints square corners over
+        // it. Rounding the layer that directly hosts the web view is what actually
+        // cuts the page. `clip` still exists for the placeholder and start page,
+        // which are ordinary views and clip the ordinary way.
+        host.wantsLayer = true
+        host.layer?.cornerRadius = Chrome.contentRadius
+        host.layer?.cornerCurve = .continuous
+        host.layer?.masksToBounds = true
         host.translatesAutoresizingMaskIntoConstraints = false
 
         placeholder.imageScaling = .scaleProportionallyUpOrDown
@@ -216,6 +228,9 @@ final class ContentCardView: ChromeView {
     func setCornersRounded(_ rounded: Bool) {
         layer?.cornerRadius = rounded ? Chrome.contentRadius : 0
         clip.layer?.cornerRadius = rounded ? Chrome.contentRadius : 0
+        // Kept in step with `clip`: focus mode runs the page to the screen edge, and
+        // a rounded host there would cut the corners off a full-bleed page.
+        host.layer?.cornerRadius = rounded ? Chrome.contentRadius : 0
         // Focus mode runs the page to every edge, where a border and a shadow would
         // be a line and a smudge against the screen edge rather than depth.
         layer?.borderWidth = rounded ? Chrome.glassStrokeWidth : 0
