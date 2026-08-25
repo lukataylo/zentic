@@ -34,6 +34,19 @@ enum LevelRailCopy {
         }
     }
 
+    /// The block that says a drag is not a decision about the site.
+    ///
+    /// The defect this exists for is the other half of the pin bug: dragging the
+    /// rail wrote a permanent per-origin pin, and the control said nothing that
+    /// would have told the user it had. The drag is scoped to the document now, and
+    /// changing the scope without saying so would only have swapped one silent
+    /// behaviour for another — so the sentence names the lifetime and the way back
+    /// to the site's own answer, and it names where that answer sits.
+    static func pageScoped(standing: PageLevel) -> String {
+        "Just this page. A reload keeps it; the next page here goes back to "
+            + "\(standing.title). Click the label to set the whole site."
+    }
+
     /// The stop the page is **actually at**: the level, capped by what this
     /// document turned out to be able to do.
     ///
@@ -64,10 +77,26 @@ enum LevelRailCopy {
     /// still standing and applies again on the next document. One word is all the
     /// label has room for — see ``LevelRailView/labelWidth`` — so the reason lives
     /// in the tooltip, beside the same reason the struck stops give.
-    static func label(level: PageLevel, ceiling: PageLevel, hovered: PageLevel?) -> String {
+    ///
+    /// A trailing `*` is the page-scoped mark: this stop was dragged onto the
+    /// document in front of you and ends with it. A word would have been clearer
+    /// and does not fit — `Rewritten (page)` needs 87pt against the rail's 72, and
+    /// buying that back from the breadcrumb is not worth it — so the label carries
+    /// the mark and the tooltip carries the sentence, which is the same division
+    /// `(held)` already uses for its reason.
+    ///
+    /// `(held)` wins the collision, because it is the more urgent of the two: the
+    /// page is not at the requested stop at all. Both facts are in the tooltip.
+    static func label(
+        level: PageLevel,
+        ceiling: PageLevel,
+        hovered: PageLevel?,
+        pageScopedFrom: PageLevel? = nil
+    ) -> String {
         if let hovered { return hovered.title }
         let stop = effective(level: level, ceiling: ceiling)
-        return level > ceiling ? "\(stop.title) (held)" : stop.title
+        if level > ceiling { return "\(stop.title) (held)" }
+        return pageScopedFrom == nil ? stop.title : "\(stop.title)*"
     }
 
     /// The whole tooltip: the stop under the pointer, or the page.
@@ -81,7 +110,8 @@ enum LevelRailCopy {
         ceiling: PageLevel,
         ceilingReason: String?,
         preference: SitePreference,
-        automatic: PageLevel
+        automatic: PageLevel,
+        pageScopedFrom: PageLevel? = nil
     ) -> String? {
         if let hovered, hovered > ceiling { return ceilingReason }
 
@@ -97,6 +127,11 @@ enum LevelRailCopy {
                     .joined(separator: " ")
             )
         }
+        // Above the standing sentence, because it is the one that is true *now*.
+        // The site's own answer still belongs underneath — it is what this page
+        // reverts to — but reading "Always Clean here" first, over a page the user
+        // has just dragged to Reader, is the control leading with the wrong one.
+        if let pageScopedFrom { blocks.append(pageScoped(standing: pageScopedFrom)) }
         blocks.append(standing(preference: preference, automatic: automatic))
         blocks.append("Less ⌥⌘[  ·  More ⌥⌘]")
         return blocks.joined(separator: "\n\n")
@@ -114,7 +149,8 @@ enum LevelRailCopy {
     static func accessibilityValue(
         level: PageLevel,
         ceiling: PageLevel,
-        preference: SitePreference
+        preference: SitePreference,
+        pageScopedFrom: PageLevel? = nil
     ) -> String {
         let stop = effective(level: level, ceiling: ceiling)
         let standing =
@@ -123,8 +159,11 @@ enum LevelRailCopy {
             case .pinned(let pin): "always \(pin.title) on this site"
             case .ceiling(let cap): "never above \(cap.title) on this site"
             }
-        guard level > ceiling else { return "\(stop.title), \(standing)" }
-        return "\(stop.title), \(standing), \(level.title) not in effect on this page"
+        // The `*` on the label is the one mark VoiceOver cannot read, the same
+        // problem the inert dot has — so the lifetime is said in words here too.
+        let scope = pageScopedFrom == nil ? "" : ", just this page"
+        guard level > ceiling else { return "\(stop.title)\(scope), \(standing)" }
+        return "\(stop.title)\(scope), \(standing), \(level.title) not in effect on this page"
     }
 
     /// The detail menu's first item.
@@ -172,6 +211,10 @@ final class LevelRailView: ChromeView {
     /// override visually, and a second glyph for the same fact would be two marks
     /// the user has to learn to tell apart.
     private var preference: SitePreference = .auto
+    /// The level the *site* resolves to, present only while the stop on screen was
+    /// dragged onto this page and is therefore temporary. Nil means the level is
+    /// the site's own answer. See ``PageLevelOverride``.
+    private var pageScopedFrom: PageLevel?
 
     private var hovered: PageLevel?
 
@@ -239,13 +282,15 @@ final class LevelRailView: ChromeView {
         automatic: PageLevel,
         ceiling: PageLevel,
         ceilingReason: String?,
-        preference: SitePreference
+        preference: SitePreference,
+        pageScopedFrom: PageLevel? = nil
     ) {
         self.level = level
         self.automatic = automatic
         self.ceiling = ceiling
         self.ceilingReason = ceilingReason
         self.preference = preference
+        self.pageScopedFrom = pageScopedFrom
         apply()
     }
 
@@ -255,7 +300,12 @@ final class LevelRailView: ChromeView {
         // control whose options are only legible after you pick one is a guess.
         // With nothing under the pointer it names the page instead of the request;
         // see ``LevelRailCopy/label(level:ceiling:hovered:)``.
-        label.stringValue = LevelRailCopy.label(level: level, ceiling: ceiling, hovered: hovered)
+        label.stringValue = LevelRailCopy.label(
+            level: level,
+            ceiling: ceiling,
+            hovered: hovered,
+            pageScopedFrom: pageScopedFrom
+        )
         label.textColor = hovered == nil ? .secondaryLabelColor : .labelColor
 
         toolTip = LevelRailCopy.tooltip(
@@ -264,7 +314,8 @@ final class LevelRailView: ChromeView {
             ceiling: ceiling,
             ceilingReason: ceilingReason,
             preference: preference,
-            automatic: automatic
+            automatic: automatic,
+            pageScopedFrom: pageScopedFrom
         )
         needsDisplay = true
     }
@@ -419,6 +470,11 @@ final class LevelRailView: ChromeView {
     override func accessibilityRole() -> NSAccessibility.Role? { .slider }
     override func accessibilityLabel() -> String? { "Page level" }
     override func accessibilityValue() -> Any? {
-        LevelRailCopy.accessibilityValue(level: level, ceiling: ceiling, preference: preference)
+        LevelRailCopy.accessibilityValue(
+            level: level,
+            ceiling: ceiling,
+            preference: preference,
+            pageScopedFrom: pageScopedFrom
+        )
     }
 }

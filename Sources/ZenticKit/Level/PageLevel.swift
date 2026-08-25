@@ -15,10 +15,11 @@ import Foundation
 public enum PageLevel: String, Codable, Sendable, CaseIterable, Comparable {
     /// The site exactly as it shipped. Nothing blocked, nothing dismissed.
     case original
-    /// Ads and trackers blocked. The site's own layout, intact.
+    /// Ads and trackers blocked, and the consent wall they came with dismissed.
+    /// The site's own layout, intact.
     case clean
-    /// Also the annoyances — interstitials, chum, sticky furniture — and cookie
-    /// walls dismissed rather than merely blocked.
+    /// Also the annoyances — interstitials, chum, sticky furniture — hidden rather
+    /// than merely blocked.
     case calm
     /// Extracted and re-rendered in Zentic's design system.
     case reader
@@ -53,10 +54,21 @@ public enum PageLevel: String, Codable, Sendable, CaseIterable, Comparable {
 
     /// Whether the reader may click a consent dialog on the user's behalf.
     ///
-    /// Below `.calm` it may not. Dismissing a cookie wall is an action taken in the
-    /// user's name, and a level that promised only to block requests must not also
-    /// press buttons.
-    public var dismissesCookieWalls: Bool { self >= .calm }
+    /// From `.clean` up, not from `.calm`. A consent wall is not part of the site's
+    /// own layout — it is the tracking-consent apparatus, so it belongs with "ads
+    /// and trackers blocked" rather than with the annoyances one stop higher. A
+    /// level whose whole promise is that trackers are blocked, which then leaves
+    /// the tracking dialog sitting on the page, is drawing the line in a place the
+    /// user cannot make sense of.
+    ///
+    /// `.original` still may not, and that boundary is the one that matters:
+    /// dismissing a cookie wall is an action taken in the user's name, and the stop
+    /// that promises to change nothing must change nothing.
+    ///
+    /// Everything Original→Clean newly gains here also moves the strip axis, so
+    /// this does not widen ``requiresReload(from:to:)`` — see the test that holds
+    /// those two together.
+    public var dismissesCookieWalls: Bool { self >= .clean }
 
     public var readerMode: ReaderMode { self >= .reader ? .restructured : .original }
 

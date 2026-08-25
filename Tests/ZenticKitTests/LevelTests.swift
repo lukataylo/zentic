@@ -14,6 +14,13 @@ struct PageLevelTests {
         for (lower, higher) in zip(PageLevel.allCases, PageLevel.allCases.dropFirst()) {
             #expect(lower.strip <= higher.strip, "\(lower) → \(higher)")
             #expect(lower < higher)
+            // Same rule, other axis. A stop that pressed a consent button while the
+            // one above it did not would make "more" mean "fewer walls dismissed"
+            // somewhere in the middle of the control.
+            #expect(
+                !lower.dismissesCookieWalls || higher.dismissesCookieWalls,
+                "\(lower) → \(higher)"
+            )
         }
     }
 
@@ -62,10 +69,43 @@ struct PageLevelTests {
         #expect(PageLevel.allCases.filter { $0.readerMode == .restructured } == [.reader, .rewritten])
         #expect(PageLevel.allCases.filter(\.allowsRewrite) == [.rewritten])
         #expect(PageLevel.allCases.filter(\.allowsTheme) == [.reader, .rewritten])
-        // Below Calm the reader must not press a button in the user's name.
+    }
+
+    /// The line the user moved, and the one they did not.
+    ///
+    /// A consent wall is not the site's own layout — it is the tracking-consent
+    /// apparatus — so it belongs with "ads and trackers blocked" rather than with
+    /// the annoyances one stop up. Clean blocking every tracker on the page and
+    /// then leaving the tracking dialog sitting on top of it was a boundary nobody
+    /// could make sense of from the control.
+    ///
+    /// Original is the boundary that stays: dismissing a cookie wall is an action
+    /// taken in the user's name, and the stop that promises to change nothing must
+    /// change nothing.
+    @Test("Cookie walls are dismissed from Clean up, and never at Original")
+    func consentStartsAtClean() {
+        #expect(PageLevel.allCases.filter(\.dismissesCookieWalls) == [.clean, .calm, .reader, .rewritten])
         #expect(!PageLevel.original.dismissesCookieWalls)
-        #expect(!PageLevel.clean.dismissesCookieWalls)
-        #expect(PageLevel.calm.dismissesCookieWalls)
+    }
+
+    /// Why moving that line did not widen `requiresReload`.
+    ///
+    /// Consent is pressed by the in-page bundle, not by a rule list, so nothing
+    /// about it needs a fresh document on its own — but the bundle only starts a
+    /// dismissal at load, and a level change that does not reload cannot ask it to.
+    /// The step that newly gains dismissal, Original → Clean, also moves the strip
+    /// axis and so already reloads, which is what makes the move free.
+    ///
+    /// This fails if someone puts consent behind a threshold that shares a strip
+    /// setting with the stop below it — Reader, say — where the user would press a
+    /// stop, get no wall dismissed, and have no way to tell why.
+    @Test("Every step that newly dismisses a cookie wall already reloads")
+    func gainingConsentAlwaysReloads() {
+        for from in PageLevel.allCases {
+            for to in PageLevel.allCases where !from.dismissesCookieWalls && to.dismissesCookieWalls {
+                #expect(PageLevel.requiresReload(from: from, to: to), "\(from) → \(to)")
+            }
+        }
     }
 }
 

@@ -998,6 +998,10 @@ final class BrowserViewController: NSViewController {
                 // Cached on the controller, not fetched here: this runs on every
                 // title change, favicon and reveal, and it is a store read.
                 preference: controller?.levelPreference ?? .auto,
+                // Nil unless the rail was dragged on this very document. A drag is
+                // page-scoped now, and the rail is where that has to be legible —
+                // otherwise it reads exactly like the pin it used to write.
+                pageScopedFrom: controller?.pageScopedFrom,
                 lens: controller?.lensState ?? LensState()
             )
         )
@@ -1394,7 +1398,17 @@ extension BrowserViewController: ContentToolbarDelegate {
         presentLevelMenu(from: sender, origin: origin, automatic: controller.automaticLevel)
     }
 
-    /// Move this site to a level, remember it, and apply it.
+    /// Move **this page** to a level and apply it.
+    ///
+    /// Dragging the rail used to write `.pinned(level)` for the origin, so a
+    /// momentary look at theverge.com at Clean pinned the site below the reader
+    /// permanently — and `PageLevel.readerMode` at Clean is `.original`, so every
+    /// later visit declined the pipeline outright and the user reported the reader
+    /// as broken. The menu behind the rail's label already had "Always ⟨level⟩" and
+    /// "Never above ⟨level⟩" for exactly that intent, deliberately chosen; a drag
+    /// was performing the same permanent act by accident. So the drag changes the
+    /// page and nothing else — see ``PageLevelOverride`` — and the store is written
+    /// only from ``applyPreference(_:)``.
     ///
     /// The two halves of "apply" are not the same kind of operation. Anything above
     /// the strip layer is live: entering the reader re-runs extraction against the
@@ -1407,16 +1421,7 @@ extension BrowserViewController: ContentToolbarDelegate {
         let previous = controller.level
         guard level != previous else { return }
 
-        if let origin = controller.url?.zenticOrigin {
-            store.setPreference(.pinned(level), for: origin, isRewriteEnabled: isRewriteEnabled)
-            // The store may have stored `.auto` instead — a choice that matches the
-            // automatic answer is agreement, not a decision. Either way the cached
-            // copy the rail is drawn from is now stale, and the rail is the control
-            // that has just been asked to show what the user set.
-            controller.refreshLevelResolution()
-        }
-
-        controller.setLevel(level)
+        controller.setPageLevel(level)
         updateToolbar()
         sidebar.updateTransform(id: controller.id, state: transformState(for: controller.id))
         trace(
@@ -1557,12 +1562,18 @@ extension BrowserViewController: ContentToolbarDelegate {
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
     }
 
+    /// The only writer of a stored preference. Everything standing about a site is
+    /// set here, from the detail menu, by a user who named the level in words.
+    ///
+    /// `adoptStandingLevel`, not `setLevel`: a choice about the site supersedes a
+    /// drag made on the page in front of it, and leaving the drag to expire on its
+    /// own would leave the menu looking ignored.
     private func applyPreference(_ preference: SitePreference) {
         guard let controller = selectedController, let origin = controller.url?.zenticOrigin
         else { return }
         store.setPreference(preference, for: origin, isRewriteEnabled: isRewriteEnabled)
         let resolved = store.resolution(for: origin, isRewriteEnabled: isRewriteEnabled)
-        controller.setLevel(resolved.level)
+        controller.adoptStandingLevel(resolved.level)
         controller.refreshLevelResolution()
         updateToolbar()
     }

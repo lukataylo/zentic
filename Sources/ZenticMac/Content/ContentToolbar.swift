@@ -40,6 +40,11 @@ struct ReaderControlState {
     /// derive it — a pin and the page's own answer look identical from `level` and
     /// `automatic` alone — so it has to be told.
     var preference: SitePreference = .auto
+    /// The level the *site* resolves to, present only when the rail was dragged on
+    /// this page and the stop on screen is therefore temporary. Nil means the level
+    /// is the site's own answer. The rail cannot derive it: a page dragged to Clean
+    /// and a site pinned to Clean are identical from `level` and `preference`.
+    var pageScopedFrom: PageLevel?
     /// Lenses on this page, and what they actually did. See ``LensState`` — the
     /// counts come from the page's own reports or they are not shown at all.
     var lens = LensState()
@@ -298,7 +303,8 @@ final class ContentToolbar: PointerTrackingView {
             automatic: state.automatic,
             ceiling: state.ceiling,
             ceilingReason: state.ceilingReason,
-            preference: state.preference
+            preference: state.preference,
+            pageScopedFrom: state.pageScopedFrom
         )
 
         // The badge is the only rewrite affordance left in the toolbar now that the

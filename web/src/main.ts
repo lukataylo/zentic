@@ -337,8 +337,22 @@ function main(): void {
         if (!next.render) {
           view.hide();
           visibility.reveal("userRequested");
+          // The site's own DOM is what the user is looking at now, so this is when
+          // the lens's structural ops become visible and its report starts
+          // describing something real.
+          runLensPass();
         } else if (view.isRendered) {
           view.show();
+          // Conceal, exactly as `setMode` does. Showing the overlay used to be all
+          // of "back to the reader" because it was opaque; it is translucent now,
+          // so a revealed original underneath shows straight through our article —
+          // the site's hero image and its furniture behind our prose. This branch
+          // was written when the overlay was still opaque and did not inherit the
+          // conceal when the two paths were merged, which is why the rail produced
+          // the artefact and ⌘\ did not.
+          visibility.conceal();
+          // And the ops are no longer true of anything on screen.
+          runLensPass();
         } else {
           await start();
         }

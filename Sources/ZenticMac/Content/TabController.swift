@@ -140,6 +140,72 @@ struct VerdictMemory: Equatable {
     }
 }
 
+/// A level the user set on the rail, and the document they set it on.
+///
+/// The rail is a control over the page in front of you; the detail menu behind its
+/// label is where a choice becomes standing. Dragging the rail used to write a
+/// permanent per-origin pin, so a momentary look at a site at Clean left the reader
+/// switched off there for good — and the user, weeks later, reported it as "reader
+/// view doesn't work on theverge.com". A gesture that looks momentary must not
+/// outlive the page it was made on.
+///
+/// Keyed by ``DocumentKey``, the same way ``VerdictMemory`` is, and for its reason
+/// plus one of its own:
+///
+///  1. **A reload is the same document.** A drag across the strip layer fires its
+///     own reload — WebKit cannot recall a request already sent — so an override
+///     that did not survive a reload would be undone by the act of applying it.
+///     Dragging to Clean would spring straight back to Reader.
+///  2. **The next page is a different page.** Following a link to the next article
+///     on the same site drops it, which is what makes the drag legible as
+///     temporary: it lasts exactly as long as the page it was about, and the site
+///     is left saying whatever it said before.
+struct PageLevelOverride: Equatable {
+    private var held: PageLevel?
+    private var document: DocumentKey?
+
+    /// Hold `level` for the document at `url`, given what the site resolves to.
+    ///
+    /// Asking for the level the site would have produced anyway releases instead of
+    /// holding — agreement is not an override, the same trick
+    /// `BrowsingStore.setPreference` plays on a pin. Without it, dragging back to
+    /// where you started would leave the rail claiming the page was overridden when
+    /// nothing about it had changed.
+    mutating func hold(_ level: PageLevel, for url: URL?, standing: PageLevel) {
+        guard level != standing, let key = DocumentKey(url) else { return release() }
+        held = level
+        document = key
+    }
+
+    mutating func release() {
+        held = nil
+        document = nil
+    }
+
+    /// The level held for the document at `url`, if one is.
+    ///
+    /// Checked on read rather than cleared on navigation, for ``VerdictMemory``'s
+    /// reason: a reload preserves the URL and keeps applying, a real navigation
+    /// moves it and stops applying by itself.
+    func level(at url: URL?) -> PageLevel? {
+        guard let document, document == DocumentKey(url) else { return nil }
+        return held
+    }
+
+    /// Drop the override unless it is about the document at `url`.
+    ///
+    /// - Returns: whether one was actually dropped, which is the caller's signal
+    ///   that the tab owes the site's own answer a fresh look. Without it a
+    ///   same-site link would take the cheap early-out in
+    ///   ``TabController/adoptLevel(for:)`` and carry one page's drag onto the next.
+    @discardableResult
+    mutating func expire(at url: URL?) -> Bool {
+        guard held != nil, level(at: url) == nil else { return false }
+        release()
+        return true
+    }
+}
+
 /// A lens set, and the URL it was resolved for.
 ///
 /// The pairing is the whole point. Everything that resolves a set does so across
@@ -471,6 +537,21 @@ final class TabController: NSObject {
     /// happens to match, so without this the control has no way to show the user
     /// what they set.
     private(set) var levelPreference: SitePreference = .auto
+    /// Where this origin's own answer sits, before the rail was dragged on this
+    /// page. What an expiring override falls back to.
+    private var standingLevel: PageLevel = .reader
+    /// A level set on the rail for the document on screen, and nothing beyond it.
+    /// See ``PageLevelOverride``.
+    private var pageOverride = PageLevelOverride()
+    /// The level the site resolves to, when the rail was dragged away from it on
+    /// this page. Nil when the level on screen *is* the site's answer.
+    ///
+    /// The chrome cannot derive this — a page dragged to Clean and a site pinned to
+    /// Clean produce the same `level` and the same `levelPreference` — so the rail
+    /// has to be told, the same way it has to be told the preference.
+    var pageScopedFrom: PageLevel? {
+        pageOverride.level(at: url) == nil ? nil : standingLevel
+    }
     /// The origin the current level and rule lists were resolved for, so a
     /// same-site navigation costs nothing and a cross-site one is noticed.
     private var attachedOrigin: String?
@@ -499,6 +580,7 @@ final class TabController: NSObject {
         let resolved = resolveLevel(record.url?.zenticOrigin)
         automaticLevel = resolved.automatic
         levelPreference = resolved.preference
+        standingLevel = resolved.level
     }
 
     deinit {
@@ -533,7 +615,11 @@ final class TabController: NSObject {
         // exists.
         attachedOrigin = record.url?.zenticOrigin
         let resolved = resolveLevel(attachedOrigin)
-        level = resolved.level
+        standingLevel = resolved.level
+        // A suspended tab coming back is the same document at the same URL, which
+        // is a reload by another name — so a rail drag made before the eviction is
+        // still about the page the user is looking at.
+        level = pageOverride.level(at: record.url) ?? resolved.level
         automaticLevel = resolved.automatic
         levelPreference = resolved.preference
 
@@ -804,6 +890,30 @@ final class TabController: NSObject {
     /// document when it loads and never revisits it, and a request already on the
     /// wire cannot be recalled — so a blocking change describes the *next*
     /// document, and the only honest way to apply it now is to fetch one.
+    /// Move **this page** to a level, and say so.
+    ///
+    /// The rail's door. What separates it from ``setLevel(_:)`` is scope, not
+    /// mechanism: the level is applied identically, and the override is what stops
+    /// it outliving the document. See ``PageLevelOverride`` for why that is where
+    /// the drag belongs — the menu behind the rail's label is the writer of
+    /// anything standing.
+    func setPageLevel(_ level: PageLevel) {
+        pageOverride.hold(level, for: url, standing: standingLevel)
+        setLevel(level)
+    }
+
+    /// Move this page to the level the *site* now resolves to.
+    ///
+    /// The detail menu's door. It releases the page's override rather than leaving
+    /// it to expire: the user has just made a standing choice, and a drag from
+    /// before it would otherwise sit on top of the thing they set and make the menu
+    /// look ignored.
+    func adoptStandingLevel(_ level: PageLevel) {
+        pageOverride.release()
+        standingLevel = level
+        setLevel(level)
+    }
+
     func setLevel(_ level: PageLevel) {
         let previous = self.level
         guard level != previous else { return }
@@ -1481,13 +1591,23 @@ extension TabController: WKNavigationDelegate {
     private func adoptLevel(for navigationAction: WKNavigationAction) async {
         guard
             navigationAction.targetFrame?.isMainFrame ?? false,
-            let incoming = navigationAction.request.url?.zenticOrigin,
-            incoming != attachedOrigin,
+            let destination = navigationAction.request.url,
+            let incoming = destination.zenticOrigin,
             !isDiscarded
         else { return }
 
+        // A rail drag is about the page it was made on, so leaving that page ends
+        // it — including a link to the next article on the same site, which the
+        // cross-origin early-out below would otherwise have carried it onto. A
+        // reload keeps the same URL, so nothing expires and the drag survives the
+        // reload a strip-layer change fires for itself.
+        let released = pageOverride.expire(at: destination)
+
+        guard incoming != attachedOrigin || released else { return }
+
         attachedOrigin = incoming
         let resolved = resolveLevel(incoming)
+        standingLevel = resolved.level
         // The preference is in the guard because it is drawn: two origins can
         // resolve to the same pair of levels while one is following the page and
         // the other is pinned there, and the rail says different things about those.

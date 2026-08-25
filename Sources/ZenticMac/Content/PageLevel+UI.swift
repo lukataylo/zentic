@@ -27,9 +27,9 @@ extension PageLevel {
         case .original:
             "The site exactly as it shipped. Nothing blocked, nothing dismissed."
         case .clean:
-            "Ads and trackers blocked. The site's own layout, untouched."
+            "Ads and trackers blocked, the cookie wall answered. The site's own layout, untouched."
         case .calm:
-            "Also the interstitials and the chum, and cookie walls answered for you."
+            "Also the interstitials, the chum and the sticky furniture, hidden outright."
         case .reader:
             "Rebuilt in Zentic's type and spacing. Every word is still the publisher's."
         case .rewritten:

@@ -167,6 +167,58 @@ struct LevelRailTests {
         #expect(auto.toolTip != capped.toolTip)
         #expect(auto.accessibilityValue() as? String != capped.accessibilityValue() as? String)
     }
+
+    /// The other half of the pin fix. A drag is scoped to the document now, and a
+    /// control that changed scope without saying so would only have swapped one
+    /// silent behaviour for another — the user still could not tell whether the
+    /// stop they are looking at outlives the page.
+    @MainActor
+    @Test("A dragged level and a pinned one at the same stop read differently")
+    func pageScopeIsNotAPin() {
+        let dragged = LevelRailView(frame: .zero)
+        dragged.apply(
+            level: .clean,
+            automatic: .reader,
+            ceiling: .rewritten,
+            ceilingReason: nil,
+            preference: .auto,
+            pageScopedFrom: .reader
+        )
+        let pinned = LevelRailView(frame: .zero)
+        pinned.apply(
+            level: .clean,
+            automatic: .reader,
+            ceiling: .rewritten,
+            ceilingReason: nil,
+            preference: .pinned(.clean)
+        )
+
+        #expect(dragged.displayedTitle == "Clean*")
+        #expect(pinned.displayedTitle == "Clean")
+        #expect(dragged.toolTip != pinned.toolTip)
+        #expect(dragged.toolTip?.contains("Just this page") == true)
+        #expect(pinned.toolTip?.contains("Just this page") == false)
+        #expect(dragged.accessibilityValue() as? String == "Clean, just this page, automatic")
+    }
+
+    /// Dragging away from a pin leaves the pin standing, so the rail has to carry
+    /// both facts: what the page is at now, and what it goes back to. Naming the
+    /// automatic level here would name the very answer the pin exists to override.
+    @MainActor
+    @Test("A drag over a pinned site names the pin as what the page reverts to")
+    func dragOverAPinNamesThePin() {
+        let rail = LevelRailView(frame: .zero)
+        rail.apply(
+            level: .reader,
+            automatic: .calm,
+            ceiling: .rewritten,
+            ceilingReason: nil,
+            preference: .pinned(.clean),
+            pageScopedFrom: .clean
+        )
+        #expect(rail.toolTip?.contains("goes back to Clean") == true)
+        #expect(rail.toolTip?.contains("Always Clean here") == true)
+    }
 }
 
 /// The wording itself, which is the whole of what the control reflects.
@@ -289,14 +341,91 @@ struct LevelRailCopyTests {
         for level in PageLevel.allCases {
             for ceiling in Self.reachableCeilings {
                 for hovered in [nil] + PageLevel.allCases.map(Optional.init) {
-                    let text = LevelRailCopy.label(level: level, ceiling: ceiling, hovered: hovered)
-                    let width = (text as NSString)
-                        .size(withAttributes: [.font: LevelRailView.labelFont])
-                        .width
-                    #expect(width <= LevelRailView.labelWidth, "\(text) at \(width)pt")
+                    for scoped in [nil] + PageLevel.allCases.map(Optional.init) {
+                        let text = LevelRailCopy.label(
+                            level: level,
+                            ceiling: ceiling,
+                            hovered: hovered,
+                            pageScopedFrom: scoped
+                        )
+                        let width = (text as NSString)
+                            .size(withAttributes: [.font: LevelRailView.labelFont])
+                            .width
+                        #expect(width <= LevelRailView.labelWidth, "\(text) at \(width)pt")
+                    }
                 }
             }
         }
+    }
+
+    /// The page-scoped mark is a `*` rather than a word because a word does not
+    /// fit: `Rewritten (page)` needs 87pt against the rail's 72, and buying that
+    /// back from the breadcrumb is not worth it. Measured, so the day someone
+    /// prefers the word they find out here rather than from a truncated label.
+    @MainActor
+    @Test("A word for the page-scoped mark is what does not fit")
+    func theWordIsWhyTheMarkIsAMark() {
+        let word = ("Rewritten (page)" as NSString)
+            .size(withAttributes: [.font: LevelRailView.labelFont]).width
+        #expect(word > LevelRailView.labelWidth)
+    }
+
+    /// `(held)` and the page-scoped mark collide only in the label, which has room
+    /// for one. The page not being at the requested stop at all is the more urgent
+    /// of the two, so it wins — and the tooltip still carries both.
+    @Test("A held-back level keeps its reason when the page is also overridden")
+    func heldWinsTheLabelAndBothSurviveInTheTooltip() {
+        #expect(
+            LevelRailCopy.label(
+                level: .reader,
+                ceiling: .calm,
+                hovered: nil,
+                pageScopedFrom: .clean
+            ) == "Calm (held)"
+        )
+        let tip = LevelRailCopy.tooltip(
+            hovered: nil,
+            level: .reader,
+            ceiling: .calm,
+            ceilingReason: LevelCeiling.declinedAsThin,
+            preference: .pinned(.clean),
+            automatic: .calm,
+            pageScopedFrom: .clean
+        )
+        #expect(tip?.contains("Reader is not in effect on this page.") == true)
+        #expect(tip?.contains("Just this page") == true)
+    }
+
+    /// The sentence has one job: say the lifetime, and say what the page goes back
+    /// to when it ends. Nothing else on the rail can tell the user either.
+    @Test("The page-scoped sentence names the lifetime and the level it reverts to")
+    func pageScopedSentenceNamesBoth() {
+        for standing in PageLevel.allCases {
+            let line = LevelRailCopy.pageScoped(standing: standing)
+            #expect(line.contains(standing.title), "\(standing): \(line)")
+            #expect(line.contains("reload"), "\(line)")
+            #expect(line.contains("next page"), "\(line)")
+        }
+    }
+
+    /// A drag is not a decision about the site, so the standing sentence is still
+    /// there underneath — and it is the drag that is true *now*, so it goes first.
+    @Test("The page-scoped block sits above the standing one")
+    func pageScopedComesFirst() {
+        let tip = LevelRailCopy.tooltip(
+            hovered: nil,
+            level: .clean,
+            ceiling: .rewritten,
+            ceilingReason: nil,
+            preference: .pinned(.reader),
+            automatic: .calm,
+            pageScopedFrom: .reader
+        )
+        let scoped = tip?.range(of: "Just this page")
+        let standing = tip?.range(of: "Always Reader here")
+        #expect(scoped != nil)
+        #expect(standing != nil)
+        if let scoped, let standing { #expect(scoped.lowerBound < standing.lowerBound) }
     }
 
     /// Hovering is a question about a target, not a claim about the page — and the
