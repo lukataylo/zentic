@@ -45,6 +45,114 @@ struct ReaderControlState {
     var lens = LensState()
 }
 
+/// What the lens button draws, and what it says.
+///
+/// ``LevelRailCopy``'s sibling, and lifted for the same reason: this is the surface
+/// invariant 8 is easiest to break on, and every one of its rules is a sentence
+/// chosen from a ``LensState``, which is a pure decision that had no way to be
+/// tested inside an `NSButton`.
+///
+/// The tint is a case rather than an `NSColor` so the *decision* is what is
+/// asserted. Three of them, because three is what a user can tell apart at a
+/// glance in a 16pt glyph: quiet for a site nothing is acting on, active for
+/// lenses that found what they were pointed at, attention for drift. Amber and not
+/// red — a drifted lens is a site that changed, not an error.
+enum LensButtonCopy {
+    enum Tint: Equatable {
+        /// Nothing here is acting on this page. Also the reader's own render, where
+        /// the lenses are fine and invisible.
+        case quiet
+        case active
+        /// Repairable. The one tint that is asking to be clicked.
+        case attention
+    }
+
+    /// Everything the button and its badge show for one ``LensState``.
+    struct Appearance: Equatable {
+        var tint: Tint
+        /// The `n/m` beside the glyph, or nil when there is nothing honest to put
+        /// there. **Invariant 8**: no report means no badge, never a hopeful `4/4`.
+        var badge: String?
+        var tip: String
+    }
+
+    static func appearance(for state: LensState) -> Appearance {
+        Appearance(tint: tint(for: state), badge: state.tally, tip: tip(for: state))
+    }
+
+    /// A `switch` rather than ``LensState/Standing/needsAttention``, so that a new
+    /// standing is a compile error here rather than silently drawn as calm. The two
+    /// must still agree about which cases are amber — colour means "you can do
+    /// something about this" on the button and on every row — and
+    /// `LensChromeTests.amberMeansRepairable` is what holds them to it.
+    private static func tint(for state: LensState) -> Tint {
+        guard state.hasLenses, state.isActive else { return .quiet }
+        switch state.standing {
+        // On, correct, and invisible. Drawn quiet because the accent tint would be
+        // claiming an effect the render on screen does not have.
+        case .suppressed: return .quiet
+        case .silent, .holding: return .active
+        case .drifting, .stopped: return .attention
+        }
+    }
+
+    private static func tip(for state: LensState) -> String {
+        if !state.hasLenses {
+            return "No lenses for this site — ⌥⌘L to make one"
+        }
+        if !state.isActive {
+            // Two different states look identical from here and need different
+            // sentences: a lens that is switched off is a switch to flip, a lens
+            // scoped to `/watch` while the user is on the home page is a page to
+            // visit. Saying "switched off" for the second sent people to the popover
+            // to turn on a lens that was already on, which is the popover's own
+            // wording problem in reverse.
+            let offPath = state.offPathCount
+            if offPath > 0 { return "\(phrase(offPath)) on, but for other pages" }
+            // Nothing is on and nothing is off-path, so every lens the site has is
+            // switched off — and there is at least one, or `hasLenses` would have
+            // answered above. The count is phrased through the same helper so
+            // "This site's 0 lenses" cannot be written at all.
+            return "\(phrase(state.siteLensCount)) switched off"
+        }
+        switch state.standing {
+        case .suppressed:
+            // On, correct, and invisible: the reader is showing Zentic's render and a
+            // lens acts on the site's own page underneath it. The engine reports every
+            // op `skipped`, which is true and which the badge used to draw as `0/4` in
+            // the accent tint — a working colour over a total-failure number. No badge
+            // and the sentence instead: there is no count that is true of what is on
+            // screen, so invariant 8 says show none.
+            return """
+                \(phrase(state.entries.count)) on. Lenses act on the site's own \
+                page — ⌘\\ to see it.
+                """
+        case .silent:
+            return "Lenses are on for this page"
+        case .holding(let applied, let total):
+            let by = state.entries.count == 1 ? "1 lens" : "\(state.entries.count) lenses"
+            return "\(applied) of \(total) changes applied by \(by)"
+        case .drifting(let missed, let total):
+            return "\(missed) of \(total) changes no longer match this page"
+        case .stopped(let total):
+            // The same amber, a different sentence. A lens with nothing left on the
+            // page is not a lens with a stale op in it, and the tooltip is where the
+            // toolbar can say which without inventing a fourth colour.
+            return total == 1
+                ? "The one change made here no longer matches this page"
+                : "None of these \(total) changes match this page any more"
+        }
+    }
+
+    /// "This site's lens is" / "This site's 3 lenses are", with the verb, so every
+    /// sentence built from it agrees with itself. A count below two is written as
+    /// the singular: zero is unreachable in all three call sites, and "0 lenses" is
+    /// the kind of string that only ever ships because nobody could reach it.
+    private static func phrase(_ count: Int) -> String {
+        count > 1 ? "This site's \(count) lenses are" : "This site's lens is"
+    }
+}
+
 /// The toolbar. Sits above the **content area**, never above the sidebar — that
 /// placement is what makes the sidebar read as a separate surface rather than a
 /// pane of one window, and it is the detail people notice about Arc.
@@ -215,99 +323,33 @@ final class ContentToolbar: PointerTrackingView {
 
     /// Draw the lens button from what the page reported, and nothing else.
     ///
-    /// States the user can tell apart at a glance: dimmed for a site with no lens
-    /// acting on it, tinted for lenses that all found what they were pointed at,
-    /// amber for drift. Amber rather than red because a drifted lens is a site that
-    /// changed, not an error — the page is fine, an op has stopped landing.
-    ///
-    /// The drift half is ``LensState/Standing``, which is also what each row in the
-    /// popover is drawn from, so the button and the list cannot classify one report
-    /// two ways. It is the tooltip that separates "one op of six is stale" from
-    /// "none of this lens is on the page any more": both are amber, because both
-    /// are repairable, and the popover is where the difference is drawn.
-    ///
-    /// **Invariant 8 is the rule here.** The badge is drawn from ``LensState/tally``,
-    /// which is nil until a report arrives; no report means no badge, never a
-    /// hopeful `4/4`. A number that turns out to be wrong about what the user is
-    /// looking at is worse than no number, because they cannot tell which it was.
+    /// Every choice made here is ``LensButtonCopy``'s, so that the button and each
+    /// row in the popover cannot classify one report two ways — both are drawn from
+    /// ``LensState/Standing``. What is left is the AppKit half: which colour a tint
+    /// is, and which properties carry the sentence.
     private func applyLens(_ state: LensState) {
         // Enabled even when it does nothing, like the rail's blocked stops: a toolbar
         // corner that swallows clicks reads as broken, and the tooltip does the
         // explaining.
         lensButton.isEnabled = true
-        lensBadge.stringValue = state.tally ?? ""
-        lensBadge.isHidden = state.tally == nil
 
-        let tint: NSColor
-        let tip: String
-        if !state.hasLenses {
-            tint = .tertiaryLabelColor
-            tip = "No lenses for this site — ⌥⌘L to make one"
-        } else if !state.isActive {
-            tint = .tertiaryLabelColor
-            // Two different states look identical from here and need different
-            // sentences: a lens that is switched off is a switch to flip, a lens
-            // scoped to `/watch` while the user is on the home page is a page to
-            // visit. Saying "switched off" for the second sent people to the popover
-            // to turn on a lens that was already on, which is the popover's own
-            // wording problem in reverse.
-            let offPath = state.offPathCount
-            if offPath > 0 {
-                tip = "\(Self.lensPhrase(offPath)) on, but for other pages"
-            } else {
-                // Nothing is on and nothing is off-path, so every lens the site has
-                // is switched off — and there is at least one, or `hasLenses` would
-                // have taken the branch above. The count is phrased through the same
-                // helper so "This site's 0 lenses" cannot be written at all.
-                tip = "\(Self.lensPhrase(state.siteLensCount)) switched off"
-            }
-        } else {
-            switch state.standing {
-            case .suppressed:
-                // On, correct, and invisible: the reader is showing Zentic's render
-                // and a lens acts on the site's own page underneath it. The engine
-                // reports every op `skipped`, which is true and which the badge used
-                // to draw as `0/4` in the accent tint — a working colour over a
-                // total-failure number. No badge and the sentence instead: there is
-                // no count that is true of what is on screen, so invariant 8 says
-                // show none.
-                tint = .tertiaryLabelColor
-                tip = """
-                    \(Self.lensPhrase(state.entries.count)) on. Lenses act on the site's own \
-                    page — ⌘\\ to see it.
-                    """
-            case .silent:
-                tint = .controlAccentColor
-                tip = "Lenses are on for this page"
-            case .holding(let applied, let total):
-                tint = .controlAccentColor
-                let by = state.entries.count == 1 ? "1 lens" : "\(state.entries.count) lenses"
-                tip = "\(applied) of \(total) changes applied by \(by)"
-            case .drifting(let missed, let total):
-                tint = .systemOrange
-                tip = "\(missed) of \(total) changes no longer match this page"
-            case .stopped(let total):
-                // The same amber, a different sentence. A lens with nothing left on
-                // the page is not a lens with a stale op in it, and the tooltip is
-                // where the toolbar can say which without inventing a fourth colour.
-                tint = .systemOrange
-                tip = total == 1
-                    ? "The one change made here no longer matches this page"
-                    : "None of these \(total) changes match this page any more"
-            }
-        }
+        let look = LensButtonCopy.appearance(for: state)
+        lensBadge.stringValue = look.badge ?? ""
+        lensBadge.isHidden = look.badge == nil
+
+        let tint = Self.color(for: look.tint)
         lensButton.contentTintColor = tint
         lensBadge.textColor = tint
-        lensButton.toolTip = tip
-        lensBadge.toolTip = tip
+        lensButton.toolTip = look.tip
+        lensBadge.toolTip = look.tip
     }
 
-    /// "This site's lens is" / "This site's 3 lenses are", with the verb, so every
-    /// sentence built from it agrees with itself. A count below two is written as
-    /// the singular: zero is unreachable in all three call sites, and "0 lenses" is
-    /// the kind of string that only ever ships because nobody could reach it.
-    private static func lensPhrase(_ count: Int) -> String {
-        count > 1 ? "This site's \(count) lenses are" : "This site's lens is"
+    private static func color(for tint: LensButtonCopy.Tint) -> NSColor {
+        switch tint {
+        case .quiet: .tertiaryLabelColor
+        case .active: .controlAccentColor
+        case .attention: .systemOrange
+        }
     }
 
     /// Anchors the lens popover.

@@ -1686,20 +1686,11 @@ extension BrowserViewController: ContentToolbarDelegate {
         }
     }
 
-    /// One row per lens this site has, married to what it did on this page.
-    ///
-    /// Built from two sources on purpose. The rows come from the store, so a lens
-    /// that is switched off or scoped to another path still has somewhere to be
-    /// switched on from; the tallies come from the tab, which holds only what the
-    /// page reported about the load in front of the user. Invariant 8 — a row shows
-    /// `3/4` because a page said so, or it shows no number at all.
+    /// One row per lens this site has, married to what it did on this page. The two
+    /// sources, and why they are two, are in ``LensPopover/Row/rows(for:matching:)``.
     private func lensRows(for controller: TabController, url: URL) async -> [LensPopover.Row] {
         let lenses = await LensController.shared.allLenses(for: url)
-        let entries = Dictionary(
-            controller.lensState.entries.map { ($0.lens.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return lenses.map { .init(lens: $0, entry: entries[$0.id]) }
+        return LensPopover.Row.rows(for: lenses, matching: controller.lensState.entries)
     }
 
     private func lensActions(for controller: TabController) -> LensPopover.Actions {

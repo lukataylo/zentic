@@ -199,8 +199,8 @@ struct LensStateTests {
         #expect(state.entries.map(\.isDrifted) == [true, false])
         // The drift row names the op in the user's own words, which is the only
         // description of a stale selector they can act on.
-        #expect(state.entries[0].driftNotes.map(\.note) == ["hide the suggestions"])
-        #expect(state.entries[1].driftNotes.isEmpty)
+        #expect(state.entries[0].notes.filter(\.isDrift).map(\.note) == ["hide the suggestions"])
+        #expect(state.entries[1].notes.allSatisfy { !$0.isDrift })
     }
 
     @Test("a lens that has not reported contributes nothing to the badge")
@@ -321,6 +321,54 @@ struct LensStateTests {
         #expect(original.tally == "2/2")
     }
 
+    @Test("only a report that is entirely skips is the page explaining suppression")
+    func aBudgetSkipIsNotTheSuppressionSentence() {
+        // The engine ran two ops on the site's own page, hit the op budget, and
+        // skipped the rest with its own reason. Then the user pressed ⌘\. The
+        // suppression sentence is rendered verbatim, so a report that is only
+        // *partly* skipped would put "the op budget for this page is used up" under
+        // a lens as the explanation for why none of it is visible — an answer to a
+        // question the user did not ask, about a thing that is not what happened.
+        let lens = lens("a", name: "Focus", ops: [op("1"), op("2"), op("3")])
+        let mixed = LensState.make(
+            lenses: [lens],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .applied, matchedCount: 1),
+                        LensOpResult(
+                            opID: "2",
+                            status: .skipped,
+                            message: "the op budget for this page is used up"
+                        ),
+                        LensOpResult(
+                            opID: "3",
+                            status: .skipped,
+                            message: "the op budget for this page is used up"
+                        ),
+                    ]
+                )
+            ],
+            isReaderRendered: true
+        )
+
+        #expect(mixed.isSuppressed)
+        #expect(mixed.suppressionReason == nil)
+
+        // The whole report skipped is the page describing suppression, and then its
+        // own words are the ones shown.
+        let reason = "the reader is showing its own render"
+        let whole = LensState.make(
+            lenses: [lens],
+            reports: [
+                "a": report("a", lens.ops.map { LensOpResult(opID: $0.id, status: .skipped, message: reason) })
+            ],
+            isReaderRendered: true
+        )
+        #expect(whole.suppressionReason == reason)
+    }
+
     @Test("suppression is not drift, whatever the page reported before the switch")
     func suppressionOutranksDrift() {
         let lens = lens("a", name: "Focus", ops: [op("1"), op("2")])
@@ -436,7 +484,7 @@ struct LensStateTests {
 
         let entry = state.entries[0]
         #expect(entry.notes.map(\.isDrift) == [true, false, false, false])
-        #expect(entry.driftNotes.map(\.opID) == ["1"])
+        #expect(entry.notes.filter(\.isDrift).map(\.opID) == ["1"])
         #expect(entry.isDrifted)
         #expect(entry.canRefit)
     }
@@ -562,7 +610,7 @@ struct LensStateTests {
         // run two ops. This is the drift-with-nothing-to-list state the popover has
         // its own line for.
         #expect(state.entries[0].missedCount == 1)
-        #expect(state.entries[0].driftNotes.isEmpty)
+        #expect(state.entries[0].notes.allSatisfy { !$0.isDrift })
     }
 
     // MARK: One reason per group, not one per row

@@ -140,6 +140,100 @@ struct VerdictMemory: Equatable {
     }
 }
 
+/// A lens set, and the URL it was resolved for.
+///
+/// The pairing is the whole point. Everything that resolves a set does so across
+/// an `await`, and a tab can be somewhere else by the time it resumes, so a set
+/// without the URL it belongs to cannot be checked against the page in front of
+/// the user — which is how the chrome ended up describing a page it was not
+/// looking at.
+struct LensPlan: Equatable {
+    var url: URL
+    var lenses: [Lens]
+    var siteLensCount: Int
+    var enabledLensCount: Int
+
+    /// Whether this plan is still about the page at `url`. Path and host only:
+    /// a fragment is not a navigation, and a query change does not re-resolve a
+    /// set that matches on host and path pattern.
+    func describes(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        return url.host() == self.url.host() && url.path() == self.url.path()
+    }
+}
+
+/// The set a navigation was armed with, held until there is a document to hand it
+/// to.
+///
+/// Two rules, and like ``VerdictMemory`` they are only correct together — which is
+/// why they are one type rather than two fields on the tab:
+///
+///  1. **The last resolution to start is the one that arms the page.** Both halves
+///     of a resolution are `await`s, and an actor hop is not ordered, so the answer
+///     to an older question can arrive last. Whichever plan is armed is the one
+///     interpolated into the bootstrap the live navigation is about to boot from,
+///     so an out-of-order answer arms a tab for a page it already left.
+///  2. **A policy decision is not a page.** The navigation a plan was armed for can
+///     fail, be cancelled by the next click, turn out to be a download, or be beaten
+///     by a redirect. Adopting the plan at the moment it was resolved left the *old*
+///     page on screen described by the *new* page's chrome and its lens count, which
+///     is invariant 8: a badge counting a set that page never ran.
+///
+/// So a plan is armed early — the bootstrap is the only thing that can put a
+/// stylesheet in the cascade before the first paint, and it cannot be changed once
+/// the document exists — and adopted late, at `didCommit`, and only if the document
+/// that committed is the one it was resolved for.
+struct LensStaging: Equatable {
+    private var plan: LensPlan?
+    /// Which resolution is the current one. Bumped as each starts, checked when it
+    /// resumes.
+    private var sequence = 0
+
+    /// Note that a resolution has started, and take the token it must present to
+    /// arm the page.
+    mutating func begin() -> Int {
+        sequence += 1
+        return sequence
+    }
+
+    /// Arm the page with a resolved set, if this resolution is still the current
+    /// one.
+    ///
+    /// - Returns: false when a later resolution has started since, in which case the
+    ///   caller must leave the bootstrap alone. It belongs to that one now.
+    @discardableResult
+    mutating func arm(_ plan: LensPlan, sequence: Int) -> Bool {
+        guard sequence == self.sequence else { return false }
+        self.plan = plan
+        return true
+    }
+
+    /// The navigation went away without producing a document.
+    ///
+    /// The set stays in the bootstrap, which costs nothing — the bootstrap only
+    /// runs for a document that loads — but the page that never arrived does not get
+    /// to describe the one still on screen.
+    mutating func discard() {
+        plan = nil
+    }
+
+    /// Adopt the armed set now that a document has actually committed at `url`.
+    ///
+    /// Consumed either way: a plan is about one navigation, and the one it was
+    /// about is over.
+    ///
+    /// - Returns: the plan, or nil when the document that committed is not the one
+    ///   it was resolved for — a redirect, or a policy decision that lost a race.
+    ///   The set that page actually booted with is then unknown, so the caller has
+    ///   to re-resolve rather than assume.
+    mutating func commit(at url: URL?) -> LensPlan? {
+        let plan = plan
+        self.plan = nil
+        guard let plan, plan.describes(url) else { return nil }
+        return plan
+    }
+}
+
 /// One browser tab: its record, and — only while resident — its `WKWebView` and
 /// `ReaderBridge`.
 ///
@@ -262,28 +356,6 @@ final class TabController: NSObject {
 
     // MARK: Lenses
 
-    /// A lens set, and the URL it was resolved for.
-    ///
-    /// The pairing is the whole point. Everything that resolves a set does so across
-    /// an `await`, and a tab can be somewhere else by the time it resumes, so a set
-    /// without the URL it belongs to cannot be checked against the page in front of
-    /// the user — which is how the chrome ended up describing a page it was not
-    /// looking at.
-    private struct LensPlan {
-        var url: URL
-        var lenses: [Lens]
-        var siteLensCount: Int
-        var enabledLensCount: Int
-
-        /// Whether this plan is still about the page at `url`. Path and host only:
-        /// a fragment is not a navigation, and a query change does not re-resolve a
-        /// set that matches on host and path pattern.
-        func describes(_ url: URL?) -> Bool {
-            guard let url else { return false }
-            return url.host() == self.url.host() && url.path() == self.url.path()
-        }
-    }
-
     /// The lens set this page was given, in application order.
     ///
     /// Resolved before the navigation is allowed, so it is already in the bootstrap
@@ -293,15 +365,9 @@ final class TabController: NSObject {
     /// then vanish.
     private(set) var appliedLenses: [Lens] = []
 
-    /// The set resolved for a navigation that has not committed yet.
-    ///
-    /// A policy decision is not a page. The navigation it approves can fail, be
-    /// cancelled by the next click, turn out to be a download, or be beaten by a
-    /// redirect — and committing the new URL's lens count and badge at that moment
-    /// left the *old* page on screen described by the *new* page's chrome. So the
-    /// bootstrap is armed there, because that is the last moment it can be, and
-    /// everything the chrome reads waits for `didCommit`.
-    private var stagedPlan: LensPlan?
+    /// The set resolved for a navigation that has not committed yet, and the rules
+    /// that decide whether it ever reaches the chrome. See ``LensStaging``.
+    private var staging = LensStaging()
 
     /// Every lens saved for this host, matching this page or not. Only the count is
     /// used — the toolbar has to distinguish "this site has no lenses" from "this
@@ -317,11 +383,6 @@ final class TabController: NSObject {
     /// navigation moves that instantly, while the set and the reports still belong
     /// to the route the user just left until a pass has run for the new one.
     private var lensURL: URL?
-
-    /// Which resolution is the current one. Bumped as each starts, checked when it
-    /// resumes: an actor hop is not ordered, and the answer to an older question
-    /// arriving last is how a tab ends up armed for a page it already left.
-    private var lensPlanSequence = 0
 
     /// What each lens actually did on *this* page load, keyed by lens id.
     ///
@@ -880,8 +941,7 @@ final class TabController: NSObject {
     /// live at `document-start`; delivering them as a command instead would cost a
     /// visible reflow on every visit.
     func prepareLenses(for url: URL) async {
-        lensPlanSequence += 1
-        let sequence = lensPlanSequence
+        let sequence = staging.begin()
 
         let all = await LensController.shared.allLenses(for: url)
         let plan = LensPlan(
@@ -894,8 +954,7 @@ final class TabController: NSObject {
         // them. A policy decision for a URL this tab has since abandoned must not
         // rewrite the bootstrap the live navigation is about to boot from, so the
         // last decision to *start* is the one that gets to arm the page.
-        guard sequence == lensPlanSequence else { return }
-        stagedPlan = plan
+        guard staging.arm(plan, sequence: sequence) else { return }
 
         guard let bridge else { return }
         var configuration = bridge.currentConfiguration
@@ -912,12 +971,25 @@ final class TabController: NSObject {
     /// a navigation that never commits leaves the previous page on screen, and a
     /// badge counting a lens set that page never ran is a fabricated number.
     private func commitStagedLenses(for url: URL) {
-        let plan = stagedPlan
-        stagedPlan = nil
-        guard let plan, plan.describes(url) else {
+        guard let plan = staging.commit(at: url) else {
             // Committed somewhere the staged set was not resolved for — a redirect,
             // or a policy decision that lost a race. The set the page actually
             // booted with is unknown, so it is re-resolved rather than assumed.
+            //
+            // Clear first, and clear synchronously. `didCommit` calls
+            // `recordNavigation()` immediately after this, which fires
+            // `tabControllerDidChangeChrome` on the spot — so anything left standing
+            // here is drawn against the *new* page for at least the two actor hops
+            // the re-resolve takes. That is the previous page's lens count and its
+            // badge, on a document they say nothing about, which is the same reason
+            // `recordNavigation` clears a stale title rather than captioning the new
+            // page with the old one's name.
+            appliedLenses = []
+            siteLensCount = 0
+            enabledLensCount = 0
+            lensReports = [:]
+            lensURL = nil
+            catalog = nil
             Task { await refreshLenses() }
             return
         }
@@ -1491,7 +1563,7 @@ extension TabController: WKNavigationDelegate {
         withError error: any Error
     ) {
         trace("nav", "tab \(shortID) failed: \(error.localizedDescription)")
-        stagedPlan = nil
+        staging.discard()
         delegate?.tabControllerDidChangeChrome(self)
     }
 
@@ -1509,7 +1581,7 @@ extension TabController: WKNavigationDelegate {
         // The page that never arrived does not get to describe the one still on
         // screen. Its set was armed in the bootstrap, which costs nothing — the
         // bootstrap only runs for a document that loads.
-        stagedPlan = nil
+        staging.discard()
         delegate?.tabControllerDidChangeChrome(self)
     }
 
@@ -1522,7 +1594,7 @@ extension TabController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
         // A download is not a page, so nothing about it describes what is on screen.
-        stagedPlan = nil
+        staging.discard()
         delegate?.tabController(self, didStart: download)
     }
 
@@ -1531,7 +1603,7 @@ extension TabController: WKNavigationDelegate {
         navigationResponse: WKNavigationResponse,
         didBecome download: WKDownload
     ) {
-        stagedPlan = nil
+        staging.discard()
         delegate?.tabController(self, didStart: download)
     }
 }

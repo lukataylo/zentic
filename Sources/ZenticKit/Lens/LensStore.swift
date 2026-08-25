@@ -119,6 +119,23 @@ public actor LensStore {
             .sorted(by: Self.newestFirst)
     }
 
+    /// Every stored lens for one host, enabled or not, newest edit first.
+    ///
+    /// The popover lists a site's whole set — a switched-off lens and one scoped to
+    /// another path both keep their row, because a lens working perfectly on
+    /// `/watch` otherwise looks, from the home page, exactly like one that has
+    /// stopped working. It lives here rather than as a filter at the call site so
+    /// that `normalisedOrigin` stays the single definition of what "this site"
+    /// means; a second spelling of it in the app layer agreed with this one only by
+    /// the accident of `validated()` normalising `origin` on the way in.
+    public func all(for host: String) -> [Lens] {
+        load()
+        let origin = Self.normalisedOrigin(host)
+        return lenses
+            .filter { Self.normalisedOrigin($0.origin) == origin }
+            .sorted(by: Self.newestFirst)
+    }
+
     /// Every stored lens, grouped by origin and then newest edit first, for the
     /// management list.
     public func all() -> [Lens] {

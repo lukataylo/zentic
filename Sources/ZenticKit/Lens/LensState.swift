@@ -78,7 +78,6 @@ public struct LensState: Equatable, Sendable {
 
         /// The ops whose selectors matched nothing. Drift, and the only part of
         /// this list a **Re-fit** would repair.
-        public var driftNotes: [OpNote] { notes.filter(\.isDrift) }
 
         /// ``notes``, gathered into one block per outcome — the unit the popover
         /// draws.

@@ -66,8 +66,7 @@ final class LensController {
     /// switches one back on has to have a row to live in.
     func allLenses(for url: URL) async -> [Lens] {
         guard let host = url.host() else { return [] }
-        let origin = host.lowercased()
-        return await store.all().filter { $0.origin.lowercased() == origin }
+        return await store.all(for: host)
     }
 
     func lens(id: String) async -> Lens? {

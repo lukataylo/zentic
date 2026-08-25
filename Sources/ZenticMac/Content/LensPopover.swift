@@ -18,6 +18,28 @@ final class LensPopover: NSObject {
     struct Row {
         var lens: Lens
         var entry: LensState.Entry?
+
+        /// One row per lens this site has, married to what it did on this page.
+        ///
+        /// Built from two sources on purpose, and the join direction is the rule.
+        /// **The lenses lead**: they come from the store, so a lens that is switched
+        /// off or scoped to another path still has a row to be switched on from, and
+        /// they carry the store's order, which is the reading order the popover
+        /// promises. The entries come from the tab and hold only what the page
+        /// reported about the load in front of the user — so a lens with no entry
+        /// draws no tally, per invariant 8, rather than a zero.
+        ///
+        /// Driving this from the entries instead is the tempting simplification and
+        /// it loses exactly the rows that need it most: an entry exists only for a
+        /// lens the page is running, which is never the one the user came here to
+        /// turn back on.
+        static func rows(for lenses: [Lens], matching entries: [LensState.Entry]) -> [Row] {
+            let byID = Dictionary(
+                entries.map { ($0.lens.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            return lenses.map { Row(lens: $0, entry: byID[$0.id]) }
+        }
     }
 
     /// What the popover can ask the app to do. Closures rather than a delegate
@@ -80,7 +102,12 @@ final class LensPopover: NSObject {
 
     /// Everything a row draws, flattened. Two lists with the same fingerprint would
     /// build the same view tree, so rebuilding is pure cost.
-    private static func fingerprint(_ rows: [Row]) -> String {
+    ///
+    /// A field a row draws and this does not read is a row that stops updating —
+    /// silently, and only under the popover, which is the surface nobody has open
+    /// while testing. Not private for that reason: `LensChromeTests` walks each
+    /// drawn field and asserts it moves the fingerprint.
+    static func fingerprint(_ rows: [Row]) -> String {
         rows.map { row in
             let entry = row.entry
             let notes: String = (entry?.notes ?? [])

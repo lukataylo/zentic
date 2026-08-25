@@ -7,17 +7,11 @@ import Testing
 //
 // ## Why this test is shaped like this
 //
-// `ZenticMac` has no test target. Every value type the feature depends on —
-// `Lens`, `LensStore`, `LensState`, the wire — is in `ZenticKit` and is tested
-// properly; every *connection* between them lives in `TabController`,
-// `LensController`, `LensPopover` and `BrowserViewController`, and nothing
-// executes those in a test at all.
-//
-// That gap is not hypothetical. The first build of this feature shipped with
-// `LensStore` instantiated nowhere, `generateLens`/`refitLens`/`recordReport`
-// with no callers and `ReaderConfiguration.lenses` never populated: the whole
-// feature was inert, and 259 tests passed. Not one of them could have failed,
-// because none of them looked at a call site.
+// The first build of this feature shipped with `LensStore` instantiated nowhere,
+// `generateLens`/`refitLens`/`recordReport` with no callers and
+// `ReaderConfiguration.lenses` never populated: the whole feature was inert, and
+// 259 tests passed. Not one of them could have failed, because none of them
+// looked at a call site.
 //
 // So this looks at call sites. It is a coarse instrument and it knows it — a
 // substring is not a proof that a line runs — but it fails on the one thing that
@@ -25,9 +19,22 @@ import Testing
 // assignment or the store call named below turns this red, and a comment claiming
 // the wiring exists does not.
 //
-// It is not a substitute for a test target over `ZenticMac`; it is what can be
-// asserted without one. If that target is ever added, most of this should be
-// replaced by tests that drive the objects.
+// ## What is left for it to do
+//
+// `ZenticMacTests` exists now, and the rules that *decide* things have been lifted
+// out of the classes that cannot be built in a test and are executed properly:
+// which set reaches the page and which page it is allowed to describe
+// (`LensStagingTests`), what the button and the popover then say about it
+// (`LensChromeTests`), how long a page's verdict lasts (`VerdictLifetimeTests`).
+//
+// None of that retires this file, and the reason is worth stating plainly. Every
+// hop below crosses into something a test cannot have: a `WKWebView` to send
+// `applyLenses` to, a `ReaderBridge` whose configuration is interpolated into a
+// bootstrap script, a responder chain for ⌥⌘L, an `NSPopover` with a window under
+// it. The decision each hop carries is tested; that the hop is still *there* is
+// not, and cannot be without faking the world. This is the floor under that, and
+// it should shrink only when a hop stops needing a window — not when the decision
+// behind it gets a test.
 
 @Suite("Lens wiring")
 struct LensWiringTests {
@@ -95,7 +102,7 @@ struct LensWiringTests {
             ),
             Hop(
                 file: "ZenticMac/Content/LensController.swift",
-                call: "store.all()",
+                call: "store.all(for:",
                 breaks: "the popover cannot list a lens that is switched off"
             ),
             Hop(
