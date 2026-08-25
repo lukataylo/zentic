@@ -42,17 +42,61 @@
 // `lensMaxItemsPerPass` items (enforced in the op runner). When the cap is hit
 // the pass is deferred to the next window rather than dropped, because a deferred
 // pass still catches up and a dropped one leaves cards unfiltered forever.
+//
+// ## The other half: a region that has not arrived yet
+//
+// The observers above answer "this region grew". The opposite case is a region
+// that was not *there* at DOM ready, and on an SPA it is the common one:
+// YouTube's `#secondary` and `#comments` do not exist when the structural pass
+// runs, so every op naming them resolves to nothing and reports `missed` — while
+// the `document-start` stylesheet already holds `#secondary{display:none}` and
+// hides the rail correctly the instant it renders. Amber `0/3` on a lens that is
+// doing exactly what was asked, which is invariant 8 broken in the direction that
+// teaches the user the feature is broken.
+//
+// A `MutationObserver` cannot serve that case the way it serves the first. There
+// is no element to scope one to — the whole point is that the element does not
+// exist — so it would have to watch the *document*, which is the page-wide
+// observer the paragraphs above exist to refuse. On YouTube that is a
+// `MutationRecord` allocated for every DOM change the app makes, all day, to
+// answer a question eight `querySelector` calls answer directly.
+//
+// So `watchForAppearance` is a schedule rather than an observer: re-check on a
+// doubling backoff, stop at `appearanceWindowMs`, stop early the moment nothing
+// is still missing. Its cost is a function of the lens (how many ops missed) and
+// not of the page (how busy it is), which is the property that matters on exactly
+// the sites this is for. It shares the sliding rate window with the observers,
+// because both spend the same thing — this tab's main thread, this second.
 
 export interface ObserverBudget {
   /** `Budget.lensObserverDebounce`. */
   debounceMs: number;
   /** `Budget.lensObserverMaxPassesPerSecond`. */
   maxPassesPerSecond: number;
+  /**
+   * How long the engine keeps waiting for a region that had not rendered by the
+   * time the structural pass ran. See `watchForAppearance`.
+   *
+   * Eight seconds, and the number is a judgement about pages rather than about
+   * frames — which is why it is here and not in `Budget.swift` beside the two
+   * above. A rail or a comment thread that an app is going to render at all has
+   * rendered by then on every site measured; past that the honest reading of an
+   * absent region is that it is absent, which is what `missed` already says.
+   *
+   * The cost of being wrong is bounded in the only direction that matters: the
+   * watch stops, the report keeps the pessimistic answer, and the *stylesheet*
+   * is unaffected — a rule compiled at `document-start` stays in the cascade and
+   * still bites whenever the region turns up. Waiting longer would buy a truer
+   * badge on a page nobody is still looking at, and pay for it with re-checks on
+   * every page that genuinely drifted.
+   */
+  appearanceWindowMs: number;
 }
 
 export const DEFAULT_OBSERVER_BUDGET: ObserverBudget = {
   debounceMs: 80,
   maxPassesPerSecond: 8,
+  appearanceWindowMs: 8000,
 };
 
 /** Prefix on every attribute and element name this engine writes into a page. */
@@ -75,6 +119,9 @@ interface Watch {
 export class LensObservers {
   private readonly watches: Watch[] = [];
   private passes: number[] = [];
+  private appearanceTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Wall-clock instant the appearance backoff gives up at. */
+  private appearanceDeadline = 0;
 
   constructor(
     private readonly budget: ObserverBudget,
@@ -159,6 +206,91 @@ export class LensObservers {
       watch.observer.disconnect();
     }
     this.watches.length = 0;
+    this.stopWaiting();
+  }
+
+  /**
+   * Wait, for a bounded while, for regions that had not rendered yet.
+   *
+   * `recheck` is run on a doubling backoff and answers one question: is anything
+   * still missing? `false` stops the watch there and then, which is the case that
+   * matters for cost — a lens whose regions all turn up costs two or three
+   * re-checks and nothing after that.
+   *
+   * The backoff starts at `debounceMs` and doubles, clamped so the last re-check
+   * lands exactly on the deadline: seven checks in eight seconds, front-loaded,
+   * because lazy content that arrives at all mostly arrives early. Restarting
+   * replaces any watch already running — a new structural pass has a new answer
+   * about what is missing, and two schedules would double the rate.
+   *
+   * Nothing here can delay a reveal (invariant 1): the first check is a timer
+   * armed *after* the structural pass, and the reader's failsafe knows nothing
+   * about it.
+   */
+  watchForAppearance(recheck: () => boolean): void {
+    this.stopWaiting();
+    if (this.budget.appearanceWindowMs <= 0) return;
+    this.appearanceDeadline = this.now() + this.budget.appearanceWindowMs;
+    this.scheduleAppearance(recheck, this.budget.debounceMs);
+  }
+
+  /** Stop waiting for regions to appear. Folded into `disconnectAll`, so every
+   * caller that tears the observers down tears this down with them. */
+  stopWaiting(): void {
+    if (this.appearanceTimer === undefined) return;
+    clearTimeout(this.appearanceTimer);
+    this.appearanceTimer = undefined;
+  }
+
+  private scheduleAppearance(recheck: () => boolean, delay: number): void {
+    this.appearanceTimer = this.schedule(() => {
+      this.appearanceTimer = undefined;
+
+      // Deferred rather than dropped, and without consuming a step of the
+      // backoff: a busy feed holding the rate window open must not be able to
+      // eat the whole appearance budget in retries.
+      const wait = this.claimPass();
+      if (wait > 0) {
+        this.scheduleAppearance(recheck, wait);
+        return;
+      }
+
+      let again = false;
+      try {
+        again = recheck();
+      } catch {
+        // Same rule as a live pass: a re-check that throws stops itself and
+        // takes nothing else with it.
+        again = false;
+      }
+      if (!again) return;
+
+      const left = this.appearanceDeadline - this.now();
+      if (left <= 0) return;
+      this.scheduleAppearance(recheck, Math.min(delay * 2, left));
+    }, delay);
+  }
+
+  /**
+   * Take a slot in the sliding rate window, or say how long until one is free.
+   *
+   * A sliding window rather than a fixed interval, so a burst cannot borrow quota
+   * from a quiet second and land eight passes in one frame. Shared by the live
+   * passes and the appearance re-checks because the budget is a statement about
+   * this second of this tab's main thread, and it does not care which of the two
+   * is spending it.
+   */
+  private claimPass(): number {
+    const now = this.now();
+    this.passes = this.passes.filter((at) => now - at < 1000);
+
+    if (this.passes.length >= this.budget.maxPassesPerSecond) {
+      const oldest = this.passes[0] ?? now;
+      return Math.max(1, 1000 - (now - oldest));
+    }
+
+    this.passes.push(now);
+    return 0;
   }
 
   private scheduleFor(entry: Watch): void {
@@ -170,27 +302,17 @@ export class LensObservers {
     }, this.budget.debounceMs);
   }
 
-  /**
-   * Run one pass, unless the rate cap says not yet.
-   *
-   * The cap is a sliding window rather than a fixed interval, so a burst cannot
-   * borrow quota from a quiet second and land eight passes in one frame.
-   */
+  /** Run one pass, unless the rate cap says not yet — in which case it is
+   * deferred to the next window rather than dropped. See `claimPass`. */
   private runPass(entry: Watch): void {
-    const now = this.now();
-    this.passes = this.passes.filter((at) => now - at < 1000);
-
-    if (this.passes.length >= this.budget.maxPassesPerSecond) {
-      const oldest = this.passes[0] ?? now;
-      const wait = Math.max(1, 1000 - (now - oldest));
+    const wait = this.claimPass();
+    if (wait > 0) {
       entry.timer = this.schedule(() => {
         entry.timer = undefined;
         this.runPass(entry);
       }, wait);
       return;
     }
-
-    this.passes.push(now);
 
     try {
       this.rerun(entry.target);

@@ -80,6 +80,70 @@ public struct LensState: Equatable, Sendable {
         /// this list a **Re-fit** would repair.
         public var driftNotes: [OpNote] { notes.filter(\.isDrift) }
 
+        /// ``notes``, gathered into one block per outcome — the unit the popover
+        /// draws.
+        ///
+        /// The reason an op did not apply is a property of the *outcome*, not of the
+        /// op, and the list used to render it per row: three drifted ops meant three
+        /// lines each ending "— no longer matches this page", which is one sentence
+        /// shouted three times over the only part of a row that differs. Said once
+        /// as a heading, the rows underneath are free to be what the user wrote.
+        ///
+        /// Grouped on the detail as well as the status, because two budget skips
+        /// with different messages are two different facts; folding them under one
+        /// heading would print a reason that is true of neither.
+        public var noteGroups: [NoteGroup] {
+            var order: [String] = []
+            var groups: [String: NoteGroup] = [:]
+            for note in notes {
+                let key = "\(note.status.rawValue)\u{1}\(note.detail)"
+                if groups[key] == nil {
+                    order.append(key)
+                    groups[key] = NoteGroup(status: note.status, detail: note.detail, notes: [])
+                }
+                groups[key]?.notes.append(note)
+            }
+            var ordered = order.compactMap { groups[$0] }
+
+            // Drift leads, because it is the only group with a repair attached and
+            // the only one the user is being asked to decide about.
+            if let index = ordered.firstIndex(where: \.isDrift) {
+                var drift = ordered.remove(at: index)
+                // The heading counts what the *page* said, which can exceed the rows
+                // we can name: a report is free to name op ids this lens no longer
+                // holds, because the page runs the shape it was handed until it
+                // reloads. Counting the rows instead would quietly disagree with the
+                // tally beside the lens's name.
+                drift.reportedCount = max(missedCount, drift.notes.count)
+                ordered.insert(drift, at: 0)
+            } else if missedCount > 0 {
+                // Drift with nothing to list is that same race with every row lost.
+                // It is still drift the page really saw, and dropping the group would
+                // put Re-fit out of reach exactly where it is needed.
+                ordered.insert(
+                    NoteGroup(
+                        status: .missed,
+                        detail: LensState.driftDetail,
+                        notes: [],
+                        reportedCount: missedCount
+                    ),
+                    at: 0
+                )
+            }
+            return ordered
+        }
+
+        /// Where this lens stands on the page in front of the user. See
+        /// ``LensState/Standing``.
+        public var standing: Standing {
+            LensState.standing(
+                suppressed: isSuppressed,
+                applied: appliedCount,
+                missed: missedCount,
+                total: totalCount
+            )
+        }
+
         /// Whether this row has anything the user can act on with **Re-fit**.
         ///
         /// Drift with no notes is a real state and not a rare one: a report can name
@@ -95,6 +159,106 @@ public struct LensState: Equatable, Sendable {
         public var canRefit: Bool { isDrifted }
     }
 
+    /// Where a lens — one of them, or all of them together — stands on the page in
+    /// front of the user.
+    ///
+    /// One vocabulary for the toolbar button and the popover, because they are two
+    /// views of one fact and they were drifting apart: the button had three states
+    /// and the popover had a chip, and neither could tell a lens with one stale op
+    /// from a lens that had stopped landing entirely. That distinction is the whole
+    /// job of this surface — a false alarm and a dead lens must not look the same —
+    /// so it is a case here rather than a comparison written out at each drawing
+    /// site.
+    ///
+    /// Every case is derived from counts the page reported. Nothing here can be
+    /// reached without a report, which is invariant 8 holding at the type level:
+    /// ``silent`` is the state before the page has spoken, and it draws no number.
+    public enum Standing: Equatable, Sendable {
+        /// No report yet. Not zero, not optimistic — nothing.
+        case silent
+        /// Zentic's own render is on screen, so none of what this lens does is
+        /// visible. Not a failure: ⌘\ and it is all there.
+        case suppressed
+        /// Nothing drifted. Ops may still carry a note — an ambiguous match, a
+        /// budget skip — and none of those is a warning about the site.
+        case holding(applied: Int, of: Int)
+        /// Part of the lens stopped matching. The rest is still on the page, which
+        /// is why this is not the same state as ``stopped``.
+        case drifting(missed: Int, of: Int)
+        /// Nothing matched. Every change this lens makes is off the page.
+        case stopped(of: Int)
+
+        /// Whether there is something here the user can act on. Exactly the two
+        /// cases drawn in amber: colour means "you can do something about this".
+        public var needsAttention: Bool {
+            switch self {
+            case .drifting, .stopped: return true
+            case .silent, .suppressed, .holding: return false
+            }
+        }
+    }
+
+    /// The clause drift is explained with, in one place because two render it:
+    /// ``detail(for:)`` puts it on a note and ``Entry/noteGroups`` puts it on a
+    /// group that has no notes to take it from.
+    static let driftDetail = "no longer matches this page"
+
+    /// One outcome, and every op that shares it.
+    ///
+    /// See ``Entry/noteGroups``: the group is what carries the reason, so a row is
+    /// free to be the op's own sentence and nothing else.
+    public struct NoteGroup: Equatable, Sendable, Identifiable {
+        public var status: LensOpStatus
+        /// The clause every op in this group shares — the page's own words for
+        /// everything except drift, which is ours. See ``LensState/detail(for:)``.
+        public var detail: String
+        /// The ops this group can name, in the lens's own op order.
+        public var notes: [OpNote]
+        /// How many ops the page put in this state, which is ``notes`` everywhere
+        /// except drift. Set by ``Entry/noteGroups``; see the note there.
+        public var reportedCount: Int?
+
+        public init(
+            status: LensOpStatus,
+            detail: String,
+            notes: [OpNote],
+            reportedCount: Int? = nil
+        ) {
+            self.status = status
+            self.detail = detail
+            self.notes = notes
+            self.reportedCount = reportedCount
+        }
+
+        public var id: String { "\(status.rawValue)\u{1}\(detail)" }
+
+        /// This is the group **Re-fit** repairs.
+        public var isDrift: Bool { status == .missed }
+
+        /// How many ops the heading speaks for.
+        public var count: Int { max(reportedCount ?? 0, notes.count) }
+
+        /// The page put ops in this state that this lens cannot name — it has been
+        /// edited since the page loaded. Worth one line, because otherwise the
+        /// heading counts higher than the rows under it for no visible reason.
+        public var hasUnnamed: Bool { count > notes.count }
+
+        /// The heading: the reason, said once, with the count it covers.
+        ///
+        /// Drift gets a sentence of ours that agrees with its own subject, because
+        /// drift's clause is ours to write. Every other status quotes the engine
+        /// verbatim, so the count is set off with a dash rather than folded into a
+        /// sentence we would have to conjugate on the page's behalf.
+        public var title: String {
+            guard !isDrift else {
+                return count == 1
+                    ? "1 change no longer matches this page"
+                    : "\(count) changes no longer match this page"
+            }
+            return "\(count == 1 ? "1 change" : "\(count) changes") — \(detail)"
+        }
+    }
+
     /// One op that did not simply apply, in the user's terms.
     ///
     /// There is one of these for **every** ``LensOpStatus`` other than
@@ -106,6 +270,27 @@ public struct LensState: Equatable, Sendable {
     /// status no surface renders is a silent failure by construction, which is why
     /// `LensStateTests.everyStatusReachesTheUser` drives itself from the enum.
     public struct OpNote: Equatable, Sendable, Identifiable {
+        /// The selector this op went through, and whether it got there.
+        ///
+        /// Two cases and not one string, because the difference is the whole value
+        /// of showing it. ``matched`` is the page's own report of which candidate
+        /// won; ``tried`` is the lens's first candidate for a region the resolver
+        /// ran against and failed to find. Printing both as bare text would let the
+        /// popover imply an element was found when the page said the opposite,
+        /// which is the shape invariant 8 forbids.
+        public enum Anchor: Equatable, Sendable {
+            /// The page resolved the op through this selector and said so.
+            case matched(String)
+            /// Nothing matched, and this is what the lens looked for.
+            case tried(String)
+
+            public var selector: String {
+                switch self {
+                case .matched(let selector), .tried(let selector): return selector
+                }
+            }
+        }
+
         public var opID: String
         /// The user's own sentence for what the op does ("hide the suggestions"),
         /// which is the only description of a stale op they can act on — a
@@ -114,6 +299,13 @@ public struct LensState: Equatable, Sendable {
         public var status: LensOpStatus
         /// What happened, as one clause to follow the note.
         public var detail: String
+        /// Which anchor this op went through, when there is one to name.
+        ///
+        /// Carried on every ``LensOpResult`` since the wire format existed and
+        /// drawn nowhere, which cost the user the single most useful fact on a
+        /// drifted row: *which* anchor was tried decides whether Re-fit is the
+        /// answer or the lens wants editing.
+        public var anchor: Anchor?
 
         public var id: String { opID }
 
@@ -121,11 +313,18 @@ public struct LensState: Equatable, Sendable {
         /// and the only one drawn as a warning.
         public var isDrift: Bool { status == .missed }
 
-        public init(opID: String, note: String, status: LensOpStatus, detail: String) {
+        public init(
+            opID: String,
+            note: String,
+            status: LensOpStatus,
+            detail: String,
+            anchor: Anchor? = nil
+        ) {
             self.opID = opID
             self.note = note
             self.status = status
             self.detail = detail
+            self.anchor = anchor
         }
     }
 
@@ -213,6 +412,42 @@ public struct LensState: Equatable, Sendable {
         return "\(appliedCount)/\(totalCount)"
     }
 
+    /// Where this page's lenses stand, taken together — the toolbar button's own
+    /// state, and the same vocabulary each row in the popover is drawn from.
+    ///
+    /// Says nothing about a site whose lenses are all switched off or all scoped
+    /// elsewhere: that is ``hasLenses`` and ``isActive``, a question about the lens
+    /// set rather than about what the page did with it, and the button answers it
+    /// before it gets here.
+    public var standing: Standing {
+        Self.standing(
+            suppressed: isSuppressed,
+            applied: appliedCount,
+            missed: missedCount,
+            total: totalCount
+        )
+    }
+
+    /// The one place the counts become a state, so the button and the row cannot
+    /// classify the same report differently.
+    ///
+    /// Order matters. Suppression outranks everything: under the reader's render
+    /// the counts are zeroed, and a lens that is fine would otherwise land in
+    /// ``Standing/silent`` and read as a lens nothing has been heard from. Then a
+    /// page that has not reported, then drift — where the *whole* set missing is
+    /// its own case, because "one op of six is stale" and "none of this lens is on
+    /// the page any more" want different amounts of the user's attention.
+    static func standing(suppressed: Bool, applied: Int, missed: Int, total: Int) -> Standing {
+        if suppressed { return .suppressed }
+        guard total > 0 else { return .silent }
+        // `applied` is not `total - missed`: an op can be skipped or ambiguous
+        // without any selector having gone stale, and those belong in the sentence
+        // the button says as much as they belong in the tally.
+        if missed == 0 { return .holding(applied: applied, of: total) }
+        if missed >= total { return .stopped(of: total) }
+        return .drifting(missed: missed, of: total)
+    }
+
     /// Build the state from the applied set and whatever the page has said about it.
     ///
     /// - Parameters:
@@ -292,9 +527,30 @@ public struct LensState: Equatable, Sendable {
                 opID: op.id,
                 note: op.note,
                 status: result.status,
-                detail: detail(for: result)
+                detail: detail(for: result),
+                anchor: anchor(for: result, op: op, in: lens)
             )
         }
+    }
+
+    /// Which selector to name beside an op, if any.
+    ///
+    /// The page's own `usedSelector` whenever it sent one — that is the candidate
+    /// that actually resolved, and no scan on this side can work it out. Falling
+    /// back to the lens's first candidate is confined to ``LensOpStatus/missed``,
+    /// because that is the one status where the resolver demonstrably ran and came
+    /// back empty. A budget skip never reached a selector at all, so printing one
+    /// as "tried" would describe an attempt the page never made.
+    private static func anchor(
+        for result: LensOpResult,
+        op: LensOp,
+        in lens: Lens
+    ) -> OpNote.Anchor? {
+        if let used = result.usedSelector, !used.isEmpty { return .matched(used) }
+        guard result.status == .missed,
+            let candidate = lens.regions.first(where: { $0.id == op.region })?.selectors.first
+        else { return nil }
+        return .tried(candidate)
     }
 
     /// What to put after the op's note.
@@ -319,7 +575,7 @@ public struct LensState: Equatable, Sendable {
     /// message — an older bundle, or one replayed from disk. A blank line under a
     /// note is a row that looks broken.
     private static func detail(for result: LensOpResult) -> String {
-        if result.status == .missed { return "no longer matches this page" }
+        if result.status == .missed { return driftDetail }
         if let message = result.message, !message.isEmpty { return message }
         switch result.status {
         case .applied, .missed:

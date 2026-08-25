@@ -1207,12 +1207,6 @@ extension BrowserViewController: SidebarViewDelegate {
         newTab(url: URL(string: urlString))
     }
 
-    func sidebar(_ sidebar: SidebarView, didSelectSpace id: UUID) {
-        guard let space = spaces.first(where: { $0.id == id }), space.id != activeSpace?.id else {
-            return
-        }
-        switchTo(space: space)
-    }
 
     func sidebar(_ sidebar: SidebarView, didRequestUnpinTab id: UUID) {
         setPinned(false, tabID: id)

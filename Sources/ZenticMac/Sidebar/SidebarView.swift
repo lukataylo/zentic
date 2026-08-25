@@ -8,7 +8,6 @@ protocol SidebarViewDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarView, didToggleGroup id: UUID)
     func sidebar(_ sidebar: SidebarView, didToggleFolder id: UUID)
     func sidebar(_ sidebar: SidebarView, didOpenBookmark urlString: String)
-    func sidebar(_ sidebar: SidebarView, didSelectSpace id: UUID)
     func sidebar(_ sidebar: SidebarView, didRequestUnpinTab id: UUID)
     func sidebarDidRequestNewTab(_ sidebar: SidebarView)
 }
@@ -95,19 +94,17 @@ private final class FlippedView: NSView {
 }
 
 /// The Arc-style sidebar: pinned grid, folders, `+ New Tab`, the live tab list,
-/// one level of tab groups, and the space switcher.
+/// one level of tab groups.
 final class SidebarView: PointerTrackingView {
     weak var delegate: (any SidebarViewDelegate)?
 
     private let scrollView = NSScrollView()
     private let stack = NSStackView()
     private let pinnedGrid = PinnedGridView()
-    private let spaceSwitcher = NSStackView()
 
     /// Rows keyed by tab id, so a title or favicon arriving late is a targeted
     /// update rather than a full rebuild that would drop the user's scroll position.
     private var tabRows: [UUID: SidebarRowView] = [:]
-    private var spaceTargets: [ClosureTarget] = []
     private var model = SidebarModel()
 
     override init(frame frameRect: NSRect) {
@@ -141,14 +138,8 @@ final class SidebarView: PointerTrackingView {
         scrollView.documentView = document
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        spaceSwitcher.orientation = .horizontal
-        spaceSwitcher.spacing = 6
-        spaceSwitcher.alignment = .centerY
-        spaceSwitcher.translatesAutoresizingMaskIntoConstraints = false
-
         addSubview(topInset)
         addSubview(scrollView)
-        addSubview(spaceSwitcher)
 
         NSLayoutConstraint.activate([
             topInset.topAnchor.constraint(equalTo: topAnchor),
@@ -159,18 +150,7 @@ final class SidebarView: PointerTrackingView {
             scrollView.topAnchor.constraint(equalTo: topInset.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: spaceSwitcher.topAnchor, constant: -6),
-
-            spaceSwitcher.leadingAnchor.constraint(
-                equalTo: leadingAnchor,
-                constant: Chrome.sidebarHorizontalPadding
-            ),
-            spaceSwitcher.trailingAnchor.constraint(
-                lessThanOrEqualTo: trailingAnchor,
-                constant: -Chrome.sidebarHorizontalPadding
-            ),
-            spaceSwitcher.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
-            spaceSwitcher.heightAnchor.constraint(equalToConstant: 26),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
 
             document.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
             document.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
@@ -253,7 +233,6 @@ final class SidebarView: PointerTrackingView {
         }
 
         stack.addView(spacer(12), in: .top)
-        rebuildSpaceSwitcher()
     }
 
     /// Selection changed but nothing else did.
@@ -374,39 +353,6 @@ final class SidebarView: PointerTrackingView {
         return row
     }
 
-    private func rebuildSpaceSwitcher() {
-        for view in spaceSwitcher.views { spaceSwitcher.removeView(view) }
-        spaceTargets.removeAll()
-        for space in model.spaces {
-            let button = NSButton()
-            button.isBordered = false
-            button.bezelStyle = .inline
-            button.imagePosition = .imageOnly
-            button.image = NSImage(systemSymbolName: space.symbolName, accessibilityDescription: space.title)
-            button.contentTintColor = space.id == model.activeSpaceID ? .labelColor : .tertiaryLabelColor
-            button.toolTip = space.title
-            button.translatesAutoresizingMaskIntoConstraints = false
-            button.widthAnchor.constraint(equalToConstant: 24).isActive = true
-            // `NSButton.target` is weak, so the closure box needs an owner that
-            // outlives the button. The sidebar is it.
-            let target = ClosureTarget { [weak self] in
-                guard let self else { return }
-                delegate?.sidebar(self, didSelectSpace: space.id)
-            }
-            spaceTargets.append(target)
-            button.target = target
-            button.action = #selector(ClosureTarget.fire)
-            spaceSwitcher.addView(button, in: .leading)
-        }
-
-        let label = NSTextField(
-            labelWithString: model.spaces.first { $0.id == model.activeSpaceID }?.title ?? ""
-        )
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
-        label.textColor = .secondaryLabelColor
-        label.lineBreakMode = .byTruncatingTail
-        spaceSwitcher.addView(label, in: .leading)
-    }
 }
 
 /// Boxes a closure as an ObjC target, for controls created in a loop.

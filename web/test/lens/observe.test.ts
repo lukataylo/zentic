@@ -38,7 +38,7 @@ describe("LensObservers", () => {
   });
 
   const watch = (
-    budget = { debounceMs: 80, maxPassesPerSecond: 8 },
+    budget = { debounceMs: 80, maxPassesPerSecond: 8, appearanceWindowMs: 8000 },
     now?: () => number,
   ): LensObservers => {
     observers = now
@@ -92,7 +92,7 @@ describe("LensObservers", () => {
   it("does not loop when its own pass mutates what it is watching", async () => {
     // The crux. Our mutations are delivered after the pass returns, so a "busy"
     // flag would already be false; `takeRecords()` consumes them instead.
-    observers = new LensObservers({ debounceMs: 10, maxPassesPerSecond: 8 }, (target) => {
+    observers = new LensObservers({ debounceMs: 10, maxPassesPerSecond: 8, appearanceWindowMs: 8000 }, (target) => {
       runs.push(target);
       const item = document.createElement("li");
       item.textContent = "added by the pass";
@@ -115,7 +115,7 @@ describe("LensObservers", () => {
 
   it("holds the passes-per-second cap, and defers rather than drops", async () => {
     let clock = 0;
-    watch({ debounceMs: 1, maxPassesPerSecond: 2 }, () => clock);
+    watch({ debounceMs: 1, maxPassesPerSecond: 2, appearanceWindowMs: 8000 }, () => clock);
 
     for (let index = 0; index < 3; index += 1) {
       append(`burst ${index}`);
@@ -153,7 +153,7 @@ describe("LensObservers", () => {
 
     // A lens whose live ops on both regions land on the same rows — one `filter`
     // on the list and one `reorder` on the column that holds it.
-    observers = new LensObservers({ debounceMs: 10, maxPassesPerSecond: 8 }, (target) => {
+    observers = new LensObservers({ debounceMs: 10, maxPassesPerSecond: 8, appearanceWindowMs: 8000 }, (target) => {
       runs.push(target);
       inner.appendChild(document.createElement("li"));
     });
@@ -191,7 +191,7 @@ describe("LensObservers", () => {
     const right = document.querySelector("#right")!;
 
     let reacted = false;
-    observers = new LensObservers({ debounceMs: 10, maxPassesPerSecond: 8 }, (target) => {
+    observers = new LensObservers({ debounceMs: 10, maxPassesPerSecond: 8, appearanceWindowMs: 8000 }, (target) => {
       runs.push(target);
       if (target !== left || reacted) return;
       reacted = true;
@@ -225,7 +225,7 @@ describe("LensObservers", () => {
     // router that navigates on every click could therefore buy itself unlimited
     // quota simply by navigating.
     let clock = 0;
-    watch({ debounceMs: 1, maxPassesPerSecond: 2 }, () => clock);
+    watch({ debounceMs: 1, maxPassesPerSecond: 2, appearanceWindowMs: 8000 }, () => clock);
 
     for (let index = 0; index < 2; index += 1) {
       append(`burst ${index}`);
@@ -267,6 +267,121 @@ describe("LensObservers", () => {
     expect(runs).toHaveLength(0);
     expect(observers.count).toBe(0);
   });
+});
+
+// MARK: - Waiting for a region that has not rendered yet
+
+/**
+ * The bound on the other half of the machinery.
+ *
+ * An observer costs the page nothing once the region it watches stops changing.
+ * A schedule costs whatever it is allowed to cost, for as long as it is allowed
+ * to run — so the only thing standing between "re-check until the region shows
+ * up" and a timer running for the life of the tab is the window and the backoff,
+ * and both of them are worth a test that would notice them being removed.
+ */
+describe("LensObservers.watchForAppearance", () => {
+  const budget = { debounceMs: 80, maxPassesPerSecond: 8, appearanceWindowMs: 8000 };
+  let observers: LensObservers;
+  let at: number[];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    at = [];
+  });
+
+  afterEach(() => {
+    observers?.disconnectAll();
+    vi.useRealTimers();
+  });
+
+  /** Elapsed ms since the watch was armed, which is what the schedule is about. */
+  const wait = (recheck: () => boolean): void => {
+    const start = Date.now();
+    observers = new LensObservers(budget, () => {});
+    observers.watchForAppearance(() => {
+      at.push(Date.now() - start);
+      return recheck();
+    });
+  };
+
+  it("gives up at the window rather than running for the life of the tab", () => {
+    wait(() => true);
+
+    vi.advanceTimersByTime(60_000);
+
+    // A doubling backoff from the debounce, clamped so the last check lands on
+    // the deadline: front-loaded, because content that lazy-renders at all mostly
+    // renders early, and cheap in the tail, where it is least likely to pay off.
+    expect(at).toEqual([80, 240, 560, 1200, 2480, 5040, 8000]);
+    expect(at[at.length - 1]).toBe(budget.appearanceWindowMs);
+  });
+
+  it("stops the moment nothing is missing any more", () => {
+    let found = false;
+    wait(() => !found);
+
+    vi.advanceTimersByTime(80);
+    expect(at).toHaveLength(1);
+
+    // The region rendered, so the second check is the last one.
+    found = true;
+    vi.advanceTimersByTime(60_000);
+    expect(at).toHaveLength(2);
+  });
+
+  it("stops on disconnect, like everything else this class owns", () => {
+    wait(() => true);
+    observers.disconnectAll();
+
+    vi.advanceTimersByTime(60_000);
+    expect(at).toHaveLength(0);
+  });
+
+  it("replaces a watch already running rather than doubling the rate", () => {
+    wait(() => true);
+    observers.watchForAppearance(() => {
+      at.push(-1);
+      return false;
+    });
+
+    vi.advanceTimersByTime(60_000);
+    expect(at).toEqual([-1]);
+  });
+
+  it("defers to the live passes when the rate window is full, and does not lose a step", () => {
+    // Both spend the same thing — this second of this tab's main thread — so they
+    // share the window. A feed churning at the cap must not be able to burn the
+    // appearance budget in retries: a deferred check comes back at the same point
+    // in the backoff it was deferred from.
+    let clock = 0;
+    observers = new LensObservers(
+      { debounceMs: 1, maxPassesPerSecond: 2, appearanceWindowMs: 8000 },
+      () => {},
+      () => clock,
+    );
+    observers.watchForAppearance(() => {
+      at.push(clock);
+      return true;
+    });
+
+    // Two live passes have already taken this second's whole allowance.
+    observers.watch(feedOf());
+    const filled = observers as unknown as { passes: number[] };
+    filled.passes = [0, 0];
+
+    vi.advanceTimersByTime(1);
+    expect(at).toHaveLength(0);
+
+    clock = 1000;
+    vi.advanceTimersByTime(1000);
+    expect(at).toEqual([1000]);
+  });
+
+  const feedOf = (): Element => {
+    document.body.innerHTML = `<ul id="wait-feed"></ul>`;
+    return document.querySelector("#wait-feed")!;
+  };
 });
 
 describe("LensEngine live regions", () => {

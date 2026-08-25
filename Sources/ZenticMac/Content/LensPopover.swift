@@ -84,7 +84,9 @@ final class LensPopover: NSObject {
         rows.map { row in
             let entry = row.entry
             let notes: String = (entry?.notes ?? [])
-                .map { "\($0.note)=\($0.status.rawValue)=\($0.detail)" }
+                .map {
+                    "\($0.note)=\($0.status.rawValue)=\($0.detail)=\($0.anchor?.selector ?? "")"
+                }
                 .joined(separator: "·")
             var fields: [String] = [row.lens.id, row.lens.name]
             fields.append(row.lens.isEnabled ? "on" : "off")
@@ -154,15 +156,26 @@ private final class LensListViewController: NSViewController {
     private var rows: [LensPopover.Row]
     private let actions: LensPopover.Actions
 
-    private let rowsStack = NSStackView()
+    private let rowsStack = FlippedStackView()
     /// AppKit holds targets weakly, so the closures behind the footer links and the
     /// row menus need an owner for as long as the popover is up.
     private var buttonTargets: [ClosureTarget] = []
     weak var popover: NSPopover?
 
-    /// Popover width. Wide enough for a name, a tally and the actions button on one
-    /// line, and for a missed op's note to read as a sentence underneath.
-    private static let width: CGFloat = 340
+    /// Popover width. Wide enough for a name, a meter, a tally and the actions
+    /// button on one line, and for an op's note plus the selector it went through
+    /// to read as one line underneath.
+    private static let width: CGFloat = 360
+
+    /// How tall the list of lenses may get before it scrolls.
+    ///
+    /// A cap rather than a taller popover, because the two things that make this
+    /// list long are unbounded: a site can hold any number of lenses, and each row
+    /// explains itself in place rather than behind a disclosure triangle. Roughly a
+    /// dozen rows on a laptop screen, with the header and the footer staying put
+    /// outside the scroll so **New Lens…** never scrolls away. The per-lens half of
+    /// the same problem is capped separately — see ``LensRowView/maxNoteRows``.
+    private static let maxListHeight: CGFloat = 400
 
     init(host: String?, rows: [LensPopover.Row], actions: LensPopover.Actions) {
         self.host = host
@@ -184,11 +197,13 @@ private final class LensListViewController: NSViewController {
 
         rowsStack.orientation = .vertical
         rowsStack.alignment = .leading
-        rowsStack.spacing = 2
+        rowsStack.spacing = 6
         rowsStack.translatesAutoresizingMaskIntoConstraints = false
         for row in rows { rowsStack.addArrangedSubview(makeRow(row)) }
         if rows.isEmpty { rowsStack.addArrangedSubview(emptyState()) }
-        container.addArrangedSubview(rowsStack)
+
+        let scroll = scroller(around: rowsStack)
+        container.addArrangedSubview(scroll)
 
         container.addArrangedSubview(separator())
         container.addArrangedSubview(footer())
@@ -196,8 +211,46 @@ private final class LensListViewController: NSViewController {
         NSLayoutConstraint.activate([
             container.widthAnchor.constraint(equalToConstant: Self.width),
             rowsStack.widthAnchor.constraint(equalToConstant: Self.width - 28),
+            scroll.widthAnchor.constraint(equalToConstant: Self.width - 28),
         ])
+
+        // The scroller's height is *measured*, not related to the list's by a
+        // constraint. Any constraint tying the two — an equality, or an inequality
+        // at any priority — is one the solver may also satisfy by squashing the
+        // list to fit the cap, and squash is what it did: three forty-op lenses
+        // came out as three overlapping stacks inside a scroll view with nothing
+        // left to scroll. A constant cannot be resolved from the wrong end. It is
+        // computed once because the whole list is rebuilt whenever anything in it
+        // changes — see `LensPopover.update(rows:actions:)`.
+        scroll.heightAnchor.constraint(
+            equalToConstant: min(rowsStack.fittingSize.height, Self.maxListHeight)
+        ).isActive = true
         view = container
+    }
+
+    /// The rows, in something that can run out of room.
+    ///
+    /// The document view is flipped so the list starts at the top: an unflipped
+    /// `NSStackView` in a clip view lays out from the bottom edge, which shows up
+    /// as a popover that opens already scrolled to its last lens.
+    private func scroller(around document: NSView) -> NSScrollView {
+        let scroll = NSScrollView()
+        // Transparent all the way down: the popover paints its own vibrant ground
+        // and a scroll view's default white would cut a rectangle out of it.
+        scroll.drawsBackground = false
+        scroll.contentView.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.scrollerStyle = .overlay
+        scroll.autohidesScrollers = true
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.documentView = document
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+        ])
+        return scroll
     }
 
     // MARK: Chrome
@@ -338,7 +391,13 @@ private final class LensListViewController: NSViewController {
 
 // MARK: - Row
 
-/// One lens: a switch, a name, what it did, and why part of it did not.
+/// One lens: a switch, a name, how much of it is on the page, and — grouped by
+/// outcome — an account of whatever is not.
+///
+/// The row reads left to right as it is meant to be scanned: the switch, the name,
+/// then a meter and a tally that answer "how much of this is working" before any
+/// text is read. Everything below the top line explains a state that is not simply
+/// "it applied".
 private final class LensRowView: NSView {
     var onToggle: ((Bool) -> Void)?
     var onMenu: ((NSView) -> Void)?
@@ -386,17 +445,56 @@ private final class LensRowView: NSView {
         spacer.translatesAutoresizingMaskIntoConstraints = false
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
+        // What the right-hand end of the row says, by state. Only two of the five
+        // spend any colour: a lens that is working must not read as a warning, so
+        // amber is kept for the two states with a repair behind them.
         var trailing: [NSView] = []
-        if let tally = row.entry?.tally {
-            trailing.append(Self.tallyLabel(tally, drifted: row.entry?.isDrifted ?? false))
-        }
-        if row.entry?.isDrifted ?? false {
-            trailing.append(Self.chip("drift", colour: .systemOrange))
-        } else if row.entry == nil, row.lens.isEnabled {
+        if let entry = row.entry {
+            switch entry.standing {
+            case .silent:
+                // The page has not answered. No meter and no number — a bar drawn
+                // from nothing is exactly the fabrication invariant 8 is about.
+                break
+            case .suppressed:
+                trailing.append(
+                    Self.chip(
+                        "not on screen",
+                        colour: .secondaryLabelColor,
+                        tip: "This lens acts on the site's own page — ⌘\\ to see it"
+                    )
+                )
+            case .holding:
+                trailing.append(Self.meter(for: entry))
+                trailing.append(Self.tallyLabel(entry.tally, colour: .secondaryLabelColor))
+            case .drifting:
+                trailing.append(Self.meter(for: entry))
+                trailing.append(Self.tallyLabel(entry.tally, colour: .systemOrange))
+            case .stopped:
+                // The one row that gets a word as well as a colour. `0/3` in amber
+                // is already the strongest tally the meter can draw, and a lens
+                // with nothing left on the page is worth naming rather than making
+                // the user read the proportion.
+                trailing.append(Self.meter(for: entry))
+                trailing.append(Self.tallyLabel(entry.tally, colour: .systemOrange))
+                trailing.append(
+                    Self.chip(
+                        "stopped",
+                        colour: .systemOrange,
+                        tip: "Nothing this lens changes matches this page any more"
+                    )
+                )
+            }
+        } else if row.lens.isEnabled {
             // On, but scoped to a path this page is not on. Said plainly, because a
             // lens working perfectly on `/watch` otherwise looks, from the home
             // page, exactly like one that has stopped working.
-            trailing.append(Self.chip(Self.scope(row.lens.pathPattern), colour: .secondaryLabelColor))
+            trailing.append(
+                Self.chip(
+                    Self.scope(row.lens.pathPattern),
+                    colour: .secondaryLabelColor,
+                    tip: "On, but only for pages matching \(row.lens.pathPattern)"
+                )
+            )
         }
 
         let top = NSStackView(views: [checkbox, name, spacer] + trailing + [menuButton])
@@ -430,21 +528,24 @@ private final class LensRowView: NSView {
 
     // MARK: Detail
 
-    /// The part of the row that explains itself: every op that did not simply
-    /// apply, in the user's own words for it.
+    /// The part of the row that explains itself: what the page did with this lens,
+    /// gathered into one block per outcome.
     ///
     /// Shown expanded rather than behind a disclosure triangle. A drifted lens is
     /// the one thing in this popover that needs the user to do something, and a
     /// row that hides why it is amber until clicked is a row that will be ignored.
     ///
-    /// One line per ``LensState/OpNote``, unconditionally, which is what makes
-    /// every ``LensOpStatus`` visible somewhere. It used to be two hand-picked
-    /// lists — the `missed` ops, and the `skipped` ones — so an op reported
-    /// `ambiguous` or `failed` counted against the tally and then appeared nowhere:
-    /// the row said `3/4` and offered no account of the fourth.
+    /// The shape is a heading per ``LensState/NoteGroup`` and a row per
+    /// ``LensState/OpNote`` under it, which is what makes every ``LensOpStatus``
+    /// visible somewhere while saying each reason once. It used to be one line per
+    /// note, each of them the op's sentence with the reason glued on the end — so
+    /// three drifted ops printed "— no longer matches this page" three times, in
+    /// amber, over the only text on the row that differed. Now the reason is the
+    /// heading, the row is the user's own sentence in full weight, and the selector
+    /// the op went through sits at the end of it in tertiary mono.
     private func detail(for row: LensPopover.Row, width: CGFloat) -> NSView? {
         let entry = row.entry
-        let notes = entry?.notes ?? []
+        let groups = entry?.noteGroups ?? []
 
         // Said in the past tense, muted, and without a tally, because it describes a
         // page load that is over. Not gated on having an entry: see `historyLine`.
@@ -458,14 +559,13 @@ private final class LensRowView: NSView {
                 ?? "Zentic is showing its own render — this lens acts on the site's page (⌘\\)"
             : nil
 
-        guard !notes.isEmpty || history != nil || suppression != nil || entry?.canRefit == true
-        else { return nil }
+        guard !groups.isEmpty || history != nil || suppression != nil else { return nil }
 
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 2
-        stack.edgeInsets = NSEdgeInsets(top: 2, left: Self.detailIndent, bottom: 2, right: 0)
+        stack.spacing = 5
+        stack.edgeInsets = NSEdgeInsets(top: 3, left: Self.detailIndent, bottom: 1, right: 0)
 
         if let history {
             stack.addArrangedSubview(
@@ -473,57 +573,216 @@ private final class LensRowView: NSView {
             )
         }
 
+        // Deliberately plain: no stripe, no heading, no count. Suppression is the
+        // one state here that is not a fault, and anything that made it look like
+        // the drift blocks below would send the user to repair a lens that is fine.
         if let suppression {
             stack.addArrangedSubview(
                 Self.line(suppression, colour: .secondaryLabelColor, width: width)
             )
         }
 
-        // Amber for drift, because it is the only one of these the user can act on
-        // and the only one that means the site changed. Everything else is the page
-        // telling us what it did with an op, which is information, not a warning.
-        for note in notes {
+        // Rows are budgeted across the whole lens rather than per group, so a lens
+        // of forty ops cannot push the ones below it off the screen. Headings are
+        // never dropped — there are at most four, one per status, and each carries
+        // its own count — so nothing the page reported goes unmentioned.
+        var budget = Self.maxNoteRows
+        let stopped: Bool = if case .stopped = entry?.standing { true } else { false }
+        for group in groups {
             stack.addArrangedSubview(
-                Self.line(
-                    "\(note.note) — \(note.detail)",
-                    colour: note.isDrift ? .systemOrange : .secondaryLabelColor,
+                groupView(
+                    group,
+                    budget: &budget,
+                    refit: entry?.canRefit == true ? (stopped ? .prominent : .quiet) : nil,
                     width: width
                 )
             )
         }
-        // Drift with nothing to list is a real state, not a contradiction: the page
-        // is still running the shape of the lens it was handed, so it can report op
-        // ids another window has already edited away. The row was amber with nothing
-        // under it and no button, which put the one action that repairs it out of
-        // reach exactly when it was needed.
-        if let entry, entry.isDrifted, entry.driftNotes.isEmpty {
-            stack.addArrangedSubview(
+        return stack
+    }
+
+    /// How loudly the repair is offered. See ``groupView(_:budget:refit:width:)``.
+    private enum Refit {
+        case quiet
+        case prominent
+    }
+
+    /// One outcome: a tinted stripe, the reason once, and the ops it covers.
+    private func groupView(
+        _ group: LensState.NoteGroup,
+        budget: inout Int,
+        refit: Refit?,
+        width: CGFloat
+    ) -> NSView {
+        let stripeWidth: CGFloat = 2
+        let gap: CGFloat = 8
+        let contentWidth = width - stripeWidth - gap
+
+        let column = NSStackView()
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 2
+        column.translatesAutoresizingMaskIntoConstraints = false
+
+        let heading = Self.line(
+            group.title,
+            colour: group.isDrift ? .systemOrange : .secondaryLabelColor,
+            width: contentWidth
+        )
+        heading.font = .systemFont(ofSize: 10.5, weight: .semibold)
+        column.addArrangedSubview(heading)
+
+        let shown = max(0, min(budget, group.notes.count))
+        budget -= shown
+        for note in group.notes.prefix(shown) {
+            column.addArrangedSubview(Self.noteRow(note, width: contentWidth))
+        }
+        if shown < group.notes.count {
+            column.addArrangedSubview(
                 Self.line(
-                    "\(entry.missedCount) of \(entry.totalCount) changes did not match — "
-                        + "this lens has been edited since the page loaded",
-                    colour: .systemOrange,
-                    width: width
+                    "…and \(group.notes.count - shown) more",
+                    colour: .tertiaryLabelColor,
+                    width: contentWidth
+                )
+            )
+        }
+        // The heading counts what the page reported; these are the ops it named that
+        // this lens no longer holds, because another window edited it while the page
+        // kept running the shape it was handed. Without this line the heading simply
+        // counts higher than the rows under it, for no reason the user can see.
+        if group.hasUnnamed {
+            column.addArrangedSubview(
+                Self.line(
+                    "this lens has been edited since the page loaded",
+                    colour: .tertiaryLabelColor,
+                    width: contentWidth
                 )
             )
         }
 
-        if entry?.canRefit == true {
-            let target = ClosureTarget(action: { [weak self] in self?.onRefit?() })
-            refitTarget = target
-            let button = NSButton(
-                title: "Re-fit to This Page",
-                target: target,
-                action: #selector(ClosureTarget.fire)
-            )
-            button.bezelStyle = .inline
-            button.controlSize = .small
-            button.font = .systemFont(ofSize: 11, weight: .medium)
-            button.contentTintColor = .controlAccentColor
-            button.toolTip = "Ask the model for fresh selectors, from what this lens was for."
-            stack.addArrangedSubview(button)
+        // Re-fit belongs to the drift block and nothing else — it asks the model for
+        // fresh selectors, which repairs a stale anchor and does nothing whatever
+        // for a budget skip. Its weight follows how much is actually broken: a
+        // bordered button when the lens has stopped landing entirely, a quiet link
+        // when one op of several has gone stale and the rest of the lens is fine.
+        if group.isDrift, let refit {
+            column.addArrangedSubview(refitButton(prominent: refit == .prominent))
         }
-        return stack
+
+        let stripe = NSBox()
+        stripe.boxType = .custom
+        stripe.borderWidth = 0
+        stripe.titlePosition = .noTitle
+        stripe.fillColor = group.isDrift ? .systemOrange : .quaternaryLabelColor
+        stripe.translatesAutoresizingMaskIntoConstraints = false
+
+        let block = NSStackView(views: [stripe, column])
+        block.orientation = .horizontal
+        block.alignment = .top
+        block.spacing = gap
+        block.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            stripe.widthAnchor.constraint(equalToConstant: stripeWidth),
+            // The stripe is the group's left edge, so it has to be as tall as the
+            // group; a stack view alone would leave it at its intrinsic zero height.
+            stripe.heightAnchor.constraint(equalTo: column.heightAnchor),
+            block.widthAnchor.constraint(equalToConstant: width),
+        ])
+        return block
     }
+
+    /// The repair, at one of two weights. See ``groupView(_:budget:refit:width:)``.
+    private func refitButton(prominent: Bool) -> NSButton {
+        let target = ClosureTarget(action: { [weak self] in self?.onRefit?() })
+        refitTarget = target
+        let button = NSButton(
+            title: prominent ? "Re-fit to This Page" : "Re-fit",
+            target: target,
+            action: #selector(ClosureTarget.fire)
+        )
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: 11, weight: .medium)
+        button.toolTip = "Ask the model for fresh selectors, from what this lens was for."
+        if prominent {
+            button.bezelStyle = .rounded
+        } else {
+            button.isBordered = false
+            button.bezelStyle = .inline
+            button.contentTintColor = .controlAccentColor
+        }
+        return button
+    }
+
+    /// One op: the user's sentence, and the anchor it went through.
+    ///
+    /// The sentence is in full label colour at the row's own size — it is the most
+    /// informative text in this popover and it used to be drawn in the same muted
+    /// tint as the boilerplate after it. The selector trails in tertiary mono,
+    /// truncated in the middle because the ends of a selector are what identify it,
+    /// and it is never allowed to squeeze the sentence below half the row.
+    private static func noteRow(_ note: LensState.OpNote, width: CGFloat) -> NSView {
+        let sentence = NSTextField(labelWithString: note.note)
+        sentence.font = .systemFont(ofSize: 11)
+        sentence.textColor = .labelColor
+        sentence.lineBreakMode = .byWordWrapping
+        sentence.maximumNumberOfLines = 2
+        sentence.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        sentence.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        guard let anchor = note.anchor else {
+            sentence.preferredMaxLayoutWidth = width
+            return sentence
+        }
+
+        let gap: CGFloat = 8
+        sentence.preferredMaxLayoutWidth = width - Self.anchorWidth - gap
+
+        let selector = NSTextField(labelWithString: anchor.selector)
+        selector.font = .monospacedSystemFont(ofSize: 9.5, weight: .regular)
+        selector.textColor = .tertiaryLabelColor
+        selector.lineBreakMode = .byTruncatingMiddle
+        selector.maximumNumberOfLines = 1
+        selector.alignment = .right
+        selector.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        selector.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        // Which of the two it is decides the sentence, and it is not cosmetic: the
+        // popover must not imply an element was found where the page reported the
+        // opposite.
+        switch anchor {
+        case .matched(let used):
+            selector.toolTip = "The page matched \(used)"
+        case .tried(let candidate):
+            selector.toolTip = "The lens looked for \(candidate), and nothing on this page matched"
+        }
+        selector.translatesAutoresizingMaskIntoConstraints = false
+        selector.widthAnchor.constraint(lessThanOrEqualToConstant: Self.anchorWidth).isActive = true
+
+        let row = NSStackView(views: [sentence, selector])
+        row.orientation = .horizontal
+        // First baseline, so a sentence that wraps to two lines keeps the selector
+        // level with its first line rather than floating in the middle of it.
+        row.alignment = .firstBaseline
+        // `.fill` rather than the default gravity areas: the selector belongs at the
+        // right edge of the row, and gravity would park it against the sentence
+        // wherever that happened to end, so a column of selectors would zig-zag.
+        row.distribution = .fill
+        row.spacing = gap
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return row
+    }
+
+    /// How much of a note row the selector may take.
+    private static let anchorWidth: CGFloat = 116
+
+    /// Op rows drawn per lens before the rest become a count.
+    ///
+    /// A lens may hold forty ops and every one of them can come back unapplied, so
+    /// without a cap one bad lens owns the whole popover. Six is enough to read a
+    /// pattern — the same rail named three different ways, say — and the headings
+    /// above them still account for every op the page reported.
+    private static let maxNoteRows = 6
 
     /// How far the explanation under a row is indented: past the checkbox, so the
     /// lines sit under the lens's name rather than under its switch. Seventeen
@@ -541,14 +800,97 @@ private final class LensRowView: NSView {
         return label
     }
 
-    private static func tallyLabel(_ text: String, drifted: Bool) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
+    private static func tallyLabel(_ text: String?, colour: NSColor) -> NSTextField {
+        let label = NSTextField(labelWithString: text ?? "")
         // Tabular figures, as in the toolbar badge: the column of tallies down the
         // list only reads as a column if the digits line up.
         label.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold)
-        label.textColor = drifted ? .systemOrange : .secondaryLabelColor
+        label.textColor = colour
         label.toolTip = "Ops applied, out of ops in this lens — as reported by the page"
         return label
+    }
+
+    /// The proportion, as a bar: applied, then anything the page had a note about,
+    /// then drift.
+    ///
+    /// The tally says `5/6` and `0/6` in the same four characters, and the whole
+    /// complaint about this surface was that a lens mostly working and a lens
+    /// entirely dead looked alike. A bar is read before a number is: a sliver of
+    /// amber on the end of an accent bar is a different object from a bar that is
+    /// all amber, at a glance and from the corner of the eye.
+    ///
+    /// Drawn only from ``LensState/Entry/report`` counts. There is no bar at all
+    /// before the page reports, because a bar is a claim about proportions and we
+    /// would not have one.
+    private static func meter(for entry: LensState.Entry) -> NSView {
+        let total = max(1, entry.totalCount)
+        let counts = [
+            entry.appliedCount,
+            max(0, total - entry.appliedCount - entry.missedCount),
+            entry.missedCount,
+        ]
+        let colours: [NSColor] = [.controlAccentColor, .quaternaryLabelColor, .systemOrange]
+        let widths = Self.segmentWidths(counts, total: total, track: Self.meterWidth)
+
+        let segments = NSStackView()
+        segments.orientation = .horizontal
+        segments.spacing = 0
+        segments.translatesAutoresizingMaskIntoConstraints = false
+        for (index, width) in widths.enumerated() where width > 0 {
+            let segment = NSBox()
+            segment.boxType = .custom
+            segment.borderWidth = 0
+            segment.titlePosition = .noTitle
+            segment.fillColor = colours[index]
+            segment.translatesAutoresizingMaskIntoConstraints = false
+            segment.widthAnchor.constraint(equalToConstant: width).isActive = true
+            segments.addArrangedSubview(segment)
+        }
+
+        let track = NSView()
+        track.wantsLayer = true
+        track.layer?.cornerRadius = Self.meterHeight / 2
+        track.layer?.cornerCurve = .continuous
+        track.layer?.masksToBounds = true
+        track.translatesAutoresizingMaskIntoConstraints = false
+        track.addSubview(segments)
+        track.toolTip = entry.standing.needsAttention
+            ? "\(entry.missedCount) of \(entry.totalCount) changes no longer match this page"
+            : "\(entry.appliedCount) of \(entry.totalCount) changes applied"
+
+        NSLayoutConstraint.activate([
+            track.widthAnchor.constraint(equalToConstant: Self.meterWidth),
+            track.heightAnchor.constraint(equalToConstant: Self.meterHeight),
+            segments.leadingAnchor.constraint(equalTo: track.leadingAnchor),
+            segments.topAnchor.constraint(equalTo: track.topAnchor),
+            segments.bottomAnchor.constraint(equalTo: track.bottomAnchor),
+        ])
+        return track
+    }
+
+    private static let meterWidth: CGFloat = 30
+    private static let meterHeight: CGFloat = 3
+
+    /// Segment widths that fill the track, with any non-zero share at least two
+    /// points wide.
+    ///
+    /// One missed op out of forty is three quarters of a point on a thirty-point
+    /// track — a segment nobody can see, which on this surface is a lie by
+    /// omission. The floor is taken back off the widest segment, which is the only
+    /// one with room to give it.
+    private static func segmentWidths(
+        _ counts: [Int],
+        total: Int,
+        track: CGFloat
+    ) -> [CGFloat] {
+        var widths = counts.map { count -> CGFloat in
+            count <= 0 ? 0 : max(2, track * CGFloat(count) / CGFloat(total))
+        }
+        let overflow = widths.reduce(0, +) - track
+        if overflow > 0, let widest = widths.indices.max(by: { widths[$0] < widths[$1] }) {
+            widths[widest] = max(0, widths[widest] - overflow)
+        }
+        return widths
     }
 
     /// A path pattern short enough to sit in a chip. The literal pattern is what the
@@ -559,7 +901,7 @@ private final class LensRowView: NSView {
     }
 
     /// A small capsule. Used for states, never for counts.
-    private static func chip(_ text: String, colour: NSColor) -> NSView {
+    private static func chip(_ text: String, colour: NSColor, tip: String?) -> NSView {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 9.5, weight: .semibold)
         label.textColor = colour
@@ -571,6 +913,7 @@ private final class LensRowView: NSView {
         box.layer?.cornerCurve = .continuous
         box.layer?.backgroundColor = colour.withAlphaComponent(0.14).cgColor
         box.translatesAutoresizingMaskIntoConstraints = false
+        box.toolTip = tip
         box.addSubview(label)
 
         NSLayoutConstraint.activate([
@@ -591,4 +934,13 @@ private final class LensRowView: NSView {
     @objc private func showMenu() {
         onMenu?(menuButton)
     }
+}
+
+/// A stack view that lays out from its top edge.
+///
+/// Only needed because it is a scroll view's document view: `NSClipView` positions
+/// an unflipped document against the *bottom* of its content, so the list opened
+/// already scrolled to the last lens on any site with enough of them to scroll.
+private final class FlippedStackView: NSStackView {
+    override var isFlipped: Bool { true }
 }

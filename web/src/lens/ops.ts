@@ -1798,3 +1798,18 @@ function applyInsert(context: RunContext, lens: Lens, op: LensOp): LensOpResult 
 export function isLiveOp(op: LensOp): boolean {
   return op.kind === "filter" || op.kind === "reorder";
 }
+
+/**
+ * Ops whose whole effect is a rule in the stylesheet.
+ *
+ * Two things follow from that, and the appearance re-check in `index.ts` needs
+ * both. They touch no node, so re-running one is free of consequence — it
+ * re-reads the DOM and produces a fresh `LensOpResult`, and that is all. And
+ * their report is a claim about the *sheet*: `usedSelector` names the selector
+ * the rule was written against, so a recompile that picks a different anchor
+ * invalidates the last thing said about them. Recompiling and re-reporting them
+ * together is what keeps the two from drifting apart.
+ */
+export function isCSSOp(op: LensOp): boolean {
+  return op.kind === "hide" || op.kind === "keep" || op.kind === "width" || op.kind === "restyle";
+}

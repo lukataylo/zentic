@@ -565,6 +565,315 @@ struct LensStateTests {
         #expect(state.entries[0].driftNotes.isEmpty)
     }
 
+    // MARK: One reason per group, not one per row
+
+    @Test("ops that stopped matching are one group with the reason said once")
+    func driftIsOneGroupWithOneReason() throws {
+        // The complaint this grouping exists for: three drifted ops drew three lines
+        // each ending "— no longer matches this page", in amber, which buries the
+        // only text on a row that differs — the op's own sentence.
+        let state = LensState.make(
+            lenses: [
+                lens(
+                    "a",
+                    ops: [
+                        op("1", note: "hide the suggestions rail"),
+                        op("2", note: "hide the comments"),
+                        op("3", note: "hide the end screen"),
+                    ]
+                )
+            ],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .missed),
+                        LensOpResult(opID: "2", status: .missed),
+                        LensOpResult(opID: "3", status: .missed),
+                    ]
+                )
+            ]
+        )
+
+        let groups = try #require(state.entries.first?.noteGroups)
+        #expect(groups.count == 1)
+        #expect(groups[0].isDrift)
+        #expect(groups[0].count == 3)
+        #expect(groups[0].title == "3 changes no longer match this page")
+        #expect(
+            groups[0].notes.map(\.note) == [
+                "hide the suggestions rail", "hide the comments", "hide the end screen",
+            ]
+        )
+        // The heading is the reason. Nothing is left for a row to repeat.
+        #expect(groups[0].notes.allSatisfy { $0.detail == "no longer matches this page" })
+    }
+
+    @Test("one drifted op is counted in the singular")
+    func oneDriftReadsAsOne() throws {
+        let state = LensState.make(
+            lenses: [lens("a", ops: [op("1"), op("2")])],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .applied, matchedCount: 1),
+                        LensOpResult(opID: "2", status: .missed),
+                    ]
+                )
+            ]
+        )
+
+        #expect(
+            state.entries[0].noteGroups.first?.title == "1 change no longer matches this page"
+        )
+    }
+
+    @Test("two different reasons are two groups, and drift leads")
+    func groupsSplitOnTheReasonAndDriftComesFirst() throws {
+        // Grouping on the status alone would fold two budget messages under one
+        // heading that is true of neither. Grouping on the reason keeps them apart,
+        // and drift is hoisted because it is the only group with a repair attached.
+        let budget = "the op pass ran out of budget before this op"
+        let state = LensState.make(
+            lenses: [
+                lens(
+                    "a",
+                    ops: [
+                        op("1", note: "widen the player"),
+                        op("2", note: "hide the comments"),
+                        op("3", note: "hide the end screen"),
+                        op("4", note: "hide the suggestions rail"),
+                    ]
+                )
+            ],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .skipped, message: budget),
+                        LensOpResult(opID: "2", status: .skipped, message: budget),
+                        LensOpResult(opID: "3", status: .ambiguous, message: "matched 4 places"),
+                        LensOpResult(opID: "4", status: .missed),
+                    ]
+                )
+            ]
+        )
+
+        let groups = state.entries[0].noteGroups
+        #expect(groups.map(\.status) == [.missed, .skipped, .ambiguous])
+        #expect(groups.map(\.count) == [1, 2, 1])
+        // The engine's sentence goes through verbatim, with the count set off rather
+        // than folded into a clause we would have to conjugate for it.
+        #expect(groups[1].title == "2 changes — \(budget)")
+        #expect(groups[2].title == "1 change — matched 4 places")
+        #expect(groups.filter(\.isDrift).count == 1)
+    }
+
+    @Test("a group counts what the page said, not only what the lens can name")
+    func aGroupCountsThePagesReport() throws {
+        // The page runs the shape of the lens it was handed until it reloads, so
+        // after an edit in another window it reports op ids this lens no longer
+        // holds. The heading has to agree with the tally beside the lens's name —
+        // counting the rows instead would print `1` under a `0/2`.
+        let state = LensState.make(
+            lenses: [lens("a", ops: [op("1", note: "hide the comments")])],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .missed),
+                        LensOpResult(opID: "gone", status: .missed),
+                    ]
+                )
+            ]
+        )
+
+        let group = try #require(state.entries[0].noteGroups.first)
+        #expect(group.count == 2)
+        #expect(group.notes.map(\.opID) == ["1"])
+        #expect(group.hasUnnamed)
+        #expect(group.title == "2 changes no longer match this page")
+    }
+
+    @Test("drift with nothing to name is still a group, so Re-fit stays reachable")
+    func driftWithNoNamedOpsIsStillAGroup() throws {
+        let state = LensState.make(
+            lenses: [lens("a", ops: [op("1")])],
+            reports: ["a": report("a", [LensOpResult(opID: "gone", status: .missed)])]
+        )
+
+        let group = try #require(state.entries[0].noteGroups.first)
+        #expect(group.isDrift)
+        #expect(group.notes.isEmpty)
+        #expect(group.count == 1)
+        #expect(group.hasUnnamed)
+        #expect(state.entries[0].canRefit)
+    }
+
+    @Test("under the reader there are no groups, because there is nothing to explain")
+    func suppressionDrawsNoGroups() {
+        let lens = lens("a", ops: [op("1"), op("2")])
+        let state = LensState.make(
+            lenses: [lens],
+            reports: [
+                "a": report(
+                    "a",
+                    lens.ops.map { LensOpResult(opID: $0.id, status: .skipped, message: "reader") }
+                )
+            ],
+            isReaderRendered: true
+        )
+
+        #expect(state.entries[0].noteGroups.isEmpty)
+    }
+
+    // MARK: Which anchor was tried
+
+    @Test("a drifted op names the anchor the lens looked for")
+    func driftNamesWhatWasTried() {
+        // `usedSelector` is unset on a miss, because nothing resolved — so the fact
+        // worth showing is the lens's own first candidate. Which anchor was tried is
+        // what decides whether Re-fit is the answer or the lens wants editing, and it
+        // was carried on every result and drawn nowhere.
+        let state = LensState.make(
+            lenses: [lens("a", regions: [region("rail", selector: "#secondary")], ops: [op("1")])],
+            reports: ["a": report("a", [LensOpResult(opID: "1", status: .missed)])]
+        )
+
+        #expect(state.entries[0].notes.first?.anchor == .tried("#secondary"))
+    }
+
+    @Test("the page's own selector wins wherever it sent one")
+    func thePagesSelectorWins() {
+        // The engine resolved it against a live DOM; no scan on this side can work
+        // out which of a dozen candidates won.
+        let state = LensState.make(
+            lenses: [lens("a", regions: [region("rail", selector: "#secondary")], ops: [op("1")])],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(
+                            opID: "1",
+                            status: .ambiguous,
+                            matchedCount: 3,
+                            usedSelector: "ytd-watch-next-secondary-results-renderer"
+                        )
+                    ]
+                )
+            ]
+        )
+
+        #expect(
+            state.entries[0].notes.first?.anchor
+                == .matched("ytd-watch-next-secondary-results-renderer")
+        )
+    }
+
+    @Test("an op the pass never reached names no anchor")
+    func aBudgetSkipClaimsNoAttempt() {
+        // The fallback is confined to `missed`, where the resolver demonstrably ran
+        // and came back empty. A budget skip never looked at a selector at all, and
+        // printing one as "tried" would describe an attempt the page never made.
+        let state = LensState.make(
+            lenses: [lens("a", ops: [op("1")])],
+            reports: [
+                "a": report("a", [LensOpResult(opID: "1", status: .skipped, message: "budget")])
+            ]
+        )
+
+        #expect(state.entries[0].notes.first?.anchor == nil)
+    }
+
+    // MARK: Where a lens stands
+
+    @Test("standing separates a stale op from a lens that has stopped landing")
+    func standingSeparatesPartialDriftFromTotal() {
+        // The distinction the whole surface exists to draw: `5/6` and `0/6` are four
+        // characters apart and were rendered identically — same amber, same chip,
+        // same button.
+        let partly = LensState.make(
+            lenses: [lens("a", ops: [op("1"), op("2"), op("3")])],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .applied, matchedCount: 1),
+                        LensOpResult(opID: "2", status: .applied, matchedCount: 1),
+                        LensOpResult(opID: "3", status: .missed),
+                    ]
+                )
+            ]
+        )
+        #expect(partly.standing == .drifting(missed: 1, of: 3))
+        #expect(partly.entries[0].standing == .drifting(missed: 1, of: 3))
+        #expect(partly.standing.needsAttention)
+
+        let dead = LensState.make(
+            lenses: [lens("a", ops: [op("1"), op("2"), op("3")])],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .missed),
+                        LensOpResult(opID: "2", status: .missed),
+                        LensOpResult(opID: "3", status: .missed),
+                    ]
+                )
+            ]
+        )
+        #expect(dead.standing == .stopped(of: 3))
+        #expect(dead.standing.needsAttention)
+    }
+
+    @Test("holding counts what applied, not what did not drift")
+    func holdingCountsTheAppliedOps() {
+        // An op can be skipped or ambiguous without any selector having gone stale.
+        // Deriving the applied count as `total - missed` would report `2 of 2
+        // applied` for a lens the page only ran half of.
+        let state = LensState.make(
+            lenses: [lens("a", ops: [op("1"), op("2")])],
+            reports: [
+                "a": report(
+                    "a",
+                    [
+                        LensOpResult(opID: "1", status: .applied, matchedCount: 1),
+                        LensOpResult(opID: "2", status: .skipped, message: "budget"),
+                    ]
+                )
+            ]
+        )
+
+        #expect(state.standing == .holding(applied: 1, of: 2))
+        // Nothing here is a warning about the site, so nothing here is amber.
+        #expect(!state.standing.needsAttention)
+    }
+
+    @Test("silence and suppression are states, not a lens at zero")
+    func standingBeforeAndBehindTheRender() {
+        let lens = lens("a", ops: [op("1"), op("2")])
+        #expect(LensState.make(lenses: [lens], reports: [:]).standing == .silent)
+
+        let reports = [
+            "a": report(
+                "a",
+                [
+                    LensOpResult(opID: "1", status: .applied, matchedCount: 1),
+                    LensOpResult(opID: "2", status: .missed),
+                ]
+            )
+        ]
+        // Suppression outranks the report it arrived with. Without that, a lens that
+        // is perfectly fine lands in `.silent` under the reader and reads as a lens
+        // nothing has been heard from — and a drifted one keeps asking to be repaired
+        // on a page it was never given a chance to run on.
+        let reader = LensState.make(lenses: [lens], reports: reports, isReaderRendered: true)
+        #expect(reader.standing == .suppressed)
+        #expect(!reader.standing.needsAttention)
+        #expect(reader.entries[0].standing == .suppressed)
+    }
+
     // MARK: Which page a report describes
 
     @Test("a report is matched to the page by path, and only by path")

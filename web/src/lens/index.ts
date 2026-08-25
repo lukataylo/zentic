@@ -19,6 +19,7 @@ import {
   RegionResolver,
   compilePass,
   currentPath,
+  isCSSOp,
   isLiveOp,
   runStructuralOps,
   type LensPass,
@@ -126,6 +127,15 @@ export class LensEngine {
    * revise the ops it re-ran without discarding what the others said. */
   private reports = new Map<string, LensReport>();
   private reportTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Ops the last full pass reported `missed`, by lens id.
+   *
+   * The set the appearance watch is waiting on, and it only ever shrinks: an op
+   * leaves when it stops missing, and when the map empties the watch stops. It is
+   * *not* the same thing as "ops the badge counts as drift" — that stays the
+   * report's own business, and stays `missed` for anything still in here.
+   */
+  private pending = new Map<string, Set<string>>();
 
   constructor(
     private readonly doc: Document,
@@ -189,7 +199,7 @@ export class LensEngine {
    * it is no compile, no `<style>` node and no style recalculation, on every load
    * of every page that has no lens on it — which is nearly all of them.
    */
-  private compile(): LensPass | undefined {
+  private compile(resolver?: RegionResolver): LensPass | undefined {
     this.active = matchingLenses(this.stored, this.currentURL(), this.options.maxLenses);
     if (this.active.length === 0) {
       this.style?.remove();
@@ -206,7 +216,11 @@ export class LensEngine {
     // guaranteed to come back empty and be discarded. Handing the resolver
     // nothing makes it skip the queries instead of running them to learn what we
     // already know.
-    const pass = compilePass(this.active, this.options.ops, this.doc.body ? this.doc : undefined);
+    // A caller with a resolver in hand passes it, so the sheet and the report
+    // that follows are two readings of one set of answers. Without one the
+    // compile makes its own, which is every path but the appearance re-check.
+    const doc = this.doc.body ? this.doc : undefined;
+    const pass = compilePass(this.active, this.options.ops, doc, resolver);
 
     const root = this.doc.head ?? this.doc.documentElement;
     if (!root) return pass;
@@ -266,6 +280,7 @@ export class LensEngine {
     this.journal.undo();
     this.harvests.clear();
     this.cancelReportPost();
+    this.pending.clear();
 
     // Re-matched every pass: an SPA route change can move the page in or out of a
     // lens's path pattern without the app ever being asked for a new lens set.
@@ -305,8 +320,142 @@ export class LensEngine {
     // the compile's own resolver, which already holds every answer they need.
     this.watchLiveRegions(this.liveRegions(pass.resolver));
     this.observers.drain();
+    this.waitForMissedRegions(reports);
 
     return reports;
+  }
+
+  /**
+   * Start waiting for the regions this pass could not find.
+   *
+   * The pass runs at DOM ready, and on an app that is when the shell exists and
+   * the content does not: YouTube renders `#secondary` and `#comments` some way
+   * into first paint, so a lens naming them resolves to nothing and reports every
+   * op `missed` — while the `document-start` sheet is already hiding both, and
+   * goes on hiding them the moment they render. A badge that reads amber `0/3`
+   * over a lens doing precisely what it was asked is invariant 8 broken in the
+   * pessimistic direction, and pessimistic is the worse one: it teaches the user
+   * the feature does not work, at the exact moment it is working.
+   *
+   * Waiting is not the same as assuming. Nothing is reported `applied` because a
+   * rule was emitted — that is the `applied, matchedCount: 0` lie the harvest
+   * path already had to unlearn. The report stays `missed` until the region is
+   * *found*, and a region that never renders is one that never renders: the watch
+   * gives up at `appearanceWindowMs` and the pessimistic answer turns out to have
+   * been the true one.
+   */
+  private waitForMissedRegions(reports: LensReport[]): void {
+    this.pending = new Map();
+    for (const report of reports) {
+      const missed = report.results.filter((entry) => entry.status === "missed");
+      if (missed.length > 0) {
+        this.pending.set(report.lensID, new Set(missed.map((entry) => entry.opID)));
+      }
+    }
+    if (this.pending.size === 0) return;
+    this.observers.watchForAppearance(() => this.recheckPending());
+  }
+
+  /**
+   * Re-read the page for the ops that were still missing, and correct the report.
+   *
+   * Returns whether anything is still missing, which is what stops the watch.
+   *
+   * ## What is re-run, and why it is more than the missing ops
+   *
+   * The sheet is recompiled first, because a region that has now rendered may
+   * resolve through a different candidate than the anchor the `document-start`
+   * compile had to guess at — or through the fingerprint, which mints a path
+   * belonging to no candidate at all. Reporting `usedSelector` for a rule the
+   * sheet does not contain is the one lie `ops.ts` is arranged from end to end to
+   * prevent.
+   *
+   * But a recompile is a recompile: it can just as well move the rule for an op
+   * that was reported `applied` half a second ago, and then *that* report names a
+   * selector the sheet no longer uses. So every CSS op is re-run alongside the
+   * missing ones. It costs nothing — a CSS op touches no node, it only reads —
+   * and it means the sheet and the half of the report that describes the sheet
+   * are always two readings of one compile. Structural ops are re-run only when
+   * they were missing, because re-running one that already landed would move a
+   * node twice.
+   */
+  private recheckPending(): boolean {
+    if (this.pending.size === 0) return false;
+
+    const started = performance.now();
+    const resolver = new RegionResolver(this.doc);
+    const pass = this.compile(resolver);
+
+    // No lens applies here any more — a same-document navigation walked out from
+    // under the watch. Nothing left to correct and nothing to keep waiting for.
+    if (!pass) {
+      this.pending.clear();
+      return false;
+    }
+
+    const plan = pass.plan.filter(
+      (entry) => this.isPending(entry.lens.id, entry.op.id) || isCSSOp(entry.op),
+    );
+    const lenses = this.active.filter((lens) => plan.some((entry) => entry.lens.id === lens.id));
+    if (lenses.length === 0) {
+      this.pending.clear();
+      return false;
+    }
+
+    const reports = runStructuralOps(this.doc, lenses, {
+      budget: this.options.ops,
+      journal: this.journal,
+      harvests: this.harvests,
+      pass: { ...pass, plan },
+      startedAt: started,
+    });
+
+    if (this.absorb(reports)) {
+      this.scheduleReportPost();
+      // A `filter` whose feed has only now rendered has applied once and would
+      // then stop as the user scrolls, because nothing is watching it. The
+      // resolver is the one the re-run used, so this asks no selector twice.
+      this.watchLiveRegions(this.liveRegions(resolver));
+      this.observers.drain();
+    }
+
+    return this.pending.size > 0;
+  }
+
+  private isPending(lensID: string, opID: string): boolean {
+    return this.pending.get(lensID)?.has(opID) === true;
+  }
+
+  /**
+   * Take a re-check's results into the cached report, and say whether the page's
+   * account of itself actually changed.
+   *
+   * The answer gates the re-post. A watch that finds nothing new runs up to seven
+   * times, and seven identical reports crossing the bridge to redraw an identical
+   * badge is the report churn the coalescing timer exists to prevent, arriving by
+   * another door.
+   */
+  private absorb(reports: LensReport[]): boolean {
+    let changed = false;
+
+    for (const report of reports) {
+      // Before the `previous` guard, and deliberately. A lens with no cached
+      // report has nothing to correct, but leaving its ops in `pending` would
+      // keep the watch running to the deadline for a question already answered.
+      const waiting = this.pending.get(report.lensID);
+      const previous = this.reports.get(report.lensID);
+
+      for (const entry of report.results) {
+        if (entry.status !== "missed") waiting?.delete(entry.opID);
+        const held = previous?.results.find((candidate) => candidate.opID === entry.opID);
+        if (held && !sameResult(held, entry)) changed = true;
+      }
+
+      if (waiting?.size === 0) this.pending.delete(report.lensID);
+    }
+
+    if (changed) this.mergeReports(reports);
+    return changed;
   }
 
   /** One report per lens saying, honestly, that nothing ran. */
@@ -362,6 +511,7 @@ export class LensEngine {
     this.harvests.clear();
     this.active = [];
     this.reports.clear();
+    this.pending.clear();
 
     this.style?.remove();
     this.style = undefined;
@@ -655,6 +805,17 @@ function segments(path: string): string[] {
     .split("/")
     .filter((segment) => segment.length > 0)
     .map(safeDecode);
+}
+
+/** Whether two results say the same thing about one op. Every field the toolbar
+ * or the popover draws, which is all of them. */
+function sameResult(a: LensOpResult, b: LensOpResult): boolean {
+  return (
+    a.status === b.status &&
+    a.matchedCount === b.matchedCount &&
+    a.usedSelector === b.usedSelector &&
+    a.message === b.message
+  );
 }
 
 function withPathOnly(report: LensReport): LensReport {

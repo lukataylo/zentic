@@ -210,10 +210,16 @@ final class ContentToolbar: PointerTrackingView {
 
     /// Draw the lens button from what the page reported, and nothing else.
     ///
-    /// Three states the user can tell apart at a glance: dimmed for a site with no
-    /// lens acting on it, tinted for lenses that all found what they were pointed
-    /// at, amber for drift. Amber rather than red because a drifted lens is a site
-    /// that changed, not an error — the page is fine, one op has stopped landing.
+    /// States the user can tell apart at a glance: dimmed for a site with no lens
+    /// acting on it, tinted for lenses that all found what they were pointed at,
+    /// amber for drift. Amber rather than red because a drifted lens is a site that
+    /// changed, not an error — the page is fine, an op has stopped landing.
+    ///
+    /// The drift half is ``LensState/Standing``, which is also what each row in the
+    /// popover is drawn from, so the button and the list cannot classify one report
+    /// two ways. It is the tooltip that separates "one op of six is stale" from
+    /// "none of this lens is on the page any more": both are amber, because both
+    /// are repairable, and the popover is where the difference is drawn.
     ///
     /// **Invariant 8 is the rule here.** The badge is drawn from ``LensState/tally``,
     /// which is nil until a report arrives; no report means no badge, never a
@@ -250,27 +256,40 @@ final class ContentToolbar: PointerTrackingView {
                 // helper so "This site's 0 lenses" cannot be written at all.
                 tip = "\(Self.lensPhrase(state.siteLensCount)) switched off"
             }
-        } else if state.isSuppressed {
-            // On, correct, and invisible: the reader is showing Zentic's render and
-            // a lens acts on the site's own page underneath it. The engine reports
-            // every op `skipped`, which is true and which the badge used to draw as
-            // `0/4` in the accent tint — a working colour over a total-failure
-            // number. No badge and the sentence instead: there is no count that is
-            // true of what is on screen, so invariant 8 says show none.
-            tint = .tertiaryLabelColor
-            tip = """
-                \(Self.lensPhrase(state.entries.count)) on. Lenses act on the site's own \
-                page — ⌘\\ to see it.
-                """
-        } else if state.isDrifted {
-            tint = .systemOrange
-            tip = "\(state.missedCount) of \(state.totalCount) changes no longer match this page"
-        } else if let tally = state.tally {
-            tint = .controlAccentColor
-            tip = "\(tally) changes applied by \(state.entries.count == 1 ? "1 lens" : "\(state.entries.count) lenses")"
         } else {
-            tint = .controlAccentColor
-            tip = "Lenses are on for this page"
+            switch state.standing {
+            case .suppressed:
+                // On, correct, and invisible: the reader is showing Zentic's render
+                // and a lens acts on the site's own page underneath it. The engine
+                // reports every op `skipped`, which is true and which the badge used
+                // to draw as `0/4` in the accent tint — a working colour over a
+                // total-failure number. No badge and the sentence instead: there is
+                // no count that is true of what is on screen, so invariant 8 says
+                // show none.
+                tint = .tertiaryLabelColor
+                tip = """
+                    \(Self.lensPhrase(state.entries.count)) on. Lenses act on the site's own \
+                    page — ⌘\\ to see it.
+                    """
+            case .silent:
+                tint = .controlAccentColor
+                tip = "Lenses are on for this page"
+            case .holding(let applied, let total):
+                tint = .controlAccentColor
+                let by = state.entries.count == 1 ? "1 lens" : "\(state.entries.count) lenses"
+                tip = "\(applied) of \(total) changes applied by \(by)"
+            case .drifting(let missed, let total):
+                tint = .systemOrange
+                tip = "\(missed) of \(total) changes no longer match this page"
+            case .stopped(let total):
+                // The same amber, a different sentence. A lens with nothing left on
+                // the page is not a lens with a stale op in it, and the tooltip is
+                // where the toolbar can say which without inventing a fourth colour.
+                tint = .systemOrange
+                tip = total == 1
+                    ? "The one change made here no longer matches this page"
+                    : "None of these \(total) changes match this page any more"
+            }
         }
         lensButton.contentTintColor = tint
         lensBadge.textColor = tint

@@ -457,6 +457,206 @@ describe("LensEngine reporting", () => {
   });
 });
 
+// MARK: - A region that had not rendered when the pass ran
+
+/**
+ * The flagship case, and the one the feature was demoed on.
+ *
+ * A lens on `youtube.com/watch` hiding `#secondary` and `#comments`: the
+ * `document-start` sheet carries `#secondary{display:none!important}` and hides
+ * the rail correctly whenever the app gets round to rendering it, but the
+ * structural pass runs at DOM ready — before either exists — so `RegionResolver`
+ * finds nothing and every op is reported `missed`. The toolbar read amber `0/3`
+ * over a lens doing exactly what it was asked, which is invariant 8 broken in the
+ * pessimistic direction: worse than the optimistic version, because it teaches
+ * the user the feature is broken at the moment it is working.
+ *
+ * The third op names a region that genuinely is not on the page, and it has to
+ * stay `missed`. Distinguishing the two is the whole job: the only thing that
+ * separates "not rendered yet" from "gone" is time, so the fix is to wait a
+ * bounded while and re-read the page, never to believe a rule that was emitted.
+ */
+describe("a region that renders after the structural pass", () => {
+  const window = DEFAULT_ENGINE_OPTIONS.observer.appearanceWindowMs;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const watchLens = (): Lens =>
+    lens({
+      origin: location.host,
+      regions: [
+        { id: "rail", intent: "the suggestions rail", selectors: ["#secondary"] },
+        { id: "comments", intent: "the comments", selectors: ["#comments"] },
+        { id: "ghost", intent: "a region that is not here", selectors: ["#demo-absent-region"] },
+      ],
+      ops: [
+        { id: "op-rail", kind: "hide", region: "rail", note: "hide the rail" },
+        { id: "op-comments", kind: "hide", region: "comments", note: "hide the comments" },
+        { id: "op-ghost", kind: "hide", region: "ghost", note: "hide nothing" },
+      ],
+    });
+
+  /** What the SPA renders a moment after first paint. */
+  const render = (id: string) => {
+    const box = document.createElement("div");
+    box.id = id;
+    document.body.appendChild(box);
+    return box;
+  };
+
+  it("corrects the report to what is on screen once the region arrives", () => {
+    const posted: LensReport[][] = [];
+    const engine = new LensEngine(document, DEFAULT_ENGINE_OPTIONS, {
+      onReport: (reports) => posted.push(reports),
+    });
+    engine.setLenses([watchLens()]);
+
+    const [first] = engine.runPass();
+    // Honest at the time it was made: nothing has rendered, so nothing matched.
+    expect(first?.results.map((entry) => entry.status)).toEqual(["missed", "missed", "missed"]);
+    // And the sheet is already hiding both, which is why the report was the lie
+    // rather than the effect.
+    const sheet = () => document.getElementById("zentic-lens-style")?.textContent ?? "";
+    expect(sheet()).toContain("#secondary{display:none!important}");
+    expect(sheet()).toContain("#comments{display:none!important}");
+
+    render("secondary");
+    render("comments");
+
+    // The first re-check, plus the report coalescing window.
+    vi.advanceTimersByTime(DEFAULT_ENGINE_OPTIONS.observer.debounceMs + 500);
+
+    expect(posted).toHaveLength(1);
+    const corrected = posted[0]?.[0];
+    expect(corrected?.results.map((entry) => entry.status)).toEqual([
+      "applied",
+      "applied",
+      // Not optimistic. A rule was emitted for this one too, and it still says
+      // `missed`, because nothing was found.
+      "missed",
+    ]);
+    expect(corrected?.results[0]?.usedSelector).toBe("#secondary");
+    expect(corrected?.results).toHaveLength(3);
+    // Still the same lens and the same page, so the badge is `2/3` rather than a
+    // partial report counting only the ops that were re-run.
+    expect(corrected?.lensID).toBe("lens-1");
+    expect(corrected?.url).toBe(location.pathname);
+
+    engine.clear();
+  });
+
+  it("leaves a region that never renders at missed, and stops looking", () => {
+    const posted: LensReport[][] = [];
+    const engine = new LensEngine(document, DEFAULT_ENGINE_OPTIONS, {
+      onReport: (reports) => posted.push(reports),
+    });
+    engine.setLenses([watchLens()]);
+    engine.runPass();
+
+    // The whole window, and nothing ever renders.
+    vi.advanceTimersByTime(window * 2);
+    expect(posted).toHaveLength(0);
+
+    // Past the bound. A region arriving now is a page that took longer than any
+    // page measured, and the watch has given up rather than run for the life of
+    // the tab — so the report keeps the pessimistic answer, which by then is the
+    // true one about a user who has long since stopped looking.
+    render("secondary");
+    vi.advanceTimersByTime(window * 2);
+    expect(posted).toHaveLength(0);
+
+    engine.clear();
+  });
+
+  it("starts watching a feed that only filtered because it rendered late", async () => {
+    // A `filter` whose region misses is the same bug with a worse consequence:
+    // the op does not merely report wrong, it never runs. And once it does run,
+    // nothing is observing the feed — so it would apply to the cards that were
+    // there and quietly stop as the user scrolled.
+    const engine = new LensEngine(document, DEFAULT_ENGINE_OPTIONS);
+    engine.setLenses([
+      lens({
+        origin: location.host,
+        regions: [{ id: "feed", intent: "the timeline", selectors: ["#feed"] }],
+        ops: [
+          {
+            id: "op-filter",
+            kind: "filter",
+            region: "feed",
+            note: "drop sponsored posts",
+            itemSelector: ":scope > li",
+            filterMode: "drop",
+            predicate: { terms: ["sponsored"], matchMode: "any", field: "text" },
+          },
+        ],
+      }),
+    ]);
+
+    const [first] = engine.runPass();
+    expect(first?.results[0]?.status).toBe("missed");
+
+    const feed = document.createElement("ul");
+    feed.id = "feed";
+    feed.innerHTML = "<li>Sponsored: a thing</li>";
+    document.body.appendChild(feed);
+
+    vi.advanceTimersByTime(DEFAULT_ENGINE_OPTIONS.observer.debounceMs);
+    expect(feed.firstElementChild?.hasAttribute("data-zentic-lens-hidden")).toBe(true);
+
+    // The second batch of cards, arriving the way an infinite feed arrives.
+    const later = document.createElement("li");
+    later.textContent = "Sponsored: another";
+    feed.appendChild(later);
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(DEFAULT_ENGINE_OPTIONS.observer.debounceMs);
+
+    expect(later.hasAttribute("data-zentic-lens-hidden")).toBe(true);
+
+    engine.clear();
+  });
+
+  it("keeps the sheet and the report naming one selector when the anchor changes", () => {
+    // The reason the re-check recompiles rather than only re-resolving. At
+    // `document-start` nothing resolves, so the sheet is written against the
+    // region's preferred anchor — a guess. If the box that eventually renders is
+    // named by a *later* candidate, a report saying `usedSelector: .rail` beside
+    // a sheet that says `#secondary` is the one lie `ops.ts` is arranged from end
+    // to end to prevent.
+    const engine = new LensEngine(document, DEFAULT_ENGINE_OPTIONS);
+    engine.setLenses([
+      lens({
+        origin: location.host,
+        regions: [{ id: "rail", intent: "the rail", selectors: ["#secondary", ".rail"] }],
+        ops: [{ id: "op-rail", kind: "hide", region: "rail", note: "hide the rail" }],
+      }),
+    ]);
+
+    engine.runPass();
+    const sheet = document.getElementById("zentic-lens-style")!;
+    expect(sheet.textContent).toContain("#secondary{display:none!important}");
+
+    // The app renders the rail, and calls it something the anchor does not name.
+    const rail = document.createElement("aside");
+    rail.className = "rail";
+    document.body.appendChild(rail);
+
+    vi.advanceTimersByTime(DEFAULT_ENGINE_OPTIONS.observer.debounceMs);
+
+    expect(sheet.textContent).toContain(".rail{display:none!important}");
+    expect(sheet.textContent).not.toContain("#secondary{display:none!important}");
+
+    engine.clear();
+  });
+});
+
 // MARK: - W1: every lens command has an engine entry point
 
 /**
