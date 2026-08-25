@@ -47,6 +47,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
+    /// Let the lens store finish its one outstanding write before the process goes.
+    ///
+    /// ``LensStore`` holds a changed ``LensReport`` for a couple of seconds so that
+    /// a scrolling feed cannot rewrite the whole file twice a second. A delay is
+    /// only safe if something can end it, and `applicationWillTerminate` cannot:
+    /// it returns and the process exits, so a `Task` started there never runs.
+    /// `.terminateLater` is the only hook that waits, and the wait is one small
+    /// atomic write on an actor that is not otherwise busy.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            await LensController.shared.store.flush()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         windowController?.browser.persistBeforeTermination()
     }
@@ -188,6 +204,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Reset This Site's Design", #selector(BrowserViewController.resetDesignCommand(_:)), "")
         )
         menu.addItem(designModelMenuItem())
+        menu.addItem(.separator())
+        menu.addItem(
+            item("Lenses…", #selector(BrowserViewController.lensEditorCommand(_:)), "l", [.command, .option])
+        )
+        menu.addItem(
+            item(
+                "New Lens for This Site…",
+                #selector(BrowserViewController.newLensCommand(_:)),
+                "l",
+                [.command, .option, .shift]
+            )
+        )
+        menu.addItem(
+            item("Manage Lenses…", #selector(BrowserViewController.manageLensesCommand(_:)), "")
+        )
         menu.addItem(.separator())
         menu.addItem(backgroundMenuItem())
         menu.addItem(.separator())

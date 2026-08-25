@@ -1,0 +1,94 @@
+{
+  "cases" : [
+    {
+      "matches" : true,
+      "path" : "\/anything\/at\/all",
+      "pattern" : "*"
+    },
+    {
+      "matches" : true,
+      "path" : "\/watch",
+      "pattern" : "\/watch"
+    },
+    {
+      "matches" : false,
+      "path" : "\/results",
+      "pattern" : "\/watch"
+    },
+    {
+      "matches" : true,
+      "path" : "\/posts\/12345\/my-title",
+      "pattern" : "\/posts\/*\/*"
+    },
+    {
+      "matches" : true,
+      "path" : "\/posts\/12345\/my-title",
+      "pattern" : "\/posts\/*\/my-title"
+    },
+    {
+      "matches" : true,
+      "path" : "\/posts\/98765",
+      "pattern" : "\/posts\/*"
+    },
+    {
+      "matches" : false,
+      "path" : "\/posts\/12345",
+      "pattern" : "\/posts\/*\/*"
+    },
+    {
+      "matches" : false,
+      "path" : "\/posts\/12345\/my-title",
+      "pattern" : "\/posts\/*"
+    },
+    {
+      "matches" : true,
+      "path" : "\/",
+      "pattern" : "\/"
+    },
+    {
+      "matches" : false,
+      "path" : "\/watch",
+      "pattern" : "\/"
+    },
+    {
+      "matches" : true,
+      "path" : "\/watch\/",
+      "pattern" : "\/watch"
+    },
+    {
+      "matches" : false,
+      "path" : "\/x\/",
+      "pattern" : "\/x\/*"
+    },
+    {
+      "matches" : false,
+      "path" : "\/watch",
+      "pattern" : "\/Watch"
+    },
+    {
+      "matches" : true,
+      "path" : "\/猫",
+      "pattern" : "\/%E7%8C%AB"
+    },
+    {
+      "matches" : true,
+      "path" : "\/%E7%8C%AB",
+      "pattern" : "\/猫"
+    },
+    {
+      "matches" : false,
+      "path" : "\/a\/b",
+      "pattern" : "\/a%2Fb"
+    },
+    {
+      "matches" : true,
+      "path" : "\/a\/*",
+      "pattern" : "\/a\/%2A"
+    },
+    {
+      "matches" : true,
+      "path" : "\/x",
+      "pattern" : "  *  "
+    }
+  ]
+}

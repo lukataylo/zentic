@@ -81,6 +81,33 @@ enum Glass {
             : NSColor.white.withAlphaComponent(0.42)
     }
 
+    /// The page card's ground.
+    ///
+    /// Translucent, not opaque. The card used to be `textBackgroundColor` on the
+    /// argument that prose needs solid ground — true for the prose, but it also
+    /// meant the one surface filling most of the window was the one surface that
+    /// was never glass, so the window read as a tinted frame around a white
+    /// rectangle.
+    ///
+    /// This is the binding dial for how glassy the page reads, and it is worth
+    /// knowing why. The reader paints its own translucent ground on top of this
+    /// one, and stacked alphas *multiply*: at 0.82 here and 0.72 there, only
+    /// 0.18 × 0.28 ≈ 5% of the desktop survived, which on screen was no effect at
+    /// all. Lowering this buys transmission almost linearly; lowering the reader's
+    /// alpha instead buys very little and spends text contrast to get it.
+    ///
+    /// At these values ≈13% (light) and ≈9% (dark) of what is behind the window
+    /// reaches the eye. Dark stays more opaque on purpose: a bright desktop lifts
+    /// a dark ground *towards* the text and costs contrast, where a light ground
+    /// only ever darkens and gains it.
+    ///
+    /// Only visible where something does not paint over it: a site that sets its
+    /// own background still wins, which is correct — we do not repaint other
+    /// people's pages.
+    static func pageFill(dark: Bool) -> NSColor {
+        NSColor.textBackgroundColor.withAlphaComponent(dark ? 0.66 : 0.55)
+    }
+
     /// Edge, top-lit. Brighter than the fill, which is what makes it an edge and
     /// not a border.
     static func stroke(dark: Bool) -> NSColor {

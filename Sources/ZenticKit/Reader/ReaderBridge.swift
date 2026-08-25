@@ -40,6 +40,12 @@ public final class ReaderBridge {
     private var configuration: ReaderConfiguration
     private let bundleSource: String
 
+    /// Whether the lens editor bundle has been evaluated in the document the web
+    /// view is currently showing. Reset on every `ready`, which is the page
+    /// telling us a new document started and took the previous one's globals with
+    /// it. See ``deliverLensEditor(to:)``.
+    private var lensEditorDelivered = false
+
     /// - Parameters:
     ///   - contentController: The web view's content controller. Taken over by
     ///     this bridge — the caller should not add its own scripts under
@@ -112,10 +118,54 @@ public final class ReaderBridge {
     }
 
     private static func loadBundleSource() throws -> String {
-        guard let url = Bundle.module.url(forResource: "zentic", withExtension: "js") else {
-            throw ReaderBridgeError.malformedEvent("zentic.js missing from ZenticKit resources")
+        try loadResource(named: "zentic")
+    }
+
+    private static func loadResource(named name: String) throws -> String {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "js") else {
+            throw ReaderBridgeError.malformedEvent("\(name).js missing from ZenticKit resources")
         }
         return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    // MARK: - The lens editor, on demand
+
+    /// The lens editor bundle, read once for the whole process.
+    ///
+    /// Every tab injects the same bytes, and most tabs never inject them at all —
+    /// a `static let` is initialised lazily, so a session that never enters lens
+    /// mode never touches the file.
+    private static let lensEditorSource: String? = try? loadResource(named: "zentic-lens-editor")
+
+    /// Put the lens editor into the page, if it is not already there.
+    ///
+    /// The editor is ~36KB that cannot run until the user presses ⌥⌘L, so it is
+    /// not in the `WKUserScript` set — see `web/src/lens/deferred.ts`. Keeping it
+    /// out of the document-start payload takes a third of a megabyte off every
+    /// navigation in every tab, including the overwhelming majority that never
+    /// open an editor. Nothing on the reveal path waits for this.
+    ///
+    /// Evaluated into ``contentWorld``, exactly like the main bundle: page script
+    /// must not be able to see or patch our chrome, and an editor injected into
+    /// the page world would be readable by the site whose page it is describing.
+    ///
+    /// Callers must `await` this **before** sending ``ReaderCommand/enterLensMode``.
+    /// `evaluateJavaScript` resolves after the script has run, so the ordering is
+    /// the await: by the time the command is sent, the factory is on the world's
+    /// global. A throw means the page could not be reached at all and the caller
+    /// should say so rather than send a command that will be answered with a
+    /// failure.
+    ///
+    /// - Note: At most once per document, not once per keystroke.
+    public func deliverLensEditor(to webView: WKWebView) async throws {
+        if lensEditorDelivered { return }
+        guard let source = Self.lensEditorSource else {
+            throw ReaderBridgeError.malformedEvent(
+                "zentic-lens-editor.js missing from ZenticKit resources"
+            )
+        }
+        _ = try await webView.evaluateJavaScript(source, in: nil, contentWorld: Self.contentWorld)
+        lensEditorDelivered = true
     }
 
     // MARK: - Outbound
@@ -158,6 +208,13 @@ public final class ReaderBridge {
 
         do {
             let event = try decoder.decode(ReaderEvent.self, from: data)
+            // A new document is running the bundle, so whatever we evaluated into
+            // the last one is gone with its realm. Cleared here rather than on
+            // navigation callbacks because this is the page itself saying so, and
+            // it is said on exactly the events that matter: a full load, and
+            // nothing else. Believing a stale delivery would cost the user a
+            // ⌥⌘L that does nothing.
+            if case .ready = event { lensEditorDelivered = false }
             delegate?.readerBridge(self, didReceive: event)
         } catch {
             logger.error("Undecodable reader event: \(error, privacy: .public)")

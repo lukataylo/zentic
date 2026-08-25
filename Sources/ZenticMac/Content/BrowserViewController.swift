@@ -14,6 +14,7 @@ final class BrowserViewController: NSViewController {
     private let faviconService = FaviconService()
     private let downloads = DownloadsController()
     private let palette = CommandPalette()
+    private let lensPopover = LensPopover()
 
     private var spaces: [Space] = []
     private var activeSpace: Space?
@@ -237,6 +238,21 @@ final class BrowserViewController: NSViewController {
         downloads.onChange = { [weak self] in
             self?.toolbar.setDownloadsVisible(true)
         }
+
+        // A lens saved, deleted or switched off changes what the page in front of
+        // the user should look like, and the change can come from a popover this
+        // controller did not open — a menu command, another window. One observer
+        // rather than a refresh at each call site, so no path can forget.
+        //
+        // The selector-based registration is the one that unregisters itself when
+        // this controller is deallocated, which matters because `LensController` is
+        // a process-lifetime singleton and a window is not.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(lensesDidChange),
+            name: LensController.didChangeLenses,
+            object: nil
+        )
 
         dividerHandle.onDrag = { [weak self] location in
             guard let self, isSidebarPinned else { return }
@@ -816,7 +832,8 @@ final class BrowserViewController: NSViewController {
                 mode: controller?.readerMode ?? .restructured,
                 canTransform: controller?.didRestructure ?? false,
                 canRewrite: controller?.canRewrite ?? false,
-                rewrite: controller?.rewriteState ?? .none
+                rewrite: controller?.rewriteState ?? .none,
+                lens: controller?.lensState ?? LensState()
             )
         )
         view.window?.title = controller?.title ?? "Zentic"
@@ -1270,6 +1287,224 @@ extension BrowserViewController: ContentToolbarDelegate {
         }
     }
 
+    /// The lens popover: every lens this site has, and what each one just did.
+    func toolbarDidRequestLenses(_ sender: NSView) {
+        guard let controller = selectedController, let url = controller.url, url.host() != nil
+        else {
+            explain("Lenses apply to a loaded site.", from: sender)
+            return
+        }
+        Task { @MainActor in
+            lensPopover.show(
+                relativeTo: sender,
+                host: url.host(),
+                rows: await lensRows(for: controller, url: url),
+                actions: lensActions(for: controller)
+            )
+        }
+    }
+
+    /// The stored set changed. See ``LensController/didChangeLenses``.
+    ///
+    /// Every resident tab, not just the selected one: a background tab on the same
+    /// site is showing the lens that was just deleted, and it will keep showing it
+    /// until the user goes back to it and reloads — the one moment they are certain
+    /// the change did not work.
+    @objc private func lensesDidChange() {
+        for controller in controllers.values where controller.isResident {
+            Task { await controller.refreshLenses() }
+        }
+        // A popover that is up is describing the set that just changed. Left alone
+        // it keeps a row for a lens deleted in another window, and every action on
+        // that row silently does nothing.
+        refreshLensPopover()
+    }
+
+    /// Rebuild an open lens popover from the store, in place.
+    ///
+    /// Rebuilt rather than closed: the change that triggered this is usually one the
+    /// user made *in* the popover — a checkbox, a delete — and closing the surface
+    /// they are working in as a side effect of working in it reads as a crash.
+    private func refreshLensPopover() {
+        guard lensPopover.isShown,
+            let controller = selectedController,
+            let url = controller.url
+        else { return }
+        Task { @MainActor in
+            lensPopover.update(
+                rows: await lensRows(for: controller, url: url),
+                actions: lensActions(for: controller)
+            )
+        }
+    }
+
+    /// One row per lens this site has, married to what it did on this page.
+    ///
+    /// Built from two sources on purpose. The rows come from the store, so a lens
+    /// that is switched off or scoped to another path still has somewhere to be
+    /// switched on from; the tallies come from the tab, which holds only what the
+    /// page reported about the load in front of the user. Invariant 8 — a row shows
+    /// `3/4` because a page said so, or it shows no number at all.
+    private func lensRows(for controller: TabController, url: URL) async -> [LensPopover.Row] {
+        let lenses = await LensController.shared.allLenses(for: url)
+        let entries = Dictionary(
+            controller.lensState.entries.map { ($0.lens.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return lenses.map { .init(lens: $0, entry: entries[$0.id]) }
+    }
+
+    private func lensActions(for controller: TabController) -> LensPopover.Actions {
+        LensPopover.Actions(
+            setEnabled: { lens, isEnabled in
+                Task { await LensController.shared.setEnabled(isEnabled, id: lens.id) }
+            },
+            edit: { [weak self] lens in self?.editLens(lens, in: controller) },
+            duplicate: { [weak self] lens in
+                Task { @MainActor in
+                    await LensController.shared.duplicate(id: lens.id, over: self?.view.window)
+                }
+            },
+            refit: { [weak self] lens in self?.refit(lens, in: controller) },
+            delete: { [weak self] lens in self?.confirmDelete(lens) },
+            newLens: { [weak self] in self?.newLensCommand(nil) }
+        )
+    }
+
+    /// Edit a lens — on a page that is actually running it, or not at all.
+    ///
+    /// The editor is only ever handed the page's *applied* set: enabled, and matching
+    /// this URL's path pattern. The popover lists everything the site has, switched
+    /// off and scoped-elsewhere rows included, so Edit on one of those named a lens
+    /// the page had never been given. The overlay could not find it, fell back to
+    /// authoring — blank, fresh id — and Save then wrote a **third** lens beside the
+    /// two already there, with the one the user pressed Edit on untouched. A
+    /// duplicate nobody asked for is the worst possible answer to "edit this".
+    ///
+    /// So the lens is brought onto the page first, or the user is told why it cannot
+    /// be. Sending the whole lens down instead would let the editor open it anywhere,
+    /// and that is worse than it sounds: the editor works by *pointing*, and a lens
+    /// scoped to `/watch` has selectors written against a document this page is not.
+    /// Every region would fail to resolve, the overlay would highlight nothing, and
+    /// the scope control would be showing this page's pattern rather than the lens's
+    /// — an editor that cannot show you what you are editing, and one keystroke from
+    /// re-scoping the lens to the wrong place.
+    private func editLens(_ lens: Lens, in controller: TabController) {
+        Task { @MainActor in
+            guard let url = controller.url else { return }
+            // Resolved from the store, not from the row: the popover's rows are a
+            // snapshot, and another window can have changed any of it since.
+            guard var current = await LensController.shared.lens(id: lens.id) else {
+                explain("“\(lens.name)” is no longer saved.", from: toolbar.lensAnchor)
+                return
+            }
+
+            if !current.isEnabled {
+                guard confirmSwitchOn(current) else { return }
+                await LensController.shared.setEnabled(true, id: current.id)
+                guard let switched = await LensController.shared.lens(id: current.id) else {
+                    return
+                }
+                current = switched
+            }
+
+            // The store owns the matching rule — path pattern, last edit —
+            // and asking it is how this stays the same answer the page will reach.
+            let applies = await LensController.shared.lenses(for: url)
+                .contains { $0.id == current.id }
+            guard applies else {
+                explain(
+                    "“\(current.name)” is for this site's \(current.pathPattern) pages. "
+                        + "Open one and press ⌥⌘L to edit it there.",
+                    from: toolbar.lensAnchor
+                )
+                return
+            }
+
+            // The page has to be holding the lens before the editor is opened on it:
+            // the overlay refuses an id it was not given, which is what stops the
+            // silent duplicate, and refusing is not an error message anybody sees.
+            await controller.refreshLenses()
+            openLensEditor(in: controller) { $0.edit(lens: current, onUnavailable: $1) }
+        }
+    }
+
+    /// Ask before switching a lens on to edit it. Enabling one changes the page
+    /// behind the popover, so it is a decision rather than a side effect.
+    private func confirmSwitchOn(_ lens: Lens) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Switch “\(lens.name)” on to edit it?"
+        alert.informativeText = """
+            The editor works by pointing at the page in front of you, so a lens has to \
+            be running on it. This one is switched off. You can switch it back off in \
+            the same list afterwards.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Switch On and Edit")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Re-fit a drifted lens against the page as it is now.
+    ///
+    /// The catalog has to come from the live page rather than from anything stored:
+    /// the whole premise of a re-fit is that the site changed, so a saved view of it
+    /// is a description of the problem, not of the fix.
+    private func refit(_ lens: Lens, in controller: TabController) {
+        Task { @MainActor in
+            guard let catalog = await controller.freshCatalog() else {
+                explain(
+                    "Zentic could not read this page's structure, so there is nothing to re-fit against.",
+                    from: toolbar.lensAnchor
+                )
+                return
+            }
+            // No refresh afterwards: saving the re-fitted lens fires `observeChanges`,
+            // which already queues one for every resident tab. Awaiting a second here
+            // meant two passes over the same page for one repair.
+            await LensController.shared.refit(lens: lens, catalog: catalog, over: view.window)
+        }
+    }
+
+    /// Deleting is the one action here with nothing behind it — the ops came from a
+    /// model call the user paid for, and there is no undo.
+    private func confirmDelete(_ lens: Lens) {
+        Task { @MainActor in
+            // Asked of the store first. A row can outlive the lens it describes —
+            // another window deletes it, this popover is a snapshot — and putting up
+            // a "Delete “Focus”?" sheet for something that is already gone got a
+            // considered yes and then did nothing at all.
+            guard await LensController.shared.lens(id: lens.id) != nil else {
+                explain(
+                    "“\(lens.name)” is no longer saved — it was deleted somewhere else.",
+                    from: toolbar.lensAnchor
+                )
+                return
+            }
+
+            let alert = NSAlert()
+            alert.messageText = "Delete “\(lens.name)”?"
+            alert.informativeText = """
+                This site goes back to how it looks without the lens. Re-creating it means \
+                describing it to the model again.
+                """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Delete")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+            // And again on the way out: the sheet is modal for as long as the user
+            // takes to read it, which is plenty of time to lose the race.
+            guard await LensController.shared.delete(id: lens.id) else {
+                explain(
+                    "“\(lens.name)” was already deleted somewhere else.",
+                    from: toolbar.lensAnchor
+                )
+                return
+            }
+        }
+    }
+
     func toolbarDidRequestRewrite(_ sender: NSView) {
         guard let controller = selectedController else { return }
         guard controller.canRewrite else {
@@ -1462,6 +1697,11 @@ extension BrowserViewController: TabControllerDelegate {
         sidebar.updateTransform(id: controller.id, state: transformState(for: controller.id))
         guard controller.id == selectedTabID else { return }
         updateToolbar()
+        // The popover is drawn from the same two sources the badge is, and only one
+        // of them was refreshing it. With the list open, a report arriving moved the
+        // toolbar's `3/4` to `4/4` while the row underneath kept saying `3/4` — two
+        // numbers about one page, disagreeing, on screen at once.
+        refreshLensPopover()
         card.setStartPageVisible(controller.url == nil)
     }
 
@@ -1645,6 +1885,90 @@ extension BrowserViewController {
         }
     }
 
+    /// ⌥⌘L — the in-page lens editor, on or off.
+    ///
+    /// A toggle rather than an opener because the editor covers the page it is
+    /// editing: the shortcut that put a scrim over the article has to be the one
+    /// that takes it away, or the user is hunting for an exit while looking at
+    /// something they cannot read.
+    ///
+    /// Both halves say something when they cannot do anything. Pressing a shortcut
+    /// and getting silence is the failure that gets reported as "lenses are broken".
+    @objc func lensEditorCommand(_ sender: Any?) {
+        guard let controller = selectedController, controller.url?.host() != nil else {
+            explain("Lenses apply to a loaded site.", from: toolbar.lensAnchor)
+            return
+        }
+        // Closing is never gated, whatever is on screen.
+        guard !controller.isLensEditing else {
+            controller.setLensMode(false)
+            return
+        }
+        openLensEditor(in: controller) { $0.setLensMode(true, onUnavailable: $1) }
+    }
+
+    /// ⇧⌥⌘L — start a new lens for this site.
+    ///
+    /// The same overlay, entered rather than toggled: someone who asked for a new
+    /// lens while the editor happened to be open meant "open it", never "close it".
+    @objc func newLensCommand(_ sender: Any?) {
+        guard let controller = selectedController, controller.url?.host() != nil else {
+            explain("Lenses apply to a loaded site.", from: toolbar.lensAnchor)
+            return
+        }
+        openLensEditor(in: controller) { $0.setLensMode(true, onUnavailable: $1) }
+    }
+
+    /// Open the in-page editor, once the page is one it can honestly be opened on.
+    ///
+    /// The editor works by pointing: it outlines the regions of the live document
+    /// and asks the user to click the one they mean. The reader hides that document
+    /// with `visibility: hidden` rather than removing it, so layout survives and
+    /// every rect in the catalog is *correct* — correct about a document the user
+    /// cannot see. Opening it over the reader's own render draws accurate outlines
+    /// of boxes that are not on screen, in positions that have nothing to do with
+    /// what is. So the original is offered first, rather than the editor being
+    /// disabled outright: the page the lens acts on is one keystroke away, and
+    /// switching to it is the thing the user was going to have to do anyway.
+    private func openLensEditor(
+        in controller: TabController,
+        _ open: (TabController, @escaping @MainActor () -> Void) -> Void
+    ) {
+        let unavailable: @MainActor () -> Void = { [weak self] in
+            guard let self else { return }
+            explain(
+                "There is no page here for a lens to act on — a PDF or an error page has no "
+                    + "structure to point at.",
+                from: toolbar.lensAnchor
+            )
+        }
+
+        guard controller.isTransformed else {
+            open(controller, unavailable)
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Show the original page first?"
+        alert.informativeText = """
+            A lens acts on the site's own page, and you are looking at Zentic's \
+            rendering of it. The editor would outline boxes you cannot see.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Show Original")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        controller.setReaderMode(.original)
+        updateToolbar()
+        open(controller, unavailable)
+    }
+
+    /// The lens list, from the keyboard. Same surface the toolbar button opens.
+    @objc func manageLensesCommand(_ sender: Any?) {
+        toolbarDidRequestLenses(toolbar.lensAnchor)
+    }
+
     /// Settings ▸ the BYO key. Stored in the Keychain, never in a file.
     @objc func setAPIKeyCommand(_ sender: Any?) {
         RedesignController.shared.promptForAPIKey()
@@ -1681,6 +2005,12 @@ extension BrowserViewController: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(goBackCommand): return selectedController?.canGoBack ?? false
         case #selector(goForwardCommand): return selectedController?.canGoForward ?? false
+        case #selector(lensEditorCommand), #selector(newLensCommand),
+            #selector(manageLensesCommand):
+            // A lens is per-origin and acts on a live DOM, so both halves have to
+            // exist: a blank tab has no site to save one for, and a `file:` or
+            // `about:` page has no host to key one on.
+            return selectedController?.url?.host() != nil
         case #selector(setDesignModelCommand):
             menuItem.state =
                 RedesignController.DesignModel.allCases[safe: menuItem.tag]

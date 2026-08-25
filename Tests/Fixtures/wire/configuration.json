@@ -1,5 +1,8 @@
 {
   "debugLogging" : true,
+  "lenses" : [
+
+  ],
   "minConfidence" : 0.55,
   "minWordCount" : 40,
   "mode" : "restructured",

@@ -30,22 +30,43 @@ function num(value: number, decimals = 3): string {
   return Number(value.toFixed(decimals)).toString();
 }
 
-const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const HEX = /^#?([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})$/i;
 
-/** Canonical `#rrggbb`, or the fallback. The only route a colour takes into CSS. */
+/**
+ * Canonical `#rrggbb` or `#rrggbbaa`, or the fallback. The only route a colour
+ * takes into CSS.
+ *
+ * The alpha forms are what let a theme state its own opacity. Swift's `Palette`
+ * is documented as `#rrggbb` and `ThemeTokens.validated()` normalises to that, so
+ * nothing coming over the bridge carries alpha today — a six-digit hex means
+ * "this colour, no opinion on opacity", which is what `ground()` fills in.
+ */
 function color(value: unknown, fallback: string): string {
   if (typeof value !== "string") return fallback;
   const match = HEX.exec(value.trim());
   if (!match) return fallback;
   const hex = match[1]!.toLowerCase();
-  return hex.length === 3
-    ? `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`
-    : `#${hex}`;
+  if (hex.length > 4) return `#${hex}`;
+  return `#${[...hex].map((digit) => `${digit}${digit}`).join("")}`;
 }
 
+/** RGB only: an alpha suffix belongs to the compositor, not to colour maths. */
 function channels(hex: string): [number, number, number] {
-  const raw = Number.parseInt(hex.slice(1), 16);
+  const raw = Number.parseInt(hex.slice(1, 7), 16);
   return [(raw >> 16) & 0xff, (raw >> 8) & 0xff, raw & 0xff];
+}
+
+function alphaOf(hex: string): number {
+  return hex.length === 9 ? Number.parseInt(hex.slice(7, 9), 16) / 255 : 1;
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const clamped = clamp(alpha, 0, 1, 1);
+  if (clamped >= 1) return hex.slice(0, 7);
+  const suffix = Math.round(clamped * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${hex.slice(0, 7)}${suffix}`;
 }
 
 function toHex([r, g, b]: [number, number, number]): string {
@@ -170,9 +191,49 @@ const DARK_FALLBACK: Palette = {
   codeBackground: "#1b1b1b",
 };
 
-function paletteVars(palette: Partial<Palette> | undefined, fallback: Palette): string[] {
+/**
+ * How opaque the reader's page ground is when the theme has no opinion.
+ *
+ * The reader is a pane of glass over the window, not a sheet of paper taped to
+ * it: a hint of the desktop and of the space's tint reads through the page, and
+ * nothing else does. Opacity is a *material* property, orthogonal to the palette,
+ * which is why it is not baked into the fallback hexes — every theme, built-in or
+ * generated, keeps its own background colour and gets this alpha applied to it.
+ *
+ * The numbers are the lowest that hold body text at 7:1 (WCAG AAA for body copy)
+ * against the worst backdrop in each appearance, with nothing else underneath:
+ *
+ *  - light, `#1a1a1a` on white over a *black* desktop → 8.7:1 at 0.72
+ *  - dark, `#f2f2f2` on `#141414` over a *white* desktop → 7.6:1 at 0.76
+ *
+ * Dark needs the higher figure because a bright backdrop lifts its ground towards
+ * the text, where light mode's ground only ever gets darker than white.
+ *
+ * In the macOS shell these composite over `Glass.pageFill`, so the desktop's real
+ * contribution is a few per cent and the text sits far above those floors. The
+ * floors are what the reader guarantees on its own — an iOS host, a plain window,
+ * a screenshot.
+ */
+const GROUND_ALPHA = { light: 0.72, dark: 0.76 } as const;
+
+/**
+ * The page ground: the theme's colour, at the theme's alpha if it stated one and
+ * the reader's default alpha otherwise.
+ */
+function ground(value: unknown, fallback: string, defaultAlpha: number): string {
+  const resolved = color(value, fallback);
+  const stated = resolved.length === 9;
+  return withAlpha(resolved, stated ? alphaOf(resolved) : defaultAlpha);
+}
+
+function paletteVars(
+  palette: Partial<Palette> | undefined,
+  fallback: Palette,
+  defaultAlpha: number,
+): string[] {
+  const background = ground(palette?.background, fallback.background, defaultAlpha);
   const resolved: Palette = {
-    background: color(palette?.background, fallback.background),
+    background,
     surface: color(palette?.surface, fallback.surface),
     text: color(palette?.text, fallback.text),
     textMuted: color(palette?.textMuted, fallback.textMuted),
@@ -194,16 +255,27 @@ function paletteVars(palette: Partial<Palette> | undefined, fallback: Palette): 
     // Selection and hairlines want the border colour at partial strength;
     // color-mix keeps that a token operation rather than a second colour input.
     `--z-selection: color-mix(in srgb, var(--z-accent) 25%, transparent)`,
+    // How solid the plates *inside* the page are — blockquotes, tables, code
+    // blocks, embeds. On a translucent ground an opaque plate reads as a patch
+    // where the glass ran out, so they become denser glass instead: the theme
+    // still supplies the colour, this supplies the material. On an opaque ground
+    // there is no glass to be denser than, and they stay exactly as the theme
+    // painted them.
+    `--z-surface-mix: ${alphaOf(background) < 1 ? "55%" : "100%"}`,
   ];
 }
 
 // MARK: - Compile
 
-/** The colour of the page behind everything, for the host element's inline style. */
+/**
+ * The page ground behind everything, for the host element's inline style.
+ * Translucent by default — see `GROUND_ALPHA`. Compiled from the same tokens as
+ * `--z-bg`, so the two always agree.
+ */
 export function pageBackground(tokens: ThemeTokens | undefined, dark: boolean): string {
   return dark
-    ? color(tokens?.dark?.background, DARK_FALLBACK.background)
-    : color(tokens?.light?.background, LIGHT_FALLBACK.background);
+    ? ground(tokens?.dark?.background, DARK_FALLBACK.background, GROUND_ALPHA.dark)
+    : ground(tokens?.light?.background, LIGHT_FALLBACK.background, GROUND_ALPHA.light);
 }
 
 /**
@@ -286,12 +358,12 @@ export function compileTheme(theme: ReaderTheme | undefined): string {
   const elevationKind = String(shape?.elevation);
 
   const light = [
-    ...paletteVars(tokens?.light, LIGHT_FALLBACK),
+    ...paletteVars(tokens?.light, LIGHT_FALLBACK, GROUND_ALPHA.light),
     `--z-elevation: ${elevation(elevationKind, lightSurface)}`,
     "color-scheme: light",
   ];
   const dark = [
-    ...paletteVars(tokens?.dark, DARK_FALLBACK),
+    ...paletteVars(tokens?.dark, DARK_FALLBACK, GROUND_ALPHA.dark),
     `--z-elevation: ${elevation(elevationKind, darkSurface)}`,
     "color-scheme: dark",
   ];

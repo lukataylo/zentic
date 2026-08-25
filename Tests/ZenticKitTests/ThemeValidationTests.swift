@@ -132,6 +132,27 @@ struct ThemeValidationTests {
         }
     }
 
+    @Test("A non-finite token is clamped, not passed through")
+    func nonFiniteTokensAreClamped() {
+        // `min`/`max` propagate NaN instead of ordering it, so a naive clamp
+        // returns NaN unchanged and it reaches the stylesheet, where it kills the
+        // declaration it lands in. Invariant 5 says a validated token is in range;
+        // this is the case where "in range" is not the same as "clamped".
+        var tokens = ReaderTheme.zentic.tokens
+        tokens.typography.baseSize = Double.nan
+        tokens.typography.measure = Double.infinity
+        tokens.density = -Double.infinity
+
+        let validated = tokens.validated()
+
+        #expect(validated.typography.baseSize.isFinite)
+        #expect(validated.typography.measure.isFinite)
+        #expect(validated.density.isFinite)
+        #expect((13...24).contains(validated.typography.baseSize))
+        #expect((45...100).contains(validated.typography.measure))
+        #expect((0.6...1.6).contains(validated.density))
+    }
+
     @Test("No font key references a remote resource")
     func fontStacksAreLocal() {
         // A theme must never trigger a network request; see ThemeTokens' docs.

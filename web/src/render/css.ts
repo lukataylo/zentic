@@ -16,13 +16,22 @@ export const BASE_CSS = `
   all: initial;
   font-family: var(--z-font-body);
   color: var(--z-text);
+  /* The page ground, painted exactly once and by the element that always covers
+     the viewport. \`view.ts\` sets the same value inline so there is a ground
+     before this sheet parses; both compile from \`--z-bg\`, so they agree.
+     Painting it here *and* on .viewport would compose two alphas and quietly
+     make a translucent theme half as translucent as it asked to be. */
+  background: var(--z-bg);
+  /* Plates inside the page — see \`--z-surface-mix\`. On a translucent ground
+     these are denser glass; on an opaque one they resolve to the flat token. */
+  --z-surface-plate: color-mix(in srgb, var(--z-surface) var(--z-surface-mix), transparent);
+  --z-code-plate: color-mix(in srgb, var(--z-code-bg) var(--z-surface-mix), transparent);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 .viewport {
   min-height: 100%;
-  background: var(--z-bg);
   color: var(--z-text);
   font-family: var(--z-font-body);
   font-size: var(--z-size-base);
@@ -176,7 +185,7 @@ blockquote {
   padding: var(--z-space-1) var(--z-space-2);
   border-inline-start: 3px solid var(--z-border);
   color: var(--z-text-muted);
-  background: var(--z-surface);
+  background: var(--z-surface-plate);
   border-radius: var(--z-radius);
 }
 blockquote p:last-child { margin-bottom: 0; }
@@ -189,7 +198,7 @@ code, kbd, samp, var {
   font-style: normal;
 }
 :not(pre) > code {
-  background: var(--z-code-bg);
+  background: var(--z-code-plate);
   border-radius: calc(var(--z-radius) * 0.4);
   padding: 0.1em 0.35em;
 }
@@ -201,7 +210,7 @@ figure.code { margin: var(--z-space-2) 0; position: relative; }
 figure.code > pre {
   margin: 0;
   overflow-x: auto;
-  background: var(--z-code-bg);
+  background: var(--z-code-plate);
   border: var(--z-border-width) solid var(--z-border);
   border-radius: var(--z-radius);
   box-shadow: var(--z-elevation);
@@ -230,7 +239,7 @@ table {
   border-collapse: collapse;
   width: 100%;
   font-size: var(--z-size-small);
-  background: var(--z-surface);
+  background: var(--z-surface-plate);
   border-radius: var(--z-radius);
   box-shadow: var(--z-elevation);
 }
@@ -247,7 +256,7 @@ th, td {
   text-align: start;
   vertical-align: top;
 }
-th { background: var(--z-code-bg); font-weight: 650; }
+th { background: var(--z-code-plate); font-weight: 650; }
 
 /* MARK: media */
 
@@ -272,7 +281,7 @@ figcaption {
   position: relative;
   margin: var(--z-space-3) 0;
   aspect-ratio: var(--z-embed-ratio, 16 / 9);
-  background: var(--z-surface);
+  background: var(--z-surface-plate);
   border-radius: var(--z-radius);
   overflow: hidden;
 }
@@ -330,7 +339,7 @@ a.footnote-backref { text-decoration: none; margin-inline-start: 0.4ch; }
   border-radius: var(--z-radius);
   padding: var(--z-space-1) var(--z-space-2);
   margin-bottom: var(--z-space-3);
-  background: var(--z-surface);
+  background: var(--z-surface-plate);
   box-shadow: var(--z-elevation);
 }
 `;

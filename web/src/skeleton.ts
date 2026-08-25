@@ -1,4 +1,5 @@
 import { countWords, elementArea, matchesAny, narrowHiddenSelectors, viewportSize } from "./dom.js";
+import { LENS_NODE_SELECTOR } from "./lens/harvest.js";
 import type { DOMSkeleton, SkeletonNode } from "./wire.js";
 
 // Structural fingerprint for recipe inference.
@@ -69,7 +70,13 @@ export function pathPattern(pathname: string): string {
   return `/${generalised.join("/")}`;
 }
 
-function safeDecode(segment: string): string {
+/** `decodeURIComponent`, minus the throw on a lone `%`.
+ *
+ * Exported beside `pathPattern` because the lens path matcher decodes segments by
+ * exactly this rule, and had its own copy of it. A path that generalises one way
+ * here and matches another way there is a lens the store hands to a page the
+ * engine then declines to run. */
+export function safeDecode(segment: string): string {
   try {
     return decodeURIComponent(segment);
   } catch {
@@ -77,8 +84,12 @@ function safeDecode(segment: string): string {
   }
 }
 
-/** `body>div:nth-of-type(2)>article` — stable enough for a recipe to name. */
-function cssPath(element: Element): string {
+/** `body>div:nth-of-type(2)>article` — stable enough for a recipe to name.
+ *
+ * Exported for the lens region catalog, which needs the same last-resort anchor:
+ * two path builders would drift, and a lens whose selector disagrees with the
+ * skeleton's would be unfixable from a recipe. */
+export function cssPath(element: Element): string {
   const parts: string[] = [];
   let current: Element | null = element;
 
@@ -144,9 +155,17 @@ export function buildSkeleton(doc: Document, options: SkeletonOptions): DOMSkele
   const hiddenOnNarrow = narrowHiddenSelectors(doc);
   const candidates: SkeletonNode[] = [];
 
+  // A lens can have inserted a label or a harvested list before the skeleton is
+  // taken. Those are Zentic's own nodes, and a recipe inferred from a page that
+  // includes them would be a recipe for our furniture — so they are not offered
+  // as candidates, and neither are their children. Checked once, because the
+  // ancestor walk is only worth paying for on a page that actually has one.
+  const hasLensNodes = doc.body?.querySelector(LENS_NODE_SELECTOR) != null;
+
   for (const element of Array.from(doc.body?.querySelectorAll("*") ?? [])) {
     const tag = element.localName.toLowerCase();
     if (IGNORED_TAGS.has(tag)) continue;
+    if (hasLensNodes && element.closest(LENS_NODE_SELECTOR)) continue;
 
     // Subtree length, not own-text length: what identifies a content container
     // is how much text lives *under* it. Ownership of the characters is the

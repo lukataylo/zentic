@@ -243,7 +243,10 @@ final class RedesignController {
         }
     }
 
-    private static func message(for error: any Error) -> String {
+    /// One sentence for an `LLMError`, in the user's terms rather than the API's.
+    /// Shared with ``LensController``: a model failure reads the same wherever it
+    /// surfaces, and two copies of this would drift apart within a release.
+    static func message(for error: any Error) -> String {
         guard let llm = error as? LLMError else { return "\(error)" }
         switch llm {
         case .notEntitled:

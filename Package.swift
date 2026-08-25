@@ -26,6 +26,9 @@ let package = Package(
             ],
             resources: [
                 .copy("Resources/zentic.js"),
+                // The lens editor. A second bundle because it is delivered on
+                // demand, not at document-start — see `web/src/lens/deferred.ts`.
+                .copy("Resources/zentic-lens-editor.js"),
                 .copy("Blocking/Resources/seed.txt"),
             ]
         ),
@@ -37,6 +40,10 @@ let package = Package(
         .testTarget(
             name: "ZenticKitTests",
             dependencies: ["ZenticKit"]
+        ),
+        .testTarget(
+            name: "ZenticMacTests",
+            dependencies: ["ZenticMac"]
         ),
     ]
 )

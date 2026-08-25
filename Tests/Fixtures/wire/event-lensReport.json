@@ -1,0 +1,45 @@
+{
+  "payload" : [
+    {
+      "generatedAt" : "2025-07-31T22:13:20Z",
+      "lensID" : "lens-1",
+      "results" : [
+        {
+          "matchedCount" : 1,
+          "opID" : "op-hide",
+          "status" : "applied",
+          "usedSelector" : "#secondary"
+        },
+        {
+          "matchedCount" : 0,
+          "message" : "no candidate matched",
+          "opID" : "op-filter",
+          "status" : "missed"
+        },
+        {
+          "matchedCount" : 0,
+          "message" : "op pass exceeded 120ms",
+          "opID" : "op-restyle",
+          "status" : "skipped"
+        },
+        {
+          "matchedCount" : 3,
+          "message" : "3 elements matched; applied to the first",
+          "opID" : "op-reorder",
+          "status" : "ambiguous",
+          "usedSelector" : "ytd-rich-grid-renderer"
+        },
+        {
+          "matchedCount" : 1,
+          "message" : "destination is inside the moved region",
+          "opID" : "op-move",
+          "status" : "failed",
+          "usedSelector" : "#secondary"
+        }
+      ],
+      "url" : "https:\/\/www.youtube.com\/watch"
+    }
+  ],
+  "type" : "lensReport",
+  "v" : 3
+}

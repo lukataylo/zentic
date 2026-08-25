@@ -29,9 +29,24 @@ import { compileTheme, pageBackground } from "./theme.js";
 // page through history lands at the top. Fixing that properly means storing our
 // scroll offset per history entry, which is M4 work.
 //
-// Because the overlay is opaque and covers the viewport, revealing the original
-// document underneath it is safe. That is deliberate: it means a bug in this file
-// shows the user the real page rather than a blank window.
+// ## Why the overlay is translucent, and what that costs
+//
+// The reader's ground is a pane of glass: a hint of the window's material and the
+// space's tint reads through the page. That is a token, not a hardcode — see
+// `GROUND_ALPHA` in `theme.ts` for the alphas and the contrast floors behind them.
+//
+// It used to be opaque, and that opacity was load-bearing: it is what made
+// revealing the original document underneath the overlay safe, so a bug in this
+// file showed the user the real page rather than a blank window. Translucency
+// takes that away — the site's own text and images would bleed through the
+// reading view — so the original now stays hidden for exactly as long as this
+// overlay is covering it.
+//
+// `isCovering` is the whole of this file's side of that bargain, and
+// `VisibilityController` is the other side: it conceals only while that getter is
+// true, only with a watchdog already running, and it releases the moment the
+// getter goes false. Every teardown here — `hide`, `clear`, `destroy`, or the page
+// tearing our host out of its own DOM — flips it, and so reveals the page.
 
 const HOST_ID = "zentic-reader-root";
 
@@ -64,6 +79,27 @@ export class ReaderView {
 
   get isRendered(): boolean {
     return this.root !== undefined && this.host?.isConnected === true;
+  }
+
+  /**
+   * Whether the overlay is on screen *right now*, painting over the viewport.
+   *
+   * Stricter than `isRendered`, and the difference is exactly the set of states
+   * that would strand a hidden document behind nothing:
+   *
+   *  - `display: none` from ⌘\ — rendered, not covering.
+   *  - `clear()` for an SPA route change — mounted and empty, not covering.
+   *  - a host the page removed from its own DOM — `isConnected` is false.
+   *
+   * Read live on a timer by `VisibilityController`, so it must stay a cheap
+   * property read: no layout, no queries.
+   */
+  get isCovering(): boolean {
+    return (
+      this.isRendered &&
+      this.viewport !== undefined &&
+      this.host?.style.getPropertyValue("display") !== "none"
+    );
   }
 
   /**
@@ -272,8 +308,11 @@ export class ReaderView {
     // These two must beat anything the site can say about our element.
     host.style.setProperty("visibility", "visible", "important");
     host.style.setProperty("display", "block", "important");
-    // Opaque before the shadow stylesheet applies, so the original document
-    // never shows through for a frame.
+    // The page ground, in place before the shadow stylesheet parses so the reader
+    // never paints a frame with no ground under it. Compiled from the same tokens
+    // as `--z-bg`, which the base sheet puts on `:host` — the ground is painted
+    // once, and by this element, because it is the one that always covers the
+    // viewport whatever the content does.
     host.style.setProperty("background", pageBackground(this.theme?.tokens, dark));
   }
 

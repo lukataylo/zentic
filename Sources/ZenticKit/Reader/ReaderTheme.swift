@@ -415,7 +415,16 @@ enum Color {
 }
 
 extension Double {
+    /// Clamp into `range`, treating a non-finite value as out of range entirely.
+    ///
+    /// `min`/`max` propagate `NaN` rather than ordering it, so the obvious
+    /// implementation lets `NaN` through a clamp untouched and straight into a
+    /// generated stylesheet, where it silently invalidates the declaration it
+    /// lands in. A model cannot emit `NaN` through JSON, but the invariant here is
+    /// that a validated token is *always* in range, and a guarantee with a hole
+    /// that only in-process callers can reach is the kind that rots quietly.
     func clamped(to range: ClosedRange<Double>) -> Double {
-        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+        guard isFinite else { return range.lowerBound }
+        return Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }

@@ -1,9 +1,11 @@
 # Zentic
 
 A browser where the clean version of a page *is* the page you land on. macOS + iOS,
-Swift, WKWebView. Three layers: **strip** (block ads/trackers/cookie walls),
+Swift, WKWebView. Four layers: **strip** (block ads/trackers/cookie walls),
 **restructure** (extract and re-render in our own design system — deterministic, no
-AI), **rewrite** (optionally re-voice the prose — on demand, AI).
+AI), **rewrite** (optionally re-voice the prose — on demand, AI), and **remodel**
+(persistent per-site *lenses* that hide, move, restyle and filter the site's own
+live DOM — authored once with AI, replayed deterministically with none).
 
 Full design: `~/.claude/plans/hazy-swimming-flame.md`.
 
@@ -13,7 +15,9 @@ Full design: `~/.claude/plans/hazy-swimming-flame.md`.
 |---|---|
 | `Sources/ZenticKit/` | Shared core. Contracts, models, policy. No UI. |
 | `Sources/ZenticMac/` | macOS shell. Arc-style sidebar, spaces, ⌘K palette, tab suspension. |
+| `Sources/ZenticKit/Lens/` | Lenses: model, validation, per-origin store, drift accounting. |
 | `web/` | TypeScript injected into every page. Builds to `Sources/ZenticKit/Resources/zentic.js`. |
+| `web/src/lens/` | The lens engine: segmentation, op runner, feed observer, editor overlay. |
 | `Tests/Fixtures/wire/` | Golden files. The bridge contract, shared by both languages. |
 
 ## Build
@@ -45,9 +49,24 @@ These are not style preferences. Each one is load-bearing, and each has a test.
    `Budget.revealFailsafe` (1500ms) is a hard ceiling — never raise it to make a slow
    site work. Arm the timer *before* hiding. See `web/src/visibility.ts`.
 
-2. **Never restructure an app.** Archetype detection fails *open*: low confidence
-   means pass the original through. Mangling someone's mail client costs their trust;
-   declining to restructure an article costs nothing.
+2. **Never restructure an app — but you may remodel one.** Archetype detection
+   fails *open*: low confidence means pass the original through. Mangling someone's
+   mail client costs their trust; declining to restructure an article costs nothing.
+
+   *Restructure* extracts the content and renders our own document over the hidden
+   original. It is forbidden on apps, and that has not changed.
+
+   *Remodel* is the lens layer, and it is a different operation: the site's own DOM
+   stays live, interactive and authoritative, and a lens only hides, moves, restyles,
+   reorders or filters parts of it. That is why "YouTube without the suggestions
+   rail" is allowed where restructuring YouTube never will be — the real player is
+   still the real player. Three properties make it safe, and each is load-bearing:
+   ops fail *independently* (a stale selector no-ops and is reported, it does not
+   break the page), nothing is destroyed (⌘\ and disabling both restore the
+   untouched page), and a model authors *validated ops over regions it was shown*,
+   never markup and never a selector it invented. A lens must never hide the whole
+   document — see `LensToken.regionSelector`, which is why `hide` on `body` is not a
+   legal lens.
 
 3. **Code, tables, math and embeds are never sent to a model.** A model asked to
    restyle a code block renames identifiers; asked to restyle a table it drops cells.

@@ -80,6 +80,122 @@ final class TabController: NSObject {
     /// are in flight, and SwiftData traps on any access to a deleted object.
     private var isDiscarded = false
 
+    // MARK: Lenses
+
+    /// A lens set, and the URL it was resolved for.
+    ///
+    /// The pairing is the whole point. Everything that resolves a set does so across
+    /// an `await`, and a tab can be somewhere else by the time it resumes, so a set
+    /// without the URL it belongs to cannot be checked against the page in front of
+    /// the user — which is how the chrome ended up describing a page it was not
+    /// looking at.
+    private struct LensPlan {
+        var url: URL
+        var lenses: [Lens]
+        var siteLensCount: Int
+        var enabledLensCount: Int
+
+        /// Whether this plan is still about the page at `url`. Path and host only:
+        /// a fragment is not a navigation, and a query change does not re-resolve a
+        /// set that matches on host and path pattern.
+        func describes(_ url: URL?) -> Bool {
+            guard let url else { return false }
+            return url.host() == self.url.host() && url.path() == self.url.path()
+        }
+    }
+
+    /// The lens set this page was given, in application order.
+    ///
+    /// Resolved before the navigation is allowed, so it is already in the bootstrap
+    /// script by `document-start` — the `hide` and `restyle` ops compile to a
+    /// stylesheet, and a stylesheet that arrives as a command arrives after the
+    /// first paint, which is the user watching the sidebar they removed appear and
+    /// then vanish.
+    private(set) var appliedLenses: [Lens] = []
+
+    /// The set resolved for a navigation that has not committed yet.
+    ///
+    /// A policy decision is not a page. The navigation it approves can fail, be
+    /// cancelled by the next click, turn out to be a download, or be beaten by a
+    /// redirect — and committing the new URL's lens count and badge at that moment
+    /// left the *old* page on screen described by the *new* page's chrome. So the
+    /// bootstrap is armed there, because that is the last moment it can be, and
+    /// everything the chrome reads waits for `didCommit`.
+    private var stagedPlan: LensPlan?
+
+    /// Every lens saved for this host, matching this page or not. Only the count is
+    /// used — the toolbar has to distinguish "this site has no lenses" from "this
+    /// site's lenses are all switched off", and those look identical otherwise.
+    private var siteLensCount = 0
+    /// Of those, the ones switched on. The toolbar needs both to tell "this site's
+    /// lens is off" from "this site's lens is on, for another page".
+    private var enabledLensCount = 0
+
+    /// The URL the reports and the applied set describe.
+    ///
+    /// Not the same question as "what is the web view showing": a same-document
+    /// navigation moves that instantly, while the set and the reports still belong
+    /// to the route the user just left until a pass has run for the new one.
+    private var lensURL: URL?
+
+    /// Which resolution is the current one. Bumped as each starts, checked when it
+    /// resumes: an actor hop is not ordered, and the answer to an older question
+    /// arriving last is how a tab ends up armed for a page it already left.
+    private var lensPlanSequence = 0
+
+    /// What each lens actually did on *this* page load, keyed by lens id.
+    ///
+    /// Cleared on navigation. Invariant 8 applies: the badge is drawn from these and
+    /// nothing else, so a stale report from the previous page would be a fabricated
+    /// count of what the current one did.
+    private var lensReports: [String: LensReport] = [:]
+
+    /// The most recent textless catalog of the page, for authoring and re-fitting.
+    private var catalog: RegionCatalog?
+    /// Callers waiting on a fresh catalog. Drained on the next `lensRegions` event
+    /// or by the timeout, whichever comes first.
+    private var catalogWaiters: [CheckedContinuation<RegionCatalog?, Never>] = []
+    /// Which catalog request the pending timeout belongs to. See ``freshCatalog()``.
+    private var catalogRequest = 0
+
+    /// The last refresh asked for, so the next one can queue behind it rather than
+    /// race it. See ``refreshLenses()``.
+    private var lensRefresh: Task<Void, Never>?
+
+    private(set) var isLensEditing = false
+
+    /// Which ⌥⌘L we are waiting on an answer to, and what to say if none comes.
+    ///
+    /// ``ReaderBridge/send(_:to:)`` cannot report an unreachable page: the injected
+    /// call is optional-chained, so a document with no bundle in it — a PDF, an error
+    /// page, a `view-source:` — accepts the command and does nothing, and the send
+    /// succeeds. The only evidence the editor opened is the `lensModeChanged` the
+    /// overlay posts back, so silence is the signal, and this is what turns silence
+    /// into a sentence.
+    private var lensModeRequest = 0
+    private var lensModeUnavailable: (@MainActor () -> Void)?
+
+    /// Everything the chrome needs to draw the lens button and popover.
+    ///
+    /// The presentation is this tab's own fact, and it is the half of the answer the
+    /// page cannot supply: a lens acts on the site's document, and while the reader
+    /// is rendering its own view of it, none of what the lens did is on screen —
+    /// whatever a report that arrived before the switch happens to say.
+    var lensState: LensState {
+        LensState.make(
+            lenses: appliedLenses,
+            reports: lensReports,
+            siteLensCount: max(siteLensCount, appliedLenses.count),
+            enabledLensCount: max(enabledLensCount, appliedLenses.count),
+            isReaderRendered: isTransformed
+        )
+    }
+
+    /// Fires on SPA navigation, where there is no new document and therefore no new
+    /// bootstrap — the lens set for `/watch` has to reach a page that is still the
+    /// one loaded at `/`.
+    private var urlObservation: NSKeyValueObservation?
+
     /// Samples the scroll offset while resident.
     ///
     /// Polling rather than a JS scroll listener: the offset is only ever needed at
@@ -137,7 +253,11 @@ final class TabController: NSObject {
         do {
             let bridge = try ReaderBridge(
                 contentController: configuration.userContentController,
-                configuration: ReaderConfiguration(mode: readerMode, debugLogging: true)
+                configuration: ReaderConfiguration(
+                    mode: readerMode,
+                    lenses: appliedLenses,
+                    debugLogging: true
+                )
             )
             bridge.delegate = self
             self.bridge = bridge
@@ -158,12 +278,37 @@ final class TabController: NSObject {
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsMagnification = true
+        // Let the card's glass show through wherever the page does not paint.
+        //
+        // A `WKWebView` fills its bounds with an opaque ground before the page
+        // draws, so without this the card's translucency is covered by the web view
+        // and the window reads as a white rectangle in a tinted frame no matter what
+        // alpha the card uses. `underPageBackgroundColor` is the public half and
+        // governs over-scroll and the area beyond the page; `drawsBackground` is the
+        // half that actually stops the fill, and it has **no public spelling** — it
+        // is KVC against an undeclared property. That is a real liability and worth
+        // naming rather than burying: if a future WebKit stops honouring the key,
+        // `setValue(_:forKey:)` raises an `NSException`, which Swift cannot catch,
+        // and every tab creation would trap. The `responds(to:)` guard is what makes
+        // that a lost visual effect instead of a browser that will not open a tab.
+        webView.underPageBackgroundColor = .clear
+        if webView.responds(to: NSSelectorFromString("_setDrawsBackground:")) {
+            webView.setValue(false, forKey: "drawsBackground")
+        }
         // Lets Safari's Web Inspector attach, which is how the in-page bundle is
         // debugged. Debug builds only — this is a remote-control surface.
         #if DEBUG
         webView.isInspectable = true
         #endif
         self.webView = webView
+
+        // `url` is KVO-compliant and fires for `pushState`, which is the only signal
+        // a same-document navigation gives us. Without it a lens scoped to `/watch`
+        // would never arrive on a site the user got to by clicking, rather than by
+        // typing the address.
+        urlObservation = webView.observe(\.url, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.lensesFollowedTheURL() }
+        }
 
         restoreSession(into: webView)
         startScrollPolling()
@@ -198,6 +343,11 @@ final class TabController: NSObject {
     }
 
     private func teardownWebView() {
+        urlObservation?.invalidate()
+        urlObservation = nil
+        // Nothing is going to answer a catalog request from a web view that is being
+        // dismantled, and a continuation that is never resumed is a leaked task.
+        drainCatalogWaiters(with: nil)
         guard let webView else { return }
         // Stop loading before dropping delegates, or an in-flight navigation can
         // call back into a half-dismantled controller.
@@ -417,6 +567,286 @@ final class TabController: NSObject {
         reload()
     }
 
+    // MARK: - Lenses
+
+    /// Resolve this tab's lens set for a URL it is about to load.
+    ///
+    /// Called from the navigation policy decision, which is `async` and therefore the
+    /// last point at which the bootstrap script can still be changed before the new
+    /// document exists. One actor hop per navigation buys a page whose lenses are
+    /// live at `document-start`; delivering them as a command instead would cost a
+    /// visible reflow on every visit.
+    func prepareLenses(for url: URL) async {
+        lensPlanSequence += 1
+        let sequence = lensPlanSequence
+
+        let all = await LensController.shared.allLenses(for: url)
+        let plan = LensPlan(
+            url: url,
+            lenses: await LensController.shared.lenses(for: url),
+            siteLensCount: all.count,
+            enabledLensCount: all.count { $0.isEnabled }
+        )
+        // Two awaits, and the user can have clicked something else across either of
+        // them. A policy decision for a URL this tab has since abandoned must not
+        // rewrite the bootstrap the live navigation is about to boot from, so the
+        // last decision to *start* is the one that gets to arm the page.
+        guard sequence == lensPlanSequence else { return }
+        stagedPlan = plan
+
+        guard let bridge else { return }
+        var configuration = bridge.currentConfiguration
+        configuration.lenses = plan.lenses
+        bridge.updateConfiguration(configuration)
+        if !plan.lenses.isEmpty {
+            trace("lens", "tab \(shortID) armed \(plan.lenses.count) lenses for \(url.host() ?? "?")")
+        }
+    }
+
+    /// Adopt the staged set now that a document has actually committed.
+    ///
+    /// This is where the chrome starts describing the new page: not before, because
+    /// a navigation that never commits leaves the previous page on screen, and a
+    /// badge counting a lens set that page never ran is a fabricated number.
+    private func commitStagedLenses(for url: URL) {
+        let plan = stagedPlan
+        stagedPlan = nil
+        guard let plan, plan.describes(url) else {
+            // Committed somewhere the staged set was not resolved for — a redirect,
+            // or a policy decision that lost a race. The set the page actually
+            // booted with is unknown, so it is re-resolved rather than assumed.
+            Task { await refreshLenses() }
+            return
+        }
+        appliedLenses = plan.lenses
+        siteLensCount = plan.siteLensCount
+        enabledLensCount = plan.enabledLensCount
+        lensURL = url
+        // The reports belong to the document being replaced.
+        lensReports = [:]
+        catalog = nil
+    }
+
+    /// Re-resolve and push the set to the page that is already loaded.
+    ///
+    /// The live half of the same job: a lens toggled in the popover, a draft just
+    /// saved, or a same-document navigation to a path a different lens covers. The
+    /// bootstrap is updated too, so the next load starts from the same set rather
+    /// than briefly reverting to the one this document booted with.
+    /// One at a time, in the order they were asked for.
+    ///
+    /// Every save fans out through `observeChanges` into a refresh for each resident
+    /// tab, and the call site that made the change usually awaits one of its own on
+    /// top. Both ran at once, both read `appliedLenses` before either had written
+    /// it, both decided the set had changed, and both sent `applyLenses` — so a
+    /// single Save cost the page two full undo-and-re-run passes and posted two
+    /// reports. Chaining onto the previous run makes a second request a no-op by
+    /// construction: by the time it resolves, the first has already written what it
+    /// would have found.
+    func refreshLenses() async {
+        let previous = lensRefresh
+        let task = Task { @MainActor [weak self] in
+            await previous?.value
+            await self?.runRefreshLenses()
+        }
+        lensRefresh = task
+        await task.value
+    }
+
+    private func runRefreshLenses() async {
+        guard let url else { return }
+        let all = await LensController.shared.allLenses(for: url)
+        let plan = LensPlan(
+            url: url,
+            lenses: await LensController.shared.lenses(for: url),
+            siteLensCount: all.count,
+            enabledLensCount: all.count { $0.isEnabled }
+        )
+        // The page can have moved across either await — a router does it in a
+        // frame. Resuming anyway overwrote the applied set with one resolved for a
+        // URL nobody is on and sent `applyLenses` for the wrong page, which is a
+        // real effect, not just a wrong number.
+        guard plan.describes(self.url) else { return }
+
+        if let bridge {
+            var configuration = bridge.currentConfiguration
+            configuration.lenses = plan.lenses
+            bridge.updateConfiguration(configuration)
+        }
+
+        // Reports are dropped whenever the *page* moved, not only when the set
+        // changed. A same-document navigation to a route the same lenses cover used
+        // to leave them in place, and the engine's coalesced report for the route
+        // the user just left then landed and was counted against the new one.
+        if lensURL != url { lensReports = [:] }
+        lensURL = url
+        siteLensCount = plan.siteLensCount
+        enabledLensCount = plan.enabledLensCount
+
+        guard plan.lenses != appliedLenses else {
+            delegate?.tabControllerDidChangeChrome(self)
+            return
+        }
+        appliedLenses = plan.lenses
+        // Every stored result described the previous set. Dropping them means the
+        // badge shows nothing until the page reports again, which is the honest
+        // state — a count for ops that are no longer applied is a fabrication.
+        lensReports = [:]
+        delegate?.tabControllerDidChangeChrome(self)
+
+        guard let bridge, let webView else { return }
+        do {
+            try await bridge.send(.applyLenses(plan.lenses), to: webView)
+            trace("lens", "tab \(shortID) applied \(plan.lenses.count) lenses")
+        } catch {
+            // Expected on a PDF, an error page, or anything with no bundle.
+            trace("lens", "tab \(shortID) applyLenses failed: \(error)")
+        }
+    }
+
+    /// A same-document navigation moved the page under the lens set.
+    private func lensesFollowedTheURL() {
+        guard let url = webView?.url, url != lensURL else { return }
+        // Dropped here rather than waiting for the refresh to resume: the reports
+        // stop describing what is on screen the moment the route changes, and the
+        // refresh is two actor hops away.
+        lensReports = [:]
+        delegate?.tabControllerDidChangeChrome(self)
+        Task { await refreshLenses() }
+    }
+
+    /// ⌥⌘L — show or hide the in-page editor.
+    ///
+    /// The editor is in the page rather than in the chrome because picking a region
+    /// means pointing at it, and the only surface that knows where anything is is
+    /// the page itself. It runs in the `zentic` content world, so page script can
+    /// neither see it nor patch it.
+    ///
+    /// Opening and closing are asymmetric, which is why there is no `toggle` here:
+    /// closing is unconditional, and opening has to be refused or renegotiated when
+    /// the page on screen is the reader's own render. That decision needs an alert,
+    /// so it belongs to the view controller.
+    ///
+    /// - Parameter onUnavailable: Run when the page could not be reached at all — a
+    ///   PDF, an error page, anything with no bundle in it. Without it the user
+    ///   presses ⌥⌘L and nothing whatsoever happens, which is indistinguishable from
+    ///   a broken shortcut. A throw from the bridge is not the only way to get there
+    ///   — see ``lensModeUnavailable`` — so opening also waits to be told it worked.
+    func setLensMode(
+        _ editing: Bool,
+        lensID: String? = nil,
+        onUnavailable: (@MainActor () -> Void)? = nil
+    ) {
+        guard let bridge, let webView else {
+            onUnavailable?()
+            return
+        }
+        lensModeRequest += 1
+        let request = lensModeRequest
+        lensModeUnavailable = editing ? onUnavailable : nil
+        Task {
+            // The editor is not in the document-start bundle — it is a third of a
+            // megabyte that cannot run until this keystroke, so every page that
+            // never sees one is spared parsing it. It goes in now, into the same
+            // isolated world, and the `await` is the ordering: the command below
+            // cannot reach a page that has not finished evaluating it.
+            if editing {
+                do {
+                    try await bridge.deliverLensEditor(to: webView)
+                } catch {
+                    trace("lens", "tab \(shortID) editor delivery failed: \(error)")
+                    answerLensMode(request, with: "the editor could not be sent to the page")
+                    return
+                }
+            }
+            do {
+                let command: ReaderCommand =
+                    editing
+                    ? .enterLensMode(lensID.map { LensEditRequest(editing: $0) })
+                    : .exitLensMode
+                try await bridge.send(command, to: webView)
+            } catch {
+                trace("lens", "tab \(shortID) lens mode failed: \(error)")
+                answerLensMode(request, with: "the page could not be reached")
+                return
+            }
+            guard editing else { return }
+            // Long enough for a page that has a bundle to have mounted the overlay
+            // and posted back. A page that has not answered by the time we would
+            // have given up waiting for it to settle has nothing in it to answer.
+            try? await Task.sleep(for: Budget.settleCeiling)
+            answerLensMode(request, with: "the editor never opened")
+        }
+    }
+
+    /// Give up on one ⌥⌘L and tell the user, once.
+    ///
+    /// Keyed on the request so a second press, or an editor the user has already
+    /// opened and closed, cannot be reported as a failure of this one.
+    private func answerLensMode(_ request: Int, with reason: String) {
+        guard request == lensModeRequest, let answer = lensModeUnavailable else { return }
+        lensModeUnavailable = nil
+        trace("lens", "tab \(shortID) lens mode unavailable: \(reason)")
+        answer()
+    }
+
+    /// Open the editor on an existing lens.
+    ///
+    /// Its **identity**, not its ops. Sending the ops as a proposal as well meant the
+    /// editor received the same lens twice — once adopted as chips by entering lens
+    /// mode, once again to confirm — so Apply re-minted the colliding op ids, every
+    /// op appeared in the draft twice, and Save then wrote a duplicate lens beside
+    /// the one being edited with both copies enabled. The editor already has the
+    /// applied set; all it was missing was which one of them the user pressed Edit
+    /// on, and which id the draft has to carry back so the save replaces rather than
+    /// inserts.
+    func edit(lens: Lens, onUnavailable: (@MainActor () -> Void)? = nil) {
+        setLensMode(true, lensID: lens.id, onUnavailable: onUnavailable)
+    }
+
+    /// Ask the page for a fresh region catalog and wait for it.
+    ///
+    /// Re-fitting needs the page *as it is now*, not as it was when the lens was
+    /// written — that difference is the whole point. Returns the last catalog we
+    /// were sent if the page does not answer, and nil if there has never been one.
+    ///
+    /// The wait is ``Budget/settleCeiling``: the catalog is built synchronously from
+    /// the live DOM, so a page that has not answered within the time we would have
+    /// waited for it to settle has no bundle in it — a PDF, an error page — and
+    /// waiting longer only delays telling the user so.
+    func freshCatalog() async -> RegionCatalog? {
+        guard let bridge, let webView else { return catalog }
+        do {
+            try await bridge.send(.requestRegions, to: webView)
+        } catch {
+            trace("lens", "tab \(shortID) requestRegions failed: \(error)")
+            return catalog
+        }
+        return await withCheckedContinuation { continuation in
+            let request = catalogRequest + 1
+            catalogRequest = request
+            catalogWaiters.append(continuation)
+            Task { @MainActor in
+                try? await Task.sleep(for: Budget.settleCeiling)
+                // Only this request's own timeout may give up on it. Draining
+                // unconditionally meant a second call inside the first's window was
+                // resumed early by the *first* timeout, handing back the catalog
+                // from before the page it was asked about — a re-fit against a
+                // stale view of the page is exactly the failure re-fit exists to
+                // repair.
+                guard catalogRequest == request else { return }
+                drainCatalogWaiters(with: catalog)
+            }
+        }
+    }
+
+    /// Resume every pending catalog request exactly once.
+    private func drainCatalogWaiters(with catalog: RegionCatalog?) {
+        let waiters = catalogWaiters
+        catalogWaiters = []
+        for waiter in waiters { waiter.resume(returning: catalog) }
+    }
+
     // MARK: - Rewrite
 
     /// Whether this page is one where rewriting needs an explicit confirm.
@@ -523,6 +953,16 @@ final class TabController: NSObject {
         rewriteState = .none
         extraction = nil
         didRestructure = false
+        // Reports and the catalog describe the document being replaced. The lens
+        // *set* is not cleared: it was resolved for the URL being navigated to, and
+        // is already in the bootstrap script for the page now loading.
+        lensReports = [:]
+        catalog = nil
+        isLensEditing = false
+        // A ⌥⌘L outstanding against the document being replaced has no answer worth
+        // waiting for: whatever the new page does, it is not that press.
+        lensModeRequest += 1
+        lensModeUnavailable = nil
     }
 
     // MARK: - Find in page
@@ -608,6 +1048,15 @@ extension TabController: WKNavigationDelegate {
         if navigationAction.shouldPerformDownload {
             return (.download, preferences)
         }
+
+        // Last chance to change the bootstrap script before the new document exists.
+        // Main frame only: a lens describes the page, and an iframe is somebody
+        // else's page inside it.
+        if navigationAction.targetFrame?.isMainFrame ?? false,
+            let url = navigationAction.request.url
+        {
+            await prepareLenses(for: url)
+        }
         return (.allow, preferences)
     }
 
@@ -626,6 +1075,9 @@ extension TabController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        // A document exists now, which is the first moment the lens set resolved at
+        // policy time is true of anything on screen.
+        if let url = webView.url { commitStagedLenses(for: url) }
         recordNavigation()
     }
 
@@ -651,6 +1103,7 @@ extension TabController: WKNavigationDelegate {
         withError error: any Error
     ) {
         trace("nav", "tab \(shortID) failed: \(error.localizedDescription)")
+        stagedPlan = nil
         delegate?.tabControllerDidChangeChrome(self)
     }
 
@@ -665,6 +1118,10 @@ extension TabController: WKNavigationDelegate {
         if code != NSURLErrorCancelled {
             trace("nav", "tab \(shortID) load failed: \(error.localizedDescription)")
         }
+        // The page that never arrived does not get to describe the one still on
+        // screen. Its set was armed in the bootstrap, which costs nothing — the
+        // bootstrap only runs for a document that loads.
+        stagedPlan = nil
         delegate?.tabControllerDidChangeChrome(self)
     }
 
@@ -676,6 +1133,8 @@ extension TabController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        // A download is not a page, so nothing about it describes what is on screen.
+        stagedPlan = nil
         delegate?.tabController(self, didStart: download)
     }
 
@@ -684,6 +1143,7 @@ extension TabController: WKNavigationDelegate {
         navigationResponse: WKNavigationResponse,
         didBecome download: WKDownload
     ) {
+        stagedPlan = nil
         delegate?.tabController(self, didStart: download)
     }
 }
@@ -774,7 +1234,110 @@ extension TabController: ReaderBridgeDelegate {
             trace("bridge", "\(shortID) needsRecipe · \(skeleton.nodes.count) nodes")
         case .failed(let failure):
             trace("bridge", "\(shortID) FAILED at \(failure.stage): \(failure.message)")
+            // A mount that threw is the one failure a user is standing over waiting
+            // for. It is answered now rather than at the end of the timeout, and it
+            // is the only stage that answers: `lens.pass` and the rest are about the
+            // page, not about the shortcut somebody just pressed.
+            if failure.stage == "lens.enterMode" {
+                answerLensMode(lensModeRequest, with: failure.message)
+            }
+        case .lensReport(let reports):
+            // The only source of the numbers on the lens button. Stored per tab so
+            // switching tabs shows each page's own result, and persisted so a lens
+            // that drifted is explicable on the next launch before the page it
+            // drifted on has loaded.
+            //
+            // Reports for another page are dropped. They are real — the engine
+            // coalesces observer results and re-posts a full report on a timer, so
+            // on a single-page app one for the route the user just left routinely
+            // arrives after the router has moved — and counting one is inventing a
+            // number about the page on screen, which invariant 8 forbids as
+            // squarely as making one up.
+            let describing = reports.filter { $0.describes(webView?.url) }
+            for report in describing { lensReports[report.lensID] = report }
+            let missed = describing.reduce(0) { $0 + $1.missedCount }
+            let stale = reports.count - describing.count
+            trace(
+                "bridge",
+                "\(shortID) lensReport · \(describing.count) lenses · \(missed) missed"
+                    + (stale > 0 ? " · \(stale) for another page, dropped" : "")
+            )
+            delegate?.tabControllerDidChangeChrome(self)
+            // Persisted even when it does not describe the page in front of the
+            // user: it describes the page the lens *ran* on, which is exactly what
+            // `lastReport` is for.
+            Task {
+                for report in reports { await LensController.shared.record(report) }
+            }
+        case .lensRegions(let catalog):
+            self.catalog = catalog
+            drainCatalogWaiters(with: catalog)
+            trace("bridge", "\(shortID) lensRegions · \(catalog.candidates.count) candidates")
+        case .lensPrompt(let request):
+            // Never prompt-straight-to-effect: the answer goes back as a *proposal*,
+            // which the editor highlights for confirmation before anything moves.
+            trace("bridge", "\(shortID) lensPrompt · \(request.selectedRegionIDs.count) selected")
+            catalog = request.catalog
+            Task { await authorLens(for: request) }
+        case .lensDraft(let lens):
+            trace("bridge", "\(shortID) lensDraft · \(lens.name) · \(lens.ops.count) ops")
+            Task { await saveLensDraft(lens) }
+        case .lensModeChanged(let isEditing):
+            isLensEditing = isEditing
+            // The page answered, so there is nothing to apologise for — including
+            // when it answers `false`, which is the editor closing itself.
+            lensModeUnavailable = nil
+            trace("bridge", "\(shortID) lensMode · \(isEditing ? "on" : "off")")
+            delegate?.tabControllerDidChangeChrome(self)
         }
+    }
+
+    /// Hand a prompt to the model and send the ops back to the editor.
+    ///
+    /// The answer goes back on every path, including failure — a proposal with no
+    /// ops, carrying the reason. The editor has disabled Ask and put the prompt
+    /// behind an "asking…" state, and nothing else on the wire would ever let it out
+    /// of that: a failed model call used to leave the overlay stuck there for the
+    /// life of the page.
+    private func authorLens(for request: LensPromptRequest) async {
+        let proposal = await LensController.shared.generate(
+            prompt: request.text,
+            selectedRegionIDs: request.selectedRegionIDs,
+            catalog: request.catalog,
+            origin: url?.host(),
+            over: webView?.window
+        )
+        guard let bridge, let webView else { return }
+        do {
+            try await bridge.send(.proposeOps(proposal), to: webView)
+        } catch {
+            trace("lens", "tab \(shortID) proposeOps failed: \(error)")
+        }
+    }
+
+    /// Persist what the editor saved, then put it on the page.
+    ///
+    /// Re-applying rather than trusting the editor's own preview: the stored lens is
+    /// what every future visit replays, so the page the user is looking at after
+    /// pressing Save should be the page the lens actually produces.
+    /// Every selector in the draft is measured against a catalog asked of this
+    /// page, because with the CSS subject parser gone that catalog is the whole
+    /// breadth defence on this path — see ``LensController/save(draft:for:against:over:)``.
+    /// Asked fresh rather than reusing whatever the last `lensPrompt` carried: a
+    /// draft may be authored entirely by pointing, in which case the app has never
+    /// been shown one, and `freshCatalog()` falls back to the last one anyway.
+    private func saveLensDraft(_ draft: Lens) async {
+        guard let url else { return }
+        let catalog = await freshCatalog()
+        // Saving posts `didChangeLenses`, which refreshes every resident tab
+        // including this one. A second await here was a second concurrent pass over
+        // the same page for one Save.
+        await LensController.shared.save(
+            draft: draft,
+            for: url,
+            against: catalog,
+            over: webView?.window
+        )
     }
 
     func readerBridge(_ bridge: ReaderBridge, didFailWith error: any Error) {

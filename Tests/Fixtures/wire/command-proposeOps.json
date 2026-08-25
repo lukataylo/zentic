@@ -1,0 +1,78 @@
+{
+  "payload" : {
+    "note" : "Hides the suggestions rail and drops Shorts from the grid.",
+    "ops" : [
+      {
+        "id" : "op-hide",
+        "kind" : "hide",
+        "note" : "hide the suggestions",
+        "region" : "related"
+      },
+      {
+        "filterMode" : "drop",
+        "id" : "op-filter",
+        "itemSelector" : "ytd-rich-item-renderer",
+        "kind" : "filter",
+        "limit" : 200,
+        "note" : "drop shorts and live streams",
+        "predicate" : {
+          "field" : "text",
+          "matchMode" : "any",
+          "minChars" : 4,
+          "terms" : [
+            "shorts",
+            "live now"
+          ]
+        },
+        "region" : "feed"
+      }
+    ],
+    "regions" : [
+      {
+        "fingerprint" : {
+          "ancestorTags" : [
+            "div",
+            "ytd-watch-flexy",
+            "ytd-page-manager",
+            "ytd-app",
+            "body"
+          ],
+          "attributeNames" : [
+            "data-testid",
+            "aria-label"
+          ],
+          "childCount" : 20,
+          "classes" : [
+            "style-scope"
+          ],
+          "elementID" : "secondary",
+          "rectBand" : {
+            "height" : 10,
+            "width" : 8,
+            "x" : 9,
+            "y" : 6
+          },
+          "role" : "complementary",
+          "siblingIndex" : 1,
+          "tag" : "ytd-watch-next-secondary-results-renderer",
+          "textLengthBand" : 13
+        },
+        "id" : "related",
+        "intent" : "the suggested videos sidebar",
+        "selectors" : [
+          "#secondary",
+          "ytd-watch-next-secondary-results-renderer"
+        ]
+      },
+      {
+        "id" : "feed",
+        "intent" : "the main video grid",
+        "selectors" : [
+          "ytd-rich-grid-renderer"
+        ]
+      }
+    ]
+  },
+  "type" : "proposeOps",
+  "v" : 3
+}

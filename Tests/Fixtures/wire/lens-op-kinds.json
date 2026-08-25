@@ -1,0 +1,14 @@
+{
+  "kinds" : [
+    "hide",
+    "keep",
+    "width",
+    "move",
+    "restyle",
+    "reorder",
+    "filter",
+    "label",
+    "harvest",
+    "insert"
+  ]
+}

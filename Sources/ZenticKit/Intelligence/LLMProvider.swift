@@ -53,6 +53,24 @@ public protocol LLMProvider: Sendable {
     /// ``GeneratedHTML``. Non-rewritable sections are never in the request and
     /// come back as placeholders, so invariant 3 holds here too.
     func generateDocument(_ request: DocumentRequest) async throws -> GeneratedDocument
+
+    /// Author lens ops from the user's words plus a textless ``RegionCatalog``.
+    ///
+    /// The model sees where things are on the page and how big they are, never what
+    /// they say — invariant 4 — and it authors *ops*, never markup, CSS or a
+    /// selector of its own invention. Implementations must return
+    /// ``LensProposal/validated(against:)`` output: the trust boundary belongs to
+    /// the provider, so a caller cannot forget to cross it.
+    func generateLens(_ request: LensRequest) async throws -> LensProposal
+
+    /// Re-derive selectors for a lens whose regions stopped matching.
+    ///
+    /// The recovery path for drift. The site redesigned, the stored selectors match
+    /// nothing, and the durable half of each region — its ``LensRegion/intent`` —
+    /// goes back to a model with a fresh catalog. The ops are untouched: the user
+    /// asked for the suggestions rail to go away, and that has not changed just
+    /// because its class names did.
+    func refitLens(_ request: LensRefitRequest) async throws -> [LensRegion]
 }
 
 extension LLMProvider {
@@ -61,6 +79,70 @@ extension LLMProvider {
             identifier: identifier,
             message: "This model does not generate full page layouts. Choose OpenAI in View ▸ Design Model."
         )
+    }
+
+    /// Decline, rather than half-answer.
+    ///
+    /// Authoring ops is a long structured generation over a hundred candidates, and
+    /// a small on-device model that returns three plausible ops naming two regions
+    /// that do not exist produces a lens which appears to work and rearranges the
+    /// wrong things. A refusal the user can act on is strictly better.
+    public func generateLens(_ request: LensRequest) async throws -> LensProposal {
+        throw LLMError.providerFailed(
+            identifier: identifier,
+            message: "This model does not author lenses. Choose OpenAI in View ▸ Design Model."
+        )
+    }
+
+    public func refitLens(_ request: LensRefitRequest) async throws -> [LensRegion] {
+        throw LLMError.providerFailed(
+            identifier: identifier,
+            message: "This model cannot re-fit a lens. Choose OpenAI in View ▸ Design Model."
+        )
+    }
+}
+
+// MARK: - Lens requests
+
+/// Everything a model is given to author a lens: the user's words, and a map of
+/// the page with the words taken out.
+public struct LensRequest: Sendable, Hashable {
+    /// The page, textless. See ``RegionCatalog`` — this is the only thing about the
+    /// page that ever leaves the device.
+    public var catalog: RegionCatalog
+    /// What the user typed, verbatim. Also the source of every `filter` term: the
+    /// model expands the user's own vocabulary, never the page's.
+    public var prompt: String
+    /// Regions the user clicked before typing. A strong hint, not a constraint —
+    /// people point at the header and mean the nav inside it.
+    public var selectedRegionIDs: [String]
+    /// Regions an existing lens already declares, when this is an edit. Reusing an
+    /// id keeps the ops that already name it working.
+    public var existingRegions: [LensRegion]
+
+    public init(
+        catalog: RegionCatalog,
+        prompt: String,
+        selectedRegionIDs: [String] = [],
+        existingRegions: [LensRegion] = []
+    ) {
+        self.catalog = catalog
+        self.prompt = prompt
+        self.selectedRegionIDs = selectedRegionIDs
+        self.existingRegions = existingRegions
+    }
+}
+
+/// A drifted lens and a fresh view of the page it drifted on.
+public struct LensRefitRequest: Sendable, Hashable {
+    public var catalog: RegionCatalog
+    /// The regions to re-derive. Their ``LensRegion/intent`` is the whole input;
+    /// the selectors in them are the ones that stopped working.
+    public var regions: [LensRegion]
+
+    public init(catalog: RegionCatalog, regions: [LensRegion]) {
+        self.catalog = catalog
+        self.regions = regions
     }
 }
 

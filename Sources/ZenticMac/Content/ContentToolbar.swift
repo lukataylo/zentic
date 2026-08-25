@@ -17,6 +17,8 @@ protocol ContentToolbarDelegate: AnyObject {
     func toolbarDidRequestDiscardRewrite()
     /// The shield. `sender` anchors the blocking menu.
     func toolbarDidRequestShield(_ sender: NSView)
+    /// The lens button. `sender` anchors the lens popover.
+    func toolbarDidRequestLenses(_ sender: NSView)
 }
 
 /// What the toolbar needs to know to draw the reader controls.
@@ -25,6 +27,9 @@ struct ReaderControlState {
     var canTransform = false
     var canRewrite = false
     var rewrite: TabController.RewriteState = .none
+    /// Lenses on this page, and what they actually did. See ``LensState`` — the
+    /// counts come from the page's own reports or they are not shown at all.
+    var lens = LensState()
 }
 
 /// The toolbar. Sits above the **content area**, never above the sidebar — that
@@ -52,6 +57,11 @@ final class ContentToolbar: PointerTrackingView {
     /// Blocking, for this origin. State only — invariant 8: WebKit reports no
     /// counts back, so a "127 trackers blocked" badge would be a fabrication.
     private let shieldButton = NSButton()
+    /// Lenses, for this page. Unlike the shield this one *may* carry a number,
+    /// because the page reports what each op did — but only ever that number. See
+    /// ``applyLens(_:)``.
+    private let lensButton = NSButton()
+    private let lensBadge = NSTextField(labelWithString: "")
     /// Shown only while a rewrite is on screen. Invariant 6: rewritten text is
     /// badged for as long as it is displayed.
     private let aiBadge = NSButton()
@@ -83,8 +93,15 @@ final class ContentToolbar: PointerTrackingView {
         leftGroup.spacing = 2
         leftGroup.translatesAutoresizingMaskIntoConstraints = false
 
+        // The lens pair sits as one unit so the badge tracks its glyph rather than
+        // drifting away from it as the group's other members come and go.
+        let lensGroup = NSStackView(views: [lensButton, lensBadge])
+        lensGroup.orientation = .horizontal
+        lensGroup.spacing = 1
+        lensGroup.translatesAutoresizingMaskIntoConstraints = false
+
         let rightGroup = NSStackView(views: [
-            aiBadge, shieldButton, modeControl, rewriteButton, downloadsButton,
+            aiBadge, lensGroup, shieldButton, modeControl, rewriteButton, downloadsButton,
         ])
         rightGroup.orientation = .horizontal
         rightGroup.spacing = 6
@@ -148,6 +165,21 @@ final class ContentToolbar: PointerTrackingView {
             action: #selector(requestShield),
             tip: "Blocking"
         )
+        configure(
+            lensButton,
+            symbol: "camera.filters",
+            action: #selector(requestLenses),
+            tip: "Lenses"
+        )
+
+        // The one number in this corner of the toolbar, and only ever the page's own
+        // count of what ran. Tabular figures so `3/4` and `11/12` occupy the same
+        // width — a badge that shifts the shield sideways as ops report reads as the
+        // toolbar twitching.
+        lensBadge.font = .monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold)
+        lensBadge.textColor = .secondaryLabelColor
+        lensBadge.isHidden = true
+        lensBadge.translatesAutoresizingMaskIntoConstraints = false
 
         // Deliberately a button, not a label: the badge that tells the user they
         // are reading rewritten text is also the fastest way back to the original.
@@ -206,7 +238,89 @@ final class ContentToolbar: PointerTrackingView {
             rewriteButton.contentTintColor = .systemOrange
             rewriteButton.toolTip = reason
         }
+
+        applyLens(state.lens)
     }
+
+    /// Draw the lens button from what the page reported, and nothing else.
+    ///
+    /// Three states the user can tell apart at a glance: dimmed for a site with no
+    /// lens acting on it, tinted for lenses that all found what they were pointed
+    /// at, amber for drift. Amber rather than red because a drifted lens is a site
+    /// that changed, not an error — the page is fine, one op has stopped landing.
+    ///
+    /// **Invariant 8 is the rule here.** The badge is drawn from ``LensState/tally``,
+    /// which is nil until a report arrives; no report means no badge, never a
+    /// hopeful `4/4`. A number that turns out to be wrong about what the user is
+    /// looking at is worse than no number, because they cannot tell which it was.
+    private func applyLens(_ state: LensState) {
+        // Enabled even when it does nothing, like the mode control: a toolbar corner
+        // that swallows clicks reads as broken, and the tooltip does the explaining.
+        lensButton.isEnabled = true
+        lensBadge.stringValue = state.tally ?? ""
+        lensBadge.isHidden = state.tally == nil
+
+        let tint: NSColor
+        let tip: String
+        if !state.hasLenses {
+            tint = .tertiaryLabelColor
+            tip = "No lenses for this site — ⌥⌘L to make one"
+        } else if !state.isActive {
+            tint = .tertiaryLabelColor
+            // Two different states look identical from here and need different
+            // sentences: a lens that is switched off is a switch to flip, a lens
+            // scoped to `/watch` while the user is on the home page is a page to
+            // visit. Saying "switched off" for the second sent people to the popover
+            // to turn on a lens that was already on, which is the popover's own
+            // wording problem in reverse.
+            let offPath = state.offPathCount
+            if offPath > 0 {
+                tip = "\(Self.lensPhrase(offPath)) on, but for other pages"
+            } else {
+                // Nothing is on and nothing is off-path, so every lens the site has
+                // is switched off — and there is at least one, or `hasLenses` would
+                // have taken the branch above. The count is phrased through the same
+                // helper so "This site's 0 lenses" cannot be written at all.
+                tip = "\(Self.lensPhrase(state.siteLensCount)) switched off"
+            }
+        } else if state.isSuppressed {
+            // On, correct, and invisible: the reader is showing Zentic's render and
+            // a lens acts on the site's own page underneath it. The engine reports
+            // every op `skipped`, which is true and which the badge used to draw as
+            // `0/4` in the accent tint — a working colour over a total-failure
+            // number. No badge and the sentence instead: there is no count that is
+            // true of what is on screen, so invariant 8 says show none.
+            tint = .tertiaryLabelColor
+            tip = """
+                \(Self.lensPhrase(state.entries.count)) on. Lenses act on the site's own \
+                page — ⌘\\ to see it.
+                """
+        } else if state.isDrifted {
+            tint = .systemOrange
+            tip = "\(state.missedCount) of \(state.totalCount) changes no longer match this page"
+        } else if let tally = state.tally {
+            tint = .controlAccentColor
+            tip = "\(tally) changes applied by \(state.entries.count == 1 ? "1 lens" : "\(state.entries.count) lenses")"
+        } else {
+            tint = .controlAccentColor
+            tip = "Lenses are on for this page"
+        }
+        lensButton.contentTintColor = tint
+        lensBadge.textColor = tint
+        lensButton.toolTip = tip
+        lensBadge.toolTip = tip
+    }
+
+    /// "This site's lens is" / "This site's 3 lenses are", with the verb, so every
+    /// sentence built from it agrees with itself. A count below two is written as
+    /// the singular: zero is unreachable in all three call sites, and "0 lenses" is
+    /// the kind of string that only ever ships because nobody could reach it.
+    private static func lensPhrase(_ count: Int) -> String {
+        count > 1 ? "This site's \(count) lenses are" : "This site's lens is"
+    }
+
+    /// Anchors the lens popover.
+    var lensAnchor: NSView { lensButton }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
@@ -284,6 +398,7 @@ final class ContentToolbar: PointerTrackingView {
     }
 
     @objc private func requestShield() { delegate?.toolbarDidRequestShield(shieldButton) }
+    @objc private func requestLenses() { delegate?.toolbarDidRequestLenses(lensButton) }
     @objc private func requestRewrite() { delegate?.toolbarDidRequestRewrite(rewriteButton) }
     @objc private func discardRewrite() { delegate?.toolbarDidRequestDiscardRewrite() }
 }

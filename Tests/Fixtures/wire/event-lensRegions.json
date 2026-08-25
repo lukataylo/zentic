@@ -1,0 +1,97 @@
+{
+  "payload" : {
+    "candidates" : [
+      {
+        "alternates" : [
+          "ytd-watch-next-secondary-results-renderer"
+        ],
+        "classes" : [
+          "style-scope"
+        ],
+        "depth" : 7,
+        "elementID" : "secondary",
+        "id" : "r0",
+        "imageCount" : 20,
+        "itemCount" : 20,
+        "itemFields" : [
+
+        ],
+        "itemSelector" : "ytd-compact-video-renderer",
+        "kindGuess" : "aside",
+        "linkCount" : 84,
+        "paragraphCount" : 0,
+        "rect" : {
+          "height" : 1800,
+          "width" : 402,
+          "x" : 1000,
+          "y" : 80
+        },
+        "role" : "complementary",
+        "selector" : "#secondary",
+        "tag" : "div",
+        "textLength" : 9400
+      },
+      {
+        "alternates" : [
+
+        ],
+        "classes" : [
+          "style-scope"
+        ],
+        "depth" : 6,
+        "id" : "r1",
+        "imageCount" : 60,
+        "itemCount" : 60,
+        "itemFields" : [
+          {
+            "attributesPresent" : [
+              "title",
+              "aria-label"
+            ],
+            "selector" : "#video-title",
+            "tag" : "yt-formatted-string",
+            "textLength" : 62
+          },
+          {
+            "attributesPresent" : [
+              "href"
+            ],
+            "selector" : "a",
+            "tag" : "a",
+            "textLength" : 62
+          },
+          {
+            "attributesPresent" : [
+              "src",
+              "alt"
+            ],
+            "selector" : "img",
+            "tag" : "img",
+            "textLength" : 0
+          }
+        ],
+        "itemSelector" : "ytd-rich-item-renderer",
+        "kindGuess" : "feed",
+        "linkCount" : 180,
+        "paragraphCount" : 0,
+        "rect" : {
+          "height" : 4200,
+          "width" : 980,
+          "x" : 0,
+          "y" : 80
+        },
+        "selector" : "ytd-rich-grid-renderer",
+        "tag" : "ytd-rich-grid-renderer",
+        "textLength" : 21000
+      }
+    ],
+    "origin" : "www.youtube.com",
+    "pathPattern" : "\/watch",
+    "viewport" : {
+      "height" : 900,
+      "width" : 1280
+    }
+  },
+  "type" : "lensRegions",
+  "v" : 3
+}

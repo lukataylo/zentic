@@ -1,6 +1,7 @@
 import Defuddle from "defuddle";
 
 import { countWords, textOf } from "../dom.js";
+import { LENS_NODE_SELECTOR } from "../lens/harvest.js";
 import { sanitizeHTML } from "../render/sanitize.js";
 import type { Archetype, ExtractionResult, SiteRecipe } from "../wire.js";
 import { detectApp, type AppVerdict } from "./appdetect.js";
@@ -379,12 +380,28 @@ export function extract(doc: Document, options: ExtractOptions): ExtractionOutco
  * and removing anything from the live DOM would break the promise that the
  * original is only hidden — so that case works on a clone and accepts the loss
  * of those signals. A curated recipe is a fair trade for them.
+ *
+ * ## Why the lens engine's own nodes are stripped too
+ *
+ * On the eligible path the lens pass runs at DOM ready, *before* extraction reads
+ * the document, and a `label` op inserts a sentence the model wrote while an
+ * `insert` op renders rows harvested from elsewhere on the page. Both are our
+ * furniture, not the site's. Left in, they become sections of an
+ * `ExtractionResult` — which is the input to a redesign or a rewrite, so the model
+ * would be asked to re-voice a string Zentic invented and to lay out a list Zentic
+ * assembled, presenting both back to the user as the page's own words. Nobody
+ * chose that; it happened because two features met.
+ *
+ * The ordering stays as it is. A lens that hides a page's junk genuinely improves
+ * what extraction finds, and that is worth having. Only our own nodes go.
  */
 function prepareDocument(doc: Document, recipe: SiteRecipe | undefined): Document {
-  if (!recipe || recipe.junkSelectors.length === 0) return doc;
+  const junk = recipe?.junkSelectors ?? [];
+  const lensNodes = doc.querySelector(LENS_NODE_SELECTOR) !== null;
+  if (junk.length === 0 && !lensNodes) return doc;
 
   const clone = doc.cloneNode(true) as Document;
-  for (const selector of recipe.junkSelectors) {
+  for (const selector of [...junk, ...(lensNodes ? [LENS_NODE_SELECTOR] : [])]) {
     try {
       for (const element of Array.from(clone.querySelectorAll(selector))) element.remove();
     } catch {

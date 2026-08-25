@@ -1,0 +1,265 @@
+{
+  "payload" : [
+    {
+      "createdAt" : "2025-07-31T22:13:20Z",
+      "id" : "lens-1",
+      "isEnabled" : true,
+      "lastReport" : {
+        "generatedAt" : "2025-07-31T22:13:20Z",
+        "lensID" : "lens-1",
+        "results" : [
+          {
+            "matchedCount" : 1,
+            "opID" : "op-hide",
+            "status" : "applied",
+            "usedSelector" : "#secondary"
+          },
+          {
+            "matchedCount" : 0,
+            "message" : "no candidate matched",
+            "opID" : "op-filter",
+            "status" : "missed"
+          },
+          {
+            "matchedCount" : 0,
+            "message" : "op pass exceeded 120ms",
+            "opID" : "op-restyle",
+            "status" : "skipped"
+          },
+          {
+            "matchedCount" : 3,
+            "message" : "3 elements matched; applied to the first",
+            "opID" : "op-reorder",
+            "status" : "ambiguous",
+            "usedSelector" : "ytd-rich-grid-renderer"
+          },
+          {
+            "matchedCount" : 1,
+            "message" : "destination is inside the moved region",
+            "opID" : "op-move",
+            "status" : "failed",
+            "usedSelector" : "#secondary"
+          }
+        ],
+        "url" : "https:\/\/www.youtube.com\/watch"
+      },
+      "name" : "Focus",
+      "ops" : [
+        {
+          "id" : "op-hide",
+          "kind" : "hide",
+          "note" : "hide the suggestions",
+          "region" : "related"
+        },
+        {
+          "id" : "op-keep",
+          "kind" : "keep",
+          "note" : "keep only the grid",
+          "region" : "feed"
+        },
+        {
+          "filterMode" : "drop",
+          "id" : "op-filter",
+          "itemSelector" : "ytd-rich-item-renderer",
+          "kind" : "filter",
+          "limit" : 200,
+          "note" : "drop shorts and live streams",
+          "predicate" : {
+            "field" : "text",
+            "matchMode" : "any",
+            "minChars" : 4,
+            "terms" : [
+              "shorts",
+              "live now"
+            ]
+          },
+          "region" : "feed"
+        },
+        {
+          "filterMode" : "keep",
+          "id" : "op-filter-links",
+          "itemSelector" : "ytd-rich-item-renderer",
+          "kind" : "filter",
+          "note" : "keep only real videos",
+          "predicate" : {
+            "field" : "href",
+            "matchMode" : "all",
+            "maxChars" : 400,
+            "maxLinks" : 12,
+            "minChars" : 8,
+            "minLinks" : 1,
+            "terms" : [
+              "\/watch",
+              "\/shorts"
+            ]
+          },
+          "region" : "feed"
+        },
+        {
+          "filterMode" : "keep",
+          "id" : "op-filter-aria",
+          "itemSelector" : "ytd-compact-video-renderer",
+          "kind" : "filter",
+          "note" : "drop anything labelled sponsored",
+          "predicate" : {
+            "field" : "ariaLabel",
+            "matchMode" : "none",
+            "terms" : [
+              "sponsored"
+            ]
+          },
+          "region" : "related"
+        },
+        {
+          "id" : "op-restyle",
+          "kind" : "restyle",
+          "note" : "two calm columns",
+          "region" : "feed",
+          "style" : {
+            "background" : "#101014",
+            "columns" : 2,
+            "fontScale" : 1.1,
+            "foreground" : "#f2f2f2",
+            "hideImages" : false,
+            "maxWidthPx" : 1100,
+            "paddingPx" : 24,
+            "radiusPx" : 12
+          }
+        },
+        {
+          "harvest" : {
+            "fields" : [
+              {
+                "attribute" : "text",
+                "name" : "title",
+                "selector" : "#video-title"
+              },
+              {
+                "attribute" : "href",
+                "name" : "link",
+                "selector" : "a"
+              }
+            ],
+            "into" : "videos",
+            "itemSelector" : "ytd-rich-item-renderer"
+          },
+          "id" : "op-harvest",
+          "kind" : "harvest",
+          "note" : "collect the titles",
+          "region" : "feed",
+          "sort" : {
+            "ascending" : true,
+            "field" : "title",
+            "key" : "harvestedField"
+          }
+        },
+        {
+          "id" : "op-reorder",
+          "itemSelector" : "ytd-rich-item-renderer",
+          "kind" : "reorder",
+          "note" : "longest titles last",
+          "region" : "feed",
+          "sort" : {
+            "ascending" : false,
+            "key" : "textLength"
+          }
+        },
+        {
+          "id" : "op-reorder-links",
+          "itemSelector" : "ytd-compact-video-renderer",
+          "kind" : "reorder",
+          "note" : "least linked first",
+          "region" : "related",
+          "sort" : {
+            "ascending" : true,
+            "key" : "linkCount"
+          }
+        },
+        {
+          "id" : "op-move",
+          "index" : 0,
+          "kind" : "move",
+          "note" : "move the rail under the player",
+          "region" : "related",
+          "target" : "feed"
+        },
+        {
+          "fraction" : 0.7,
+          "id" : "op-width",
+          "kind" : "width",
+          "note" : "narrow the grid",
+          "region" : "feed"
+        },
+        {
+          "id" : "op-label",
+          "kind" : "label",
+          "note" : "mark it",
+          "region" : "feed",
+          "text" : "Subscriptions only"
+        },
+        {
+          "bucket" : "videos",
+          "id" : "op-insert",
+          "index" : 0,
+          "kind" : "insert",
+          "limit" : 10,
+          "note" : "show the titles at the top of the rail",
+          "region" : "feed",
+          "target" : "related"
+        }
+      ],
+      "origin" : "www.youtube.com",
+      "pathPattern" : "\/watch",
+      "prompt" : "no suggestions, no shorts",
+      "regions" : [
+        {
+          "fingerprint" : {
+            "ancestorTags" : [
+              "div",
+              "ytd-watch-flexy",
+              "ytd-page-manager",
+              "ytd-app",
+              "body"
+            ],
+            "attributeNames" : [
+              "data-testid",
+              "aria-label"
+            ],
+            "childCount" : 20,
+            "classes" : [
+              "style-scope"
+            ],
+            "elementID" : "secondary",
+            "rectBand" : {
+              "height" : 10,
+              "width" : 8,
+              "x" : 9,
+              "y" : 6
+            },
+            "role" : "complementary",
+            "siblingIndex" : 1,
+            "tag" : "ytd-watch-next-secondary-results-renderer",
+            "textLengthBand" : 13
+          },
+          "id" : "related",
+          "intent" : "the suggested videos sidebar",
+          "selectors" : [
+            "#secondary",
+            "ytd-watch-next-secondary-results-renderer"
+          ]
+        },
+        {
+          "id" : "feed",
+          "intent" : "the main video grid",
+          "selectors" : [
+            "ytd-rich-grid-renderer"
+          ]
+        }
+      ],
+      "schemaVersion" : 1,
+      "updatedAt" : "2025-07-31T22:13:20Z"
+    }
+  ],
+  "type" : "applyLenses",
+  "v" : 3
+}

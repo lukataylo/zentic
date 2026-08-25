@@ -1,0 +1,9 @@
+{
+  "lensMaxItemsPerPass" : 400,
+  "lensMaxLensesPerOrigin" : 12,
+  "lensMaxOpsPerLens" : 40,
+  "lensObserverDebounceMs" : 80,
+  "lensObserverMaxPassesPerSecond" : 8,
+  "lensOpPassCeilingMs" : 120,
+  "lensRegionCandidateLimit" : 120
+}

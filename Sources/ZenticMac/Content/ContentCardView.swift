@@ -78,15 +78,16 @@ final class ContentCardView: ChromeView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func updateLayerColors() {
-        // Opaque, so the space tint does not bleed through a page with a transparent
-        // background — and so the rounded corners read as a card edge. The page is
-        // the one surface that is deliberately *not* glass: text has to sit on a
-        // solid ground to stay readable, and a translucent page would show the
-        // sidebar's colour through the prose.
-        clip.layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
-        layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
-        // The card is opaque, so what makes it read as glass is its edge and the
-        // shadow separating it from the tint behind.
+        // Translucent. See ``Glass/pageFill(dark:)`` for why this stopped being
+        // opaque. It only shows where nothing paints over it — a site with its own
+        // background still covers it completely, which is the correct outcome:
+        // making other people's pages see-through would be a rendering bug, not a
+        // feature.
+        clip.layer?.backgroundColor = Glass.pageFill(dark: isDarkAppearance).cgColor
+        layer?.backgroundColor = Glass.pageFill(dark: isDarkAppearance).cgColor
+        // The edge and the shadow separate the card from the tint behind it. They
+        // matter more now than they did when the card was opaque: a translucent
+        // card with no edge has nothing to distinguish it from the chrome.
         layer?.borderColor = Glass.stroke(dark: isDarkAppearance).cgColor
         layer?.shadowColor = NSColor.black.cgColor
         layer?.shadowOpacity = Chrome.glassShadowOpacity

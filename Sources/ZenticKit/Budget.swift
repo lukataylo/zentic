@@ -42,6 +42,40 @@ public enum Budget {
     /// Visits to an origin before it earns background recipe inference.
     public static let inferenceVisitThreshold: Int = 3
 
+    // MARK: Lenses
+
+    /// How long one op pass may run before it stops and reports the remainder
+    /// as ``LensOpStatus/skipped``.
+    ///
+    /// A lens replays on every visit and on every SPA navigation, so this is the
+    /// difference between a browser that feels instant and one that stutters
+    /// whenever the user scrolls. Finishing the current op and stopping is
+    /// correct: a partly applied lens is visible and reported, a janky page is
+    /// neither.
+    public static let lensOpPassCeiling: Duration = .milliseconds(120)
+
+    /// Quiet period before a mutation in a watched feed triggers another pass.
+    /// Infinite scroll mutates continuously; without this every appended card
+    /// would cost a full pass.
+    public static let lensObserverDebounce: Duration = .milliseconds(80)
+
+    /// Hard rate limit on observer-triggered passes. A site whose own script
+    /// reacts to our mutations can otherwise drive an unbounded loop.
+    public static let lensObserverMaxPassesPerSecond: Int = 8
+
+    /// Repeated children one op may touch per pass.
+    public static let lensMaxItemsPerPass: Int = 400
+
+    /// Ops kept per lens. Model output is capped at this; beyond it a lens is
+    /// no longer something a user can reason about or undo one chip at a time.
+    public static let lensMaxOpsPerLens: Int = 40
+
+    public static let lensMaxLensesPerOrigin: Int = 12
+
+    /// Candidates offered to the model. Caps prompt size, like
+    /// ``Budget/skeletonNodeLimit``.
+    public static let lensRegionCandidateLimit: Int = 120
+
     // MARK: Tabs
 
     /// Live `WKWebView`s kept resident. Beyond this, least-recently-used tabs are
