@@ -38,6 +38,20 @@ public enum Budget {
     /// Pages shorter than this are not worth restructuring.
     public static let minWordCount: Int = 40
 
+    // MARK: Rewriting
+
+    /// Word count at which a rewrite stops being everyday work and earns the cloud
+    /// model. See ``ModelRouting`` for the rule this feeds.
+    ///
+    /// The cost that grows with an article's length is not per-section difficulty —
+    /// each section is prompted on its own, so the prompt never gets bigger — it is
+    /// *voice*. Twenty passages generated independently by a small model read like
+    /// twenty different writers, and a long read is the one thing that cannot
+    /// survive that. 1800 words is roughly where a news piece ends and a feature
+    /// begins, measured across the corpus: below it a page is a handful of sections
+    /// and finishes on-device in seconds.
+    public static let cloudRewriteWords: Int = 1800
+
     // MARK: Recipes
 
     /// Inferred recipes are re-derived after this long, since sites redesign.

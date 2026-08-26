@@ -110,7 +110,12 @@ struct LensProviderTests {
         await #expect(
             throws: LLMError.providerFailed(
                 identifier: "test.silent",
-                message: "This model does not author lenses. Choose OpenAI in View ▸ Design Model."
+                message: """
+                    Authoring a lens is a long, structured generation and past what \
+                    this model does well — half a document is worse than a refusal. \
+                    Zentic routes these to the cloud model; View ▸ Model is where \
+                    OpenAI is chosen, and where its key goes.
+                    """
             )
         ) {
             _ = try await provider.generateLens(request)

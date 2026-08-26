@@ -14,39 +14,84 @@ final class RedesignController {
 
     let store = DesignStore()
 
-    /// Which model draws the design.
+    /// The user's standing override, when they have set one.
     ///
-    /// On-device is the default because it costs nothing and leaks nothing; OpenAI
-    /// is there because a 3B model's taste has limits and a design prompt is one
-    /// place where that shows. Nothing about the page is sent either way — a theme
-    /// is generated from the user's own words, not from what they are reading.
-    enum DesignModel: String, CaseIterable {
-        case onDevice
-        case openAI
+    /// A new defaults key rather than a migration of `zentic.designModel`. The old
+    /// key meant "which model draws designs" and its default value, `onDevice`,
+    /// now spells a *permanent* on-device pin — so carrying it forward would turn
+    /// every existing install's inert default into a standing override that
+    /// silently outranks routing forever. A preference nobody set should not be one.
+    private static let preferenceDefaultsKey = "zentic.modelPreference"
 
-        var title: String {
-            switch self {
-            case .onDevice: "On-Device (Apple Intelligence)"
-            case .openAI: "OpenAI"
-            }
-        }
-    }
-
-    private static let modelDefaultsKey = "zentic.designModel"
-
-    var designModel: DesignModel {
+    var modelPreference: ModelPreference {
         get {
-            UserDefaults.standard.string(forKey: Self.modelDefaultsKey)
-                .flatMap(DesignModel.init(rawValue:)) ?? .onDevice
+            UserDefaults.standard.string(forKey: Self.preferenceDefaultsKey)
+                .flatMap(ModelPreference.init(rawValue:)) ?? .automatic
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: Self.modelDefaultsKey) }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Self.preferenceDefaultsKey) }
     }
 
     private let onDevice = FoundationModelsProvider()
     private let openAI = OpenAIProvider()
 
-    private var provider: any LLMProvider {
-        designModel == .onDevice ? onDevice : openAI
+    /// Where one piece of work goes, and what to say if it cannot go anywhere.
+    enum ModelResolution {
+        case provider(any LLMProvider)
+        /// See ``ModelOutcome/unavailable(reason:cloudRoute:)`` — same two fields,
+        /// carried through so the UI still knows whether it has a button to offer.
+        case unavailable(reason: String, cloudRoute: Bool)
+    }
+
+    /// Pick the provider for one piece of work.
+    ///
+    /// The app's single door to a model instance. ``ModelRouting`` owns the
+    /// decision and is pure; this owns the two things it cannot be — which
+    /// concrete providers exist, and what they report right now.
+    func resolve(_ work: ModelWork) async -> ModelResolution {
+        let route = ModelRouting.route(for: work, preference: modelPreference)
+        // Both are asked, not just the primary: the fallback's answer is what
+        // decides whether there is a route worth offering, and neither question
+        // costs a network request — one reads a system flag, the other the Keychain.
+        let outcome = ModelRouting.resolve(
+            route,
+            onDevice: await onDevice.availability(),
+            cloud: await openAI.availability()
+        )
+        switch outcome {
+        case .use(let tier):
+            trace("model", "\(tier.rawValue) for \(work)")
+            return .provider(tier == .onDevice ? onDevice : openAI)
+        case .unavailable(let reason, let cloudRoute):
+            trace("model", "no model for \(work): \(reason)")
+            return .unavailable(reason: reason, cloudRoute: cloudRoute)
+        }
+    }
+
+    /// Resolve, and when a key is the only thing missing, ask for it once.
+    ///
+    /// Only for the flows that opened a sheet of their own — the user is already
+    /// standing over a modal they raised, so raising a second one is the shortest
+    /// path to the thing they asked for. The rewrite path deliberately does not use
+    /// this: it can start from a rail drag with no dialog on screen at all.
+    private func resolveAskingForKey(
+        _ work: ModelWork,
+        over window: NSWindow?
+    ) async -> (any LLMProvider)? {
+        switch await resolve(work) {
+        case .provider(let provider):
+            return provider
+        case .unavailable(let reason, let cloudRoute):
+            guard cloudRoute else {
+                present(error: reason, over: window)
+                return nil
+            }
+            promptForAPIKey()
+            guard case .provider(let provider) = await resolve(work) else {
+                present(error: reason, over: window)
+                return nil
+            }
+            return provider
+        }
     }
 
     /// Ask for a prompt, generate, and hand back the theme.
@@ -66,20 +111,12 @@ final class RedesignController {
             )
         else { return nil }
 
-        // Ask for the key at the moment it is needed rather than sending the user
-        // to a menu they have not found yet.
-        if designModel == .openAI, !APIKeyStore.has(.openAI) {
-            promptForAPIKey()
-            guard APIKeyStore.has(.openAI) else { return nil }
-        }
-
-        switch await provider.availability() {
-        case .available:
-            break
-        case .unavailable(let reason), .ineligible(let reason):
-            present(error: reason, over: window)
-            return nil
-        }
+        // On-device by default, cloud only if the device model is out: a theme is
+        // twenty token values from a closed schema, which is the shape of work the
+        // small model handles, and it is generated once per site rather than once
+        // per page. The key is asked for at the moment it is needed rather than
+        // sending the user to a menu they have not found yet.
+        guard let provider = await resolveAskingForKey(.theme, over: window) else { return nil }
 
         do {
             let tokens = try await provider.generateTheme(from: prompt)
@@ -132,22 +169,12 @@ final class RedesignController {
             )
         else { return nil }
 
-        // Not `provider`: the on-device model declines this, so routing through
-        // the user's model choice would just be a slower way to show an error.
-        let provider = openAI
-
-        if !APIKeyStore.has(.openAI) {
-            promptForAPIKey()
-            guard APIKeyStore.has(.openAI) else { return nil }
-        }
-
-        switch await provider.availability() {
-        case .available:
-            break
-        case .unavailable(let reason), .ineligible(let reason):
-            present(error: reason, over: window)
-            return nil
-        }
+        // ``ModelRouting`` sends this to the cloud with no fallback — the on-device
+        // model declines it, and a fallback to a model that says no is just a
+        // slower error. Asked through the router rather than hardcoded so the rule
+        // lives in one place and a manual on-device pin is still honoured (and
+        // still declined, in the provider's own words).
+        guard let provider = await resolveAskingForKey(.document, over: window) else { return nil }
 
         do {
             let document = try await provider.generateDocument(
@@ -302,6 +329,36 @@ final class RedesignController {
             return "Cancelled."
         case .contextTooLarge:
             return "That page is too large to process."
+        }
+    }
+}
+
+/// Menu copy for the routing override.
+///
+/// Here rather than in ``ModelPreference`` because the kit has no business owning
+/// a menu title, and because the tooltip's job is to make Automatic look like the
+/// answer rather than like the first of three equals.
+extension ModelPreference {
+    var title: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .onDevice: "On-Device (Apple Intelligence)"
+        case .cloud: "OpenAI"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .automatic:
+            return """
+                Everyday rewrites run on your device; long rewrites, page layouts \
+                and lenses go to OpenAI. Pages where wording matters never leave \
+                your device.
+                """
+        case .onDevice:
+            return "Nothing leaves your device. Page layouts and lenses will decline."
+        case .cloud:
+            return "Everything goes to OpenAI with your key, including short rewrites."
         }
     }
 }

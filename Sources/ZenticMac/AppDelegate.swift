@@ -203,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         menu.addItem(.separator())
         menu.addItem(designMenuItem())
-        menu.addItem(designModelMenuItem())
+        menu.addItem(modelMenuItem())
         menu.addItem(.separator())
         menu.addItem(
             item("Lenses…", #selector(BrowserViewController.lensEditorCommand(_:)), "l", [.command, .option])
@@ -229,26 +229,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return holder
     }
 
-    /// Which model generates designs. On-device by default; OpenAI needs the key.
-    private func designModelMenuItem() -> NSMenuItem {
-        let menu = NSMenu(title: "Design Model")
-        for (index, model) in RedesignController.DesignModel.allCases.enumerated() {
-            menu.addItem(
-                item(
-                    model.title,
-                    #selector(BrowserViewController.setDesignModelCommand(_:)),
-                    "",
-                    .command,
-                    tag: index
-                )
+    /// The routing override, for the people who want one.
+    ///
+    /// It used to be the *only* answer to "which model": on-device or OpenAI, set
+    /// once and applied to everything, which made the everyday case — re-voicing a
+    /// paragraph — pay for the rare heavy one. Automatic routes by the shape of the
+    /// request instead (see ``ModelRouting``), and is what a fresh install sits on.
+    /// The two pins stay because each answers a real question, and each says in its
+    /// tooltip what it costs.
+    private func modelMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Model")
+        for (index, preference) in ModelPreference.allCases.enumerated() {
+            let entry = item(
+                preference.title,
+                #selector(BrowserViewController.setModelPreferenceCommand(_:)),
+                "",
+                .command,
+                tag: index
             )
+            entry.toolTip = preference.detail
+            menu.addItem(entry)
         }
         menu.addItem(.separator())
         menu.addItem(
             item("OpenAI API Key…", #selector(BrowserViewController.setAPIKeyCommand(_:)), "")
         )
 
-        let holder = NSMenuItem(title: "Design Model", action: nil, keyEquivalent: "")
+        let holder = NSMenuItem(title: "Model", action: nil, keyEquivalent: "")
         holder.submenu = menu
         return holder
     }

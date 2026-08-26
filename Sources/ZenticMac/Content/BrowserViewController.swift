@@ -2048,6 +2048,50 @@ extension BrowserViewController: TabControllerDelegate {
         controller.refreshLevelResolution()
     }
 
+    /// A rewrite that put nothing on screen, said out loud.
+    ///
+    /// The top stop is the one stop on the rail that has to *do* something, so the
+    /// two ways it could come to nothing both had to stop being silent. The badge
+    /// cannot carry this — it is hidden for a failed rewrite, correctly, because
+    /// there is no rewritten text to badge — so it is said here, and then the rail
+    /// steps back to the level the page is actually at rather than standing on
+    /// Rewritten over prose nobody rewrote.
+    ///
+    /// When a key is the only thing in the way, the alert offers it. That is the
+    /// honest fallback ``ModelRouting`` describes: the on-device model has a real
+    /// reason it cannot run — Apple Intelligence off, the model still downloading,
+    /// this Mac ineligible — and the user hears which one and is handed the route
+    /// that would work. On a fidelity-sensitive page there is no such offer, by
+    /// design, and the alert says why instead.
+    func tabController(
+        _ controller: TabController,
+        didFailRewrite failure: TabController.RewriteFailure
+    ) {
+        guard controller.id == selectedTabID else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Zentic could not rewrite this page"
+        alert.informativeText = failure.reason
+        alert.alertStyle = .warning
+        if failure.cloudRoute {
+            alert.addButton(withTitle: "Use OpenAI…")
+            alert.addButton(withTitle: "Not Now")
+        } else {
+            alert.addButton(withTitle: "OK")
+        }
+        let response = alert.runModal()
+
+        // Down first, so the rail is honest even if the key sheet is cancelled.
+        if controller.level == .rewritten { setLevel(.reader) }
+
+        guard failure.cloudRoute, response == .alertFirstButtonReturn else { return }
+        RedesignController.shared.promptForAPIKey()
+        // A key changes the answer, so the stop they asked for is reachable again —
+        // and going back up is what runs the rewrite, confirm and all.
+        guard APIKeyStore.has(.openAI) else { return }
+        setLevel(.rewritten)
+    }
+
     func tabController(_ controller: TabController, wantsNewTabFor url: URL) {
         newTab(url: url)
     }
@@ -2333,13 +2377,18 @@ extension BrowserViewController {
         RedesignController.shared.promptForAPIKey()
     }
 
-    /// Which model draws generated designs. Tag is `DesignModel.allCases` order.
-    @objc func setDesignModelCommand(_ sender: Any?) {
+    /// The routing override. Tag is `ModelPreference.allCases` order.
+    ///
+    /// Still here, and still reachable, but no longer the thing that decides: a
+    /// fresh install sits on Automatic and never needs this menu.
+    @objc func setModelPreferenceCommand(_ sender: Any?) {
         guard let item = sender as? NSMenuItem,
-            let model = RedesignController.DesignModel.allCases[safe: item.tag]
+            let preference = ModelPreference.allCases[safe: item.tag]
         else { return }
-        RedesignController.shared.designModel = model
-        if model == .openAI, !APIKeyStore.has(.openAI) {
+        RedesignController.shared.modelPreference = preference
+        // Choosing the cloud for everything is only a choice if there is a key
+        // behind it; asked now rather than at the first page that needs one.
+        if preference == .cloud, !APIKeyStore.has(.openAI) {
             RedesignController.shared.promptForAPIKey()
         }
     }
@@ -2374,10 +2423,10 @@ extension BrowserViewController: NSMenuItemValidation {
             // the reader never runs.
             return selectedController?.url?.host() != nil
 
-        case #selector(setDesignModelCommand):
+        case #selector(setModelPreferenceCommand):
             menuItem.state =
-                RedesignController.DesignModel.allCases[safe: menuItem.tag]
-                == RedesignController.shared.designModel ? .on : .off
+                ModelPreference.allCases[safe: menuItem.tag]
+                == RedesignController.shared.modelPreference ? .on : .off
             return true
 
         case #selector(toggleRewriteEnabledCommand):

@@ -17,6 +17,15 @@ protocol TabControllerDelegate: AnyObject {
         didExtract result: ExtractionResult,
         from url: URL
     )
+    /// A rewrite ended without putting anything on screen. Fired once, at the end.
+    ///
+    /// Separate from ``tabControllerDidChangeChrome(_:)`` because it is an event,
+    /// not a state: the chrome hook runs on every title, favicon and patch, and a
+    /// failure read off state there would be presented over and over.
+    func tabController(
+        _ controller: TabController,
+        didFailRewrite failure: TabController.RewriteFailure
+    )
     /// A link asked for a new tab (⌘-click, `target=_blank`, `window.open`).
     func tabController(_ controller: TabController, wantsNewTabFor url: URL)
     func tabController(_ controller: TabController, didStart download: WKDownload)
@@ -335,6 +344,17 @@ final class TabController: NSObject {
         /// A rewrite is on screen. The original text is still in the shadow DOM.
         case shown
         case failed(String)
+    }
+
+    /// Why a rewrite put nothing on screen, and whether there is a way out of it.
+    struct RewriteFailure: Equatable {
+        var reason: String
+        /// True when an OpenAI key is all that stands between the user and the
+        /// rewrite they asked for — so the UI knows whether it has a button to
+        /// offer or only an explanation to give. Deliberately false for a
+        /// fidelity-sensitive page: ``ModelRouting`` gives those no cloud route at
+        /// all, and offering one here would route around the rule from the UI.
+        var cloudRoute: Bool
     }
 
     private(set) var rewriteState: RewriteState = .none
@@ -931,6 +951,16 @@ final class TabController: NSObject {
             bridge.updateConfiguration(configuration)
         }
 
+        // Before the reload branch, not after it. This is our mirror of what the
+        // *next* document will do, and the configuration two lines up already says
+        // so — leaving the mirror behind meant a rail drag that crossed the strip
+        // layer (Clean or Original straight up to Rewritten) reloaded into a
+        // perfectly good reader while `readerMode` still read `.original`. That is
+        // half of `canRewrite`, so the top stop's rewrite declined on arrival and
+        // declined again on every reveal after it: the rail sat on Rewritten and
+        // the prose never changed, silently.
+        readerMode = level.readerMode
+
         if PageLevel.requiresReload(from: previous, to: level) {
             // Re-attach before reloading, or the new document loads under the old
             // lists and the change appears not to have worked.
@@ -943,7 +973,6 @@ final class TabController: NSObject {
             return
         }
 
-        readerMode = level.readerMode
         guard let bridge, let webView else { return }
         // `setLevel`, not `setMode`: the bundle caches what it is permitted to do
         // when the page loads, so a mode change alone would be obeyed by a page
@@ -1372,17 +1401,23 @@ final class TabController: NSObject {
             )
         )
 
+        // Routed by the shape of the work rather than by a setting: prose section by
+        // section is the everyday case and belongs on the device, only length moves
+        // it off, and a fidelity-sensitive page never moves. See ``ModelRouting``.
+        let work = ModelWork.rewrite(
+            words: extraction.wordCount,
+            isFidelitySensitive: extraction.isFidelitySensitive
+        )
+
         rewriteTask = Task { [weak self] in
             guard let self else { return }
-            let provider = FoundationModelsProvider()
 
-            switch await provider.availability() {
-            case .available:
-                break
-            case .unavailable(let reason), .ineligible(let reason):
-                rewriteState = .failed(reason)
-                delegate?.tabControllerDidChangeChrome(self)
-                trace("rewrite", "tab \(shortID) unavailable: \(reason)")
+            let provider: any LLMProvider
+            switch await RedesignController.shared.resolve(work) {
+            case .provider(let resolved):
+                provider = resolved
+            case .unavailable(let reason, let cloudRoute):
+                finishRewrite(.failed(reason), cloudRoute: cloudRoute)
                 return
             }
 
@@ -1403,18 +1438,43 @@ final class TabController: NSObject {
                         break
                     }
                 }
-                rewriteState = done > 0 ? .shown : .failed("Nothing was rewritten.")
+                finishRewrite(
+                    done > 0
+                        ? .shown
+                        : .failed("The model returned nothing for any passage on this page.")
+                )
             } catch is CancellationError {
                 return
             } catch {
                 // Partial output stays on screen rather than snapping back: the
                 // user asked for this and half of it is still useful, and the
                 // badge tells them what they are looking at.
-                rewriteState = done > 0 ? .shown : .failed("\(error)")
+                finishRewrite(
+                    done > 0 ? .shown : .failed(RedesignController.message(for: error))
+                )
             }
-            delegate?.tabControllerDidChangeChrome(self)
-            trace("rewrite", "tab \(shortID) \(rewriteState)")
         }
+    }
+
+    /// Land a rewrite, and make sure a landing that put nothing on screen is heard.
+    ///
+    /// The one exit from a rewrite, because the failure it exists for was silence.
+    /// The toolbar hides the badge for `.failed` — correctly, since there is no
+    /// rewritten text to badge — so every way a rewrite could decline ended with the
+    /// rail sitting on Rewritten, the prose unchanged, and nothing anywhere saying
+    /// why. A control that moves and achieves nothing is the defect; a control that
+    /// moves, achieves nothing, and does not say so is the same defect with the
+    /// evidence removed.
+    private func finishRewrite(_ state: RewriteState, cloudRoute: Bool = false) {
+        rewriteState = state
+        delegate?.tabControllerDidChangeChrome(self)
+        if case .failed(let reason) = state {
+            delegate?.tabController(
+                self,
+                didFailRewrite: RewriteFailure(reason: reason, cloudRoute: cloudRoute)
+            )
+        }
+        trace("rewrite", "tab \(shortID) \(state)")
     }
 
     /// Put the extracted text back. Instant — the rewrite only ever replaced nodes

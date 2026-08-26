@@ -77,7 +77,12 @@ extension LLMProvider {
     public func generateDocument(_ request: DocumentRequest) async throws -> GeneratedDocument {
         throw LLMError.providerFailed(
             identifier: identifier,
-            message: "This model does not generate full page layouts. Choose OpenAI in View ▸ Design Model."
+            message: """
+                Laying out a whole page is a long, structured generation and past what \
+                this model does well — half a document is worse than a refusal. \
+                Zentic routes these to the cloud model; View ▸ Model is where \
+                OpenAI is chosen, and where its key goes.
+                """
         )
     }
 
@@ -90,14 +95,224 @@ extension LLMProvider {
     public func generateLens(_ request: LensRequest) async throws -> LensProposal {
         throw LLMError.providerFailed(
             identifier: identifier,
-            message: "This model does not author lenses. Choose OpenAI in View ▸ Design Model."
+            message: """
+                Authoring a lens is a long, structured generation and past what \
+                this model does well — half a document is worse than a refusal. \
+                Zentic routes these to the cloud model; View ▸ Model is where \
+                OpenAI is chosen, and where its key goes.
+                """
         )
     }
 
     public func refitLens(_ request: LensRefitRequest) async throws -> [LensRegion] {
         throw LLMError.providerFailed(
             identifier: identifier,
-            message: "This model cannot re-fit a lens. Choose OpenAI in View ▸ Design Model."
+            message: """
+                Re-fitting a lens is a long, structured generation and past what \
+                this model does well — half a document is worse than a refusal. \
+                Zentic routes these to the cloud model; View ▸ Model is where \
+                OpenAI is chosen, and where its key goes.
+                """
+        )
+    }
+}
+
+// MARK: - Routing
+
+/// One piece of model work, described by its **shape** rather than by who asked
+/// for it.
+///
+/// The shape is the whole input to ``ModelRouting``, which is the point: routing
+/// used to be a switch in the View menu that the user had to maintain, so the
+/// everyday case paid for the heavy one. What decides is what the work *is*.
+public enum ModelWork: Sendable, Hashable {
+    /// Re-voicing prose, one section per request. The common case by far, and the
+    /// only one that runs while the user waits on a page they are reading.
+    case rewrite(words: Int, isFidelitySensitive: Bool)
+    /// Presentation tokens for our own renderer, from the user's words.
+    case theme
+    /// A whole document laid out as markup.
+    case document
+    /// Authoring or re-fitting a lens: ops over a catalog of candidate regions.
+    case lens
+}
+
+/// The user's standing answer to "which model", when they have given one.
+///
+/// ``automatic`` is the default and the one that should stay chosen: it routes by
+/// the shape of the work. The two manual settings remain reachable because they
+/// each answer a real question — someone with a key may want the cloud model for
+/// everything, and someone on a machine where nothing may leave wants exactly
+/// that — but neither is what decides by default any more.
+public enum ModelPreference: String, Codable, Sendable, CaseIterable {
+    case automatic
+    case onDevice
+    case cloud
+}
+
+/// Where one piece of work goes, and where it goes if that tier is out.
+public struct ModelRoute: Sendable, Hashable {
+    public var tier: ProviderTier
+    /// The honest second choice, or nil where there must not be one. A route with
+    /// no fallback is a policy statement, not an oversight — see
+    /// ``ModelRouting/sensitiveStaysOnDevice``.
+    public var fallback: ProviderTier?
+    /// Why the work goes here, in the user's terms. Surfaced when the route cannot
+    /// be served, so a refusal explains itself rather than just failing.
+    public var reason: String
+
+    public init(tier: ProviderTier, fallback: ProviderTier? = nil, reason: String) {
+        self.tier = tier
+        self.fallback = fallback
+        self.reason = reason
+    }
+}
+
+/// What a route came to once the tiers were asked whether they could serve it.
+public enum ModelOutcome: Sendable, Equatable {
+    case use(ProviderTier)
+    /// Nothing on this route can run. `reason` is the blocking tier's own sentence
+    /// — the answer to "why not the model you would have used" — and `cloudRoute`
+    /// is true when an OpenAI key is all that stands in the way, so the UI knows
+    /// whether it has a button to offer or only an explanation to give.
+    case unavailable(reason: String, cloudRoute: Bool)
+}
+
+/// Which model does which work, as a pure function of the work.
+///
+/// A type rather than a branch inside a controller for the same reason
+/// ``LevelCeiling`` is one: the failure this rule exists to prevent is silent. A
+/// route that quietly sends a medical page to a third party, or that quietly runs
+/// a 6000-word feature through a 3B model until the voice falls apart, looks
+/// exactly like a route that worked. Held still here, both are one assertion.
+public enum ModelRouting {
+
+    // Reasons, one per rule, so a test asserts the mapping rather than the prose.
+
+    public static let everydayOnDevice = """
+        Re-voicing prose runs on your device. It is free, nothing about what you \
+        are reading leaves the machine, and it is the work the on-device model is \
+        actually good at.
+        """
+
+    public static let longRewriteEarnsCloud = """
+        This is a long read. Prompted section by section, a small model drifts in \
+        voice across dozens of passages — twenty paragraphs that read like twenty \
+        writers — so Zentic sends long rewrites to the cloud model.
+        """
+
+    public static let sensitiveStaysOnDevice = """
+        This page reads as news, medical, legal or financial. Zentic keeps those on \
+        your device whatever their length: the answer to high stakes is the original \
+        one keystroke away, not a more fluent paraphrase sent to someone else.
+        """
+
+    public static let themeOnDevice = """
+        A theme is a handful of token values from a closed schema, which the \
+        on-device model fills in well — and it is generated once per site, so it \
+        never costs a request per page.
+        """
+
+    public static let structuredNeedsCloud = """
+        Laying out a page or authoring a lens is a long, structured generation. A \
+        small model that returns half a document is worse than one that says no, so \
+        these go to the cloud model.
+        """
+
+    public static let pinnedOnDevice =
+        "You chose On-Device in View ▸ Model, so nothing here leaves your device."
+
+    public static let pinnedCloud = "You chose OpenAI in View ▸ Model."
+
+    /// Route one piece of work.
+    ///
+    /// Two rules do the work, and they pull in opposite directions on purpose.
+    ///
+    /// **Size escalates.** What grows with an article is not the difficulty of any
+    /// one section but the number of independent generations, and a small model
+    /// holds a voice across three passages and loses it across thirty. So past
+    /// ``Budget/cloudRewriteWords`` a rewrite is the cloud model's job.
+    ///
+    /// **Sensitivity does not escalate — it vetoes.** Sensitivity is a statement
+    /// about the stakes, and invariant 6's answer to stakes is the confirm, the
+    /// badge and ⌘\, not a better model: a frontier model paraphrasing a dosage or
+    /// a settlement figure is not safer than a small one, only more fluent about
+    /// being wrong. Escalating on sensitivity would send precisely the pages most
+    /// worth keeping private — someone's diagnosis, their bank's terms — to a third
+    /// party, which is the trade this browser exists to refuse. So a
+    /// fidelity-sensitive rewrite stays on the device at any length, and gets no
+    /// cloud fallback either.
+    ///
+    /// A manual preference overrides both. That is not a hole in the rule: the rule
+    /// is about what Zentic chooses *for* the user, and a setting they went to the
+    /// menu to change is their own choice, made with the confirm still in front of
+    /// them.
+    public static func route(
+        for work: ModelWork,
+        preference: ModelPreference = .automatic
+    ) -> ModelRoute {
+        switch preference {
+        case .onDevice:
+            // No fallback: falling back to the cloud is the exact opposite of what
+            // this setting says.
+            return ModelRoute(tier: .onDevice, reason: pinnedOnDevice)
+        case .cloud:
+            return ModelRoute(tier: .byoKey, reason: pinnedCloud)
+        case .automatic:
+            break
+        }
+
+        switch work {
+        case .document, .lens:
+            return ModelRoute(tier: .byoKey, reason: structuredNeedsCloud)
+        case .theme:
+            return ModelRoute(tier: .onDevice, fallback: .byoKey, reason: themeOnDevice)
+        case .rewrite(let words, let isFidelitySensitive):
+            if isFidelitySensitive {
+                return ModelRoute(tier: .onDevice, reason: sensitiveStaysOnDevice)
+            }
+            if words >= Budget.cloudRewriteWords {
+                return ModelRoute(tier: .byoKey, fallback: .onDevice, reason: longRewriteEarnsCloud)
+            }
+            return ModelRoute(tier: .onDevice, fallback: .byoKey, reason: everydayOnDevice)
+        }
+    }
+
+    /// Meet a route with what the tiers actually report.
+    ///
+    /// Separate from ``route(for:preference:)`` because availability is the one
+    /// thing routing cannot know on its own — ``ProviderAvailability`` has real
+    /// reasons behind it, and they change while the app runs — but the *handling*
+    /// of it is still a decision, so it is pure and it is tested.
+    public static func resolve(
+        _ route: ModelRoute,
+        onDevice: ProviderAvailability,
+        cloud: ProviderAvailability
+    ) -> ModelOutcome {
+        func availability(of tier: ProviderTier) -> ProviderAvailability {
+            tier == .onDevice ? onDevice : cloud
+        }
+
+        let attempts = [route.tier] + (route.fallback.map { [$0] } ?? [])
+        for tier in attempts where availability(of: tier).isAvailable {
+            return .use(tier)
+        }
+
+        // The blocker to name is the tier we *would* have used. Naming the fallback
+        // instead answers a question the user did not ask.
+        let blocker = availability(of: route.tier).reason ?? "No model is available."
+
+        // A cloud route is only worth offering when the route permits one and a key
+        // is the thing missing. An ineligible cloud tier, or a route that
+        // deliberately has no cloud in it, gets the rule's own reason instead — a
+        // button that would not help is worse than a sentence that explains.
+        let cloudRoute =
+            attempts.contains(.byoKey)
+            && !cloud.isAvailable
+            && cloud.isRecoverable
+        return .unavailable(
+            reason: cloudRoute ? blocker : blocker + "\n\n" + route.reason,
+            cloudRoute: cloudRoute
         )
     }
 }
@@ -170,6 +385,23 @@ public enum ProviderAvailability: Sendable, Equatable {
     case ineligible(reason: String)
 
     public var isAvailable: Bool { self == .available }
+
+    /// The sentence to show the user, or nil when there is nothing wrong.
+    public var reason: String? {
+        switch self {
+        case .available: nil
+        case .unavailable(let reason), .ineligible(let reason): reason
+        }
+    }
+
+    /// Whether the user could change this answer today.
+    ///
+    /// The distinction ``ineligible`` draws is the one routing needs: "turn on
+    /// Apple Intelligence" or "add a key" is worth offering, and "this Mac cannot"
+    /// must never be offered again.
+    public var isRecoverable: Bool {
+        if case .ineligible = self { false } else { true }
+    }
 }
 
 // MARK: - Rewrite request
