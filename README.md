@@ -2,13 +2,15 @@
 
 A browser where the clean version of a page **is** the page you land on.
 
-Reader modes exist, but they are an escape hatch: opt-in, per-page, and they mangle
-anything that is not a plain article. Zentic inverts the default. The page is
-stripped, restructured and re-rendered in its own design system before you see it,
-and the original is always one keystroke away.
+Other browsers have a reader mode. You have to remember it's there, press it on every
+page, and it falls apart on anything that isn't a plain article.
 
-macOS and iOS, Swift, WKWebView. Same renderer as Safari — no engine fork, no CVE
-treadmill.
+Zentic turns that around. Ads and trackers are gone, the article is re-set in its own
+type, and it's all finished before the page appears. The site's real page is always one
+keystroke away (`⌘\`).
+
+macOS and iOS. Swift, and the same rendering engine as Safari — no browser fork to
+maintain, and no security backlog of its own.
 
 ![Zentic showing swift.org restructured into its reading view](docs/screenshot.png)
 
@@ -17,24 +19,48 @@ and the five-stop level rail at top right.*
 
 ---
 
-## Three layers
+## Four things it can do to a page
 
-| Layer | What it does | Cost per page |
+| | What it does | What it costs |
 |---|---|---|
-| **Strip** | Blocks ads and trackers, dismisses cookie walls | Zero — declarative rules in the network process |
-| **Restructure** | Extracts the real content and re-renders it | Zero — deterministic, no model involved |
-| **Redesign / Rewrite** | Generates the look, or re-voices the prose | A model call, only when you ask |
+| **Strip** | Blocks ads and trackers, answers cookie walls | Nothing — WebKit applies the rules before the page loads |
+| **Restructure** | Pulls the real article out and re-renders it in Zentic's type | Nothing — no model involved, ever |
+| **Rewrite** | Re-voices the prose | One model call, only when you ask |
+| **Remodel** | A saved *lens* that hides, moves, restyles or filters parts of a site | One model call to write it. **None on every visit after** |
 
-The architectural point is that layers 1 and 2 need **no model calls at all**. AI
-appears in exactly two places you choose to invoke: generating a design for a site
-(once, then cached), and rewriting prose on sites you have pinned to it. The common
-path is free, instant, offline and private.
+The important part: the first two need **no AI at all**. That is the common path, and
+it is free, instant, offline and private. AI shows up only where you ask for it, and
+even then the expensive half is paid once and remembered.
+
+### Restructure and remodel sound alike. They're opposites.
+
+**Restructure replaces the page.** Zentic reads the article, throws the site's layout
+away and draws its own. Lovely for an essay. Ruinous for a mail client — which is why
+it is forbidden on apps.
+
+**Remodel leaves the page alone and rearranges it.** The site's own page stays live
+and clickable; a lens only hides, moves, restyles or filters parts of it.
+
+So the layer that is banned on apps and the layer that is *most useful* on apps are
+different layers. "YouTube without the suggestions rail" works because the real player
+is still the real player. Restructuring YouTube never will.
+
+## Lenses
+
+A lens is a change you describe once and keep. Press `⌥⌘L`, point at something on the
+page or say what you want — *hide the suggestions rail*, *drop anything about crypto* —
+and Zentic shows you which boxes it picked before it changes anything. Save it, and
+every later visit applies it with no model call at all.
+
+Lenses work where the reader can't: apps. They are checked every time and honest about
+it — if a site redesigns and a lens stops matching, the badge says so and offers to
+re-fit it rather than quietly doing nothing.
 
 ## One control
 
-The three layers used to be reached through three unrelated widgets, and the strip
-layer had no control at all — so the question that matters on any page had nowhere
-to be answered: *how much is this browser changing what I am looking at?*
+These used to be scattered across unrelated buttons, and blocking had no control at
+all — so the question that actually matters on any page had nowhere to be answered:
+*how much is this browser changing what I'm looking at?*
 
 That is now a single five-stop rail in the toolbar, per site, with defaults inferred
 per page rather than guessed once.
@@ -42,28 +68,29 @@ per page rather than guessed once.
 | Stop | What it does |
 |---|---|
 | **Original** | The site exactly as it shipped |
-| **Clean** | Ads and trackers blocked; the site's own layout, untouched |
-| **Calm** | Also the interstitials and the chum, and cookie walls answered |
+| **Clean** | Ads and trackers blocked, and the cookie wall answered; the site's own layout otherwise untouched |
+| **Calm** | Also the interstitials, the chum and the sticky furniture |
 | **Reader** | Rebuilt in Zentic's type and spacing — every word still the publisher's |
 | **Rewritten** | Also re-voiced by a model. Badged, gated, one keystroke from the original |
 
-The ladder is strictly ordered, and the order is load-bearing: each stop does
-everything the one below it does and one thing more, which is what makes a slider an
-honest control for it. `ShieldState` and `ReaderMode` are projections of the level
-rather than separately settable — two controls that can disagree are two controls
-that will.
+The order matters. Each stop does everything the one below it does, and one thing more
+— which is what makes a slider an honest control for it, rather than five buttons that
+happen to sit in a row. Blocking and the reader aren't separate switches you could set
+against each other, because two controls that can disagree are two controls that will.
 
-Moving between Calm, Reader and Rewritten is instant. Changing what is *blocked*
-reloads, because WebKit bakes `css-display-none` into a document at load and a
-request already on the wire cannot be recalled. The rail says which is which before
-you click.
+Moving between Calm, Reader and Rewritten happens instantly. Changing what is *blocked*
+reloads the page, because the browser decides what to block as a page loads and can't
+un-send a request already on its way. The rail tells you which is which before you
+click.
 
-**Smart defaults, not a remembered guess.** A site is not one kind of page — a
-registrar's front door is marketing and its blog is prose — so the default is
-resolved per page from the archetype, and a site can be left on `Automatic`, pinned
-to a level, or capped (`never above Calm`). Choosing the level a page would have
-picked anyway is stored as automatic, not as a pin, so it isn't frozen there when the
-site changes.
+**It works out the default per page, not per site.** One site is rarely one kind of
+page: a company's front door is marketing and its blog is prose. So Zentic decides
+where to start from what the page actually turned out to be. You can leave a site on
+Automatic, pin it to a level, or cap it (*never above Calm*).
+
+Dragging the slider changes **this page only** — a reload keeps it, the next page
+doesn't. Making a choice stick is a separate, deliberate action in the rail's menu, so
+you can look at something without committing to it.
 
 **Rewritten is persistent, and it is the one stop that carries consent.** Pinning a
 site to it is standing consent for that origin — its pages are re-voiced on every
@@ -101,13 +128,17 @@ WKWebView, so per-page speed *is* Safari's; the wins are in the shell.
 ## Build
 
 ```sh
-swift build && swift test          # Swift: 118 tests
-cd web && npm run check            # typecheck + 42 bundle tests + 80-page corpus
+swift build && swift test          # Swift: 462 tests
+cd web && npm run check            # typecheck + 410 tests + the 80-page corpus
 swift run ZenticMac                # run it
 ```
 
-`web/dist` is committed so an Xcode build never needs Node. After changing
-anything in `web/src/`, run `npm run build` and commit the result.
+The built JavaScript is committed so an Xcode build never needs Node. After changing
+anything in `web/src/`, run `npm run build` and commit the result — **in that order**,
+because SwiftPM copies the built file in at build time.
+
+There are two bundles. The main one is injected into every page; the lens editor is a
+second one, delivered only when you press `⌥⌘L`, because it cannot run until you do.
 
 ## Keyboard
 
@@ -117,6 +148,7 @@ anything in `web/src/`, run `npm run build` and commit the result.
 | `⌘\` | the site's own page, and back |
 | `⌘⇧S` | simplify this page |
 | `⌥⌘D` | describe a look for this site |
+| `⌥⌘L` | make or edit a lens for this site |
 | `⌥⌘S` / `⌥⌘T` | collapse the sidebar / toolbar to a hover-reveal edge |
 | `⌘⇧F` | focus mode |
 | `⌘K` | command palette |
@@ -130,23 +162,30 @@ These are not style preferences. Each is load-bearing, and each has a test.
    `document-start` to avoid a flash of the original, so it must guarantee a
    reveal. `Budget.revealFailsafe` (1500 ms) is a hard ceiling. A white screen is
    far worse than a flash.
-2. **Never restructure an app.** Archetype detection fails *open*: low confidence
-   means pass the original through. Mangling someone's mail client costs their
-   trust; declining to restructure an article costs nothing.
+2. **Never restructure an app — but you may remodel one.** When Zentic isn't sure
+   what a page is, it leaves it alone. Mangling someone's mail client costs their
+   trust; declining to restructure an article costs nothing. A *lens* is allowed
+   everywhere, because it leaves the site's own page live and only rearranges it.
 3. **Code, tables, math and embeds are never sent to a model.** A model asked to
    restyle a code block renames identifiers; asked to restyle a table it drops
    cells.
-4. **A DOM skeleton carries no page text.** Recipe inference gets tag names,
-   classes, geometry and text *lengths* — never characters.
-5. **A model emits validated tokens, never CSS.** Free-form CSS can contain
-   `url()`, which would beacon on every page you read. Fonts come from a closed
-   set, all local.
+4. **What a model sees of a page contains none of its words.** When Zentic needs a
+   model's help understanding a page's *shape*, it sends the structure — tag names,
+   sizes, positions, and how *long* the text is — never the text itself. What you're
+   reading stays on your machine.
+5. **A model returns settings, never code.** Ask it for a look and it sends back
+   numbers and colours, each checked against a legal range. It never sends CSS,
+   because CSS can fetch a URL — and something that quietly phones home on every page
+   you read is invisible while it works. Fonts come from a fixed local set, so there's
+   no font server to call either.
 6. **Rewriting is opt-in and reversible.** Off by default, badged while shown,
    original one keystroke away. News, medical, legal and financial pages need an
    explicit confirm.
 7. **No telemetry.** Nothing about browsing leaves the device.
-8. **Never invent a blocked-tracker count.** `WKContentRuleList` reports nothing
-   back to the app, so Zentic shows shield *state*. A number would be fabricated.
+8. **Never make up a number.** The blocker doesn't report back what it stopped, so
+   Zentic shows you that the shield is *on* rather than a satisfying "127 trackers
+   blocked". The same rule governs the lens badge: it only ever shows what the page
+   actually reported.
 
 ## Content blocking
 
@@ -173,6 +212,7 @@ key at all and is the default when Apple Intelligence is enabled.
 | M3 Restructure | done — 48 of 80 corpus pages restructure; the rest are apps, front doors, index pages and threads, declined on purpose |
 | M4 Recipes | not started |
 | M5 Rewrite / Redesign | working — presets, built-in and prompted per-site designs, BYO key |
+| Lenses | working — described once, replayed on every visit with no model call |
 | M6 iOS | not started |
 
 ## Verification
