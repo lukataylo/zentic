@@ -401,7 +401,15 @@ function main(): void {
         break;
 
       case "discardRewrite":
-        if (context.lastResult) view.render(context.lastResult, context.theme);
+        // Put the extracted text back — but only if the reader is what the user is
+        // looking at. Stepping the rail *down* from Rewritten sends this straight
+        // after a `setLevel` that hid the overlay, and an unconditional re-render
+        // mounted it again on top of the site's own page: our prose over their
+        // page, both visible at once. The rewrite still has to be discarded either
+        // way, so the state is dropped whether or not anything is redrawn.
+        if (context.lastResult && view.isCovering) {
+          view.render(context.lastResult, context.theme);
+        }
         break;
 
       case "applyLenses":

@@ -25,6 +25,50 @@ public enum APIKeyStore {
 
     private static let service = "com.zentic.apikeys"
 
+    /// What the Keychain last told us, per provider, for this process.
+    ///
+    /// `has(_:)` is asked on every menu validation — which AppKit runs on every
+    /// menu update and every key equivalent — and each ask used to be a real
+    /// `SecItemCopyMatching`. On a Mac whose Keychain wants confirmation for this
+    /// item that is an authorisation prompt per keystroke, which is what the user
+    /// saw. The value is small, already in this process's memory the moment it is
+    /// read once, and every mutation goes through `save`/`remove` here, so the
+    /// cache cannot go stale behind our back.
+    ///
+    /// A `nil` *entry* means "asked, and there is no key" — distinct from no entry
+    /// at all, which means "never asked". Without that distinction the absent case
+    /// re-hits the Keychain forever, and the absent case is the common one.
+    private static let cache = Cache()
+
+    private final class Cache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entries: [Provider: String?] = [:]
+
+        func value(for provider: Provider, orLoad load: () -> String?) -> String? {
+            lock.lock()
+            if let cached = entries[provider] {
+                lock.unlock()
+                return cached
+            }
+            lock.unlock()
+
+            // Deliberately outside the lock: a Keychain read can block on a user
+            // prompt, and holding a lock across that would stall every caller.
+            let fresh = load()
+
+            lock.lock()
+            entries[provider] = fresh
+            lock.unlock()
+            return fresh
+        }
+
+        func set(_ value: String?, for provider: Provider) {
+            lock.lock()
+            entries[provider] = value
+            lock.unlock()
+        }
+    }
+
     public static func save(_ key: String, for provider: Provider) throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -45,11 +89,17 @@ public enum APIKeyStore {
         ]
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
+            cache.set(nil, for: provider)
             throw APIKeyError.keychain(status)
         }
+        cache.set(trimmed, for: provider)
     }
 
     public static func load(_ provider: Provider) -> String? {
+        cache.value(for: provider) { readFromKeychain(provider) }
+    }
+
+    private static func readFromKeychain(_ provider: Provider) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -72,6 +122,7 @@ public enum APIKeyStore {
             kSecAttrAccount as String: provider.rawValue,
         ]
         SecItemDelete(query as CFDictionary)
+        cache.set(nil, for: provider)
     }
 
     public static func has(_ provider: Provider) -> Bool { load(provider) != nil }
