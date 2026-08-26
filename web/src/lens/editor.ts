@@ -106,9 +106,9 @@ import type {
 // ## Textless, like everything else on this path
 //
 // Nothing here reads `textContent` from the page. Region labels are built from
-// tag names, ids and class tokens — the same fields `RegionCatalog` already
-// carries — and chips show `LensOp.note`, which is the user's and the model's
-// words about the page, never the page's own. Invariant 4.
+// the catalog's own kind guess, ids and class tokens — fields `RegionCatalog`
+// already carries — and chips show `LensOp.note`, which is the user's and the
+// model's words about the page, never the page's own. Invariant 4.
 
 export interface LensEditor {
   /**
@@ -126,6 +126,21 @@ export interface LensEditor {
   showProposal(proposal: LensProposal): void;
   /** The ask cannot be answered. Recovers the UI and says why. */
   promptFailed(message: string): void;
+  /**
+   * Whether the reader is showing its own render of this page right now.
+   *
+   * A lens acts on the site's own DOM, which the reader hides — so at Reader or
+   * Rewritten every op is correctly reported `skipped` and a lens authored here
+   * changes nothing the user can see. That is right, and it was silent: the
+   * overlay draws its boxes over the site's DOM whatever is on top of it, so
+   * pointing at a region and saving a lens looked exactly like it does when it
+   * works, and did nothing. The editor says so instead.
+   *
+   * Called at mount and again whenever the rail moves, because the rail is
+   * reachable while the editor is up and a standing statement that has stopped
+   * being true is worse than none.
+   */
+  setReaderShowing(showing: boolean): void;
   onDraft(callback: (lens: Lens) => void): void;
   onPrompt(callback: (text: string, selectedRegionIDs: string[]) => void): void;
   /** Every way out — Esc, Cancel, Save, the page removing the host. */
@@ -155,6 +170,30 @@ const DEFAULT_LENS_NAME = "New Lens";
 /** Said when the app cannot say why an ask failed. Never blank: the whole point
  * is that the user learns the editor is theirs again. */
 const FAILED_PROMPT_MESSAGE = "That ask could not be answered. Nothing was changed.";
+
+/** What the surface is for, said once, in the status line. With nothing drawn at
+ * rest this is the whole of "what can I point at" — and the honest answer is
+ * everything, so it is one sentence rather than a legend. */
+const POINTING_HINT = "Point anywhere on the page";
+
+/** Said while the reader is showing its own render. See `setReaderShowing`. */
+const READER_SHOWING_MESSAGE =
+  "The reader is showing its own version of this page. A lens changes the site's "
+  + "own page, so nothing saved here will show until the rail is below Reader.";
+
+/**
+ * Paint order for the region layer, so a nested stack resolves to one candidate.
+ *
+ * The box under the pointer is the one the user means, and on an article the
+ * pointer is over four of them at once — a paragraph inside an article inside a
+ * column inside the page wrapper. The tightest of those is the answer, so a
+ * smaller region always sits above a larger one and takes the hover. Areas span
+ * a whole page, so this is a coarse rank rather than the area itself: boxes
+ * within a step of each other tie and fall back to document order, which is the
+ * catalog's own ranking.
+ */
+const Z_TOP = 10_000;
+const Z_AREA_STEP = 400;
 
 /** Other lenses are context, not a catalogue. Twelve chips is already more than
  * anyone reads; a site at the twelve-lens cap could otherwise put 480 in the bar. */
@@ -280,14 +319,32 @@ const EDITOR_CSS = `
   user-select: none;
 }
 
-/* Dim enough to push the page back a plane, light enough to still read it —
-   the user is pointing at content, so the content has to stay legible. */
-.scrim { position: absolute; inset: 0; background: rgba(9, 11, 16, 0.30); }
+/* A wash, not a dimmer. The user is reading the page in order to point at part
+   of it, so this may only say "you are in a mode" — anything heavy enough to
+   push the prose back a plane is heavy enough to stop them finding the box they
+   mean, which is the one thing this surface exists for. */
+.scrim { position: absolute; inset: 0; background: rgba(9, 11, 16, 0.14); }
 
 /* MARK: regions */
 
 .layer { position: absolute; inset: 0; }
 
+/**
+ * A region draws nothing at rest.
+ *
+ * It used to draw a 1px ring on every candidate. Budget.lensRegionCandidateLimit
+ * is 120, and on an article those 120 boxes are nested four deep over the same
+ * paragraph — so the page a person opened this surface to point at came back
+ * unreadable, and the one thing they could not then do was point. Rest is
+ * therefore empty and every mark is spent on the box that is actually in play:
+ * the one under the pointer, the one with focus, the ones the model named, the
+ * ones the draft already acts on. There is never more than one of the first two,
+ * and the last two are counted in ops rather than in candidates.
+ *
+ * What answers "what can I point at" instead is the crosshair over the whole
+ * page and the line in the bar: everything is pointable, so there is nothing to
+ * hunt for — moving the pointer anywhere lights up what is under it.
+ */
 .region {
   position: absolute;
   margin: 0;
@@ -296,34 +353,49 @@ const EDITOR_CSS = `
   background: transparent;
   font: inherit;
   color: inherit;
-  cursor: pointer;
+  cursor: crosshair;
   pointer-events: auto;
   border-radius: 7px;
-  box-shadow: inset 0 0 0 1px var(--edge);
-  transition: box-shadow 120ms ease, background-color 120ms ease;
+  box-shadow: none;
+  transition: box-shadow 90ms ease, background-color 90ms ease;
 }
 
-/* A region whose box measures zero is still addressable — it is usually
-   collapsed, lazily sized, or off-layout — so it gets a stub big enough to
-   hover and a dimmed dashed edge that says "no box right now" rather than
-   pretending to a geometry it does not have. */
+/* The one exception to drawing nothing at rest, and it is the exception that
+   proves the rule: a region whose box measures zero has nothing on the page to
+   point at, so an empty rest state would make it unreachable by pointer
+   entirely. It is usually collapsed, lazily sized or off-layout, so it gets a
+   stub big enough to hover and a dimmed dashed edge that says "no box right
+   now" rather than pretending to a geometry it does not have. */
 .region[data-empty] {
   min-width: 68px;
   min-height: 22px;
-  box-shadow: none;
   outline: 1px dashed var(--line);
   outline-offset: -1px;
   opacity: 0.6;
 }
 
-.region:hover, .region[data-hovered] {
+/* Touched by an op already in the draft. Thin and quiet: it answers "what does
+   my lens do to this page" at a glance without competing with a selection — and
+   it is the one persistent mark that a *hovered* region must be able to
+   override, so it is declared before the states that override it. Every rule
+   here has the same specificity, so this order is the priority. */
+.region[data-touched] { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Hover and focus are the same state seen through two devices, so they draw the
+   same thing. Keyboard parity is not a courtesy here: Tab is the only way to
+   reach a region without a pointer, and a focus ring quieter than the hover ring
+   would make the keyboard a second-class way to use the surface. The generic
+   focus-visible outline is suppressed so the two cannot double up. */
+.region:hover,
+.region[data-hovered],
+.region:focus-visible {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 2px var(--accent);
+  outline: none;
 }
-
-/* Touched by an op already in the draft. Thin and quiet: it answers "what does
-   my lens do to this page" at a glance without competing with a selection. */
-.region[data-touched] { box-shadow: inset 0 0 0 1px var(--accent); }
+.region[data-empty]:hover,
+.region[data-empty][data-hovered],
+.region[data-empty]:focus-visible { opacity: 1; }
 
 .region[data-selected] {
   background: var(--accent-soft);
@@ -340,19 +412,24 @@ const EDITOR_CSS = `
   outline-offset: -2px;
 }
 
+/* One short phrase, and only on the box in play. It used to read
+   "div unknown 680x325": a tag name, our internal kind vocabulary and a pixel
+   measurement, floating in the middle of somebody's prose. None of the three
+   helps a person answer the only question they have here — "is this the thing I
+   mean" — which they answer by looking at the highlighted box. See
+   regionLabel below. */
 .region .tag {
   position: absolute;
   top: 4px;
   inset-inline-start: 4px;
   display: none;
-  align-items: center;
-  gap: 6px;
   max-width: calc(100% - 8px);
   padding: 3px 8px;
   border-radius: 6px;
   background: var(--solid);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
   font-size: 11px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,12 +438,8 @@ const EDITOR_CSS = `
 .region[data-hovered] .tag,
 .region:focus-visible .tag,
 .region[data-selected] .tag,
-.region[data-proposed] .tag { display: inline-flex; }
-
-.tag .name { font-weight: 600; }
-.tag .kind { color: var(--accent); }
-.region[data-proposed] .tag .kind { color: var(--propose); }
-.tag .dim { color: var(--muted); font-variant-numeric: tabular-nums; }
+.region[data-proposed] .tag { display: block; }
+.region[data-proposed] .tag { color: var(--propose); }
 
 /* MARK: prompt bar */
 
@@ -466,6 +539,19 @@ const EDITOR_CSS = `
   color: var(--ink);
 }
 .notice[hidden] { display: none; }
+
+/* Not a failure, so not the failure colour: the lens being authored is fine and
+   will be saved, it simply has nothing on screen to act on yet. Amber rather
+   than red, and it stays up for as long as the condition does. */
+.aside {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(240, 180, 41, 0.40);
+  border-radius: 9px;
+  background: var(--propose-soft);
+  color: var(--ink);
+}
+.aside[hidden] { display: none; }
 
 .chip .note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip .x {
@@ -602,6 +688,7 @@ class LensEditorOverlay implements LensEditor {
   private chipList: HTMLElement | undefined;
   private contextList: HTMLElement | undefined;
   private noticeNode: HTMLElement | undefined;
+  private asideNode: HTMLElement | undefined;
   private proposalBox: HTMLElement | undefined;
   private patternNode: HTMLElement | undefined;
   private saveButton: HTMLButtonElement | undefined;
@@ -630,6 +717,8 @@ class LensEditorOverlay implements LensEditor {
   private lastPrompt = "";
   private asking = false;
   private notice = "";
+  /** Whether the reader is covering the page the regions describe. */
+  private readerShowing = false;
 
   private previousFocus: Element | undefined;
   private teardowns: Array<() => void> = [];
@@ -698,6 +787,9 @@ class LensEditorOverlay implements LensEditor {
       this.pending = undefined;
       this.asking = false;
       this.notice = "";
+      // Stale from the last time the overlay was up. `main.ts` states it again
+      // straight after a mount that succeeded.
+      this.readerShowing = false;
       this.lastPrompt = "";
       this.scope = "similar";
       this.pinnedPattern = undefined;
@@ -895,6 +987,13 @@ class LensEditorOverlay implements LensEditor {
     this.failed(message.trim() || FAILED_PROMPT_MESSAGE);
   }
 
+  setReaderShowing(showing: boolean): void {
+    if (this.readerShowing === showing) return;
+    this.readerShowing = showing;
+    if (!this.root) return;
+    this.renderAside();
+  }
+
   private failed(message: string): void {
     this.asking = false;
     this.notice = message;
@@ -949,6 +1048,15 @@ class LensEditorOverlay implements LensEditor {
     notice.setAttribute("aria-live", "polite");
     notice.hidden = true;
     this.noticeNode = notice;
+
+    // Above the draft and above the ask, because it is a fact about the whole
+    // session rather than about the last thing the user did.
+    const aside = this.doc.createElement("p");
+    aside.className = "aside";
+    aside.setAttribute("role", "status");
+    aside.setAttribute("aria-live", "polite");
+    aside.hidden = true;
+    this.asideNode = aside;
 
     const proposalBox = this.doc.createElement("div");
     proposalBox.className = "proposal";
@@ -1025,7 +1133,7 @@ class LensEditorOverlay implements LensEditor {
     acts.append(cancel, save);
 
     foot.append(where, grow, acts);
-    bar.append(context, chips, notice, proposalBox, ask, foot);
+    bar.append(aside, context, chips, notice, proposalBox, ask, foot);
     this.bar = bar;
     return bar;
   }
@@ -1061,10 +1169,12 @@ class LensEditorOverlay implements LensEditor {
       node.className = "region";
       node.dataset.region = candidate.id;
 
-      const label = regionLabel(candidate);
-      node.setAttribute("aria-label", `${label}, ${candidate.kindGuess}`);
+      // Two labels, and they differ on purpose. The visible one is a phrase to
+      // recognise a box by; the accessible one has to tell 120 of them apart in
+      // a list with no boxes to look at, so it keeps the identifier as well.
+      node.setAttribute("aria-label", `${regionLabel(candidate)}, ${regionName(candidate)}`);
       node.setAttribute("aria-pressed", "false");
-      node.appendChild(this.buildTag(label, candidate));
+      node.appendChild(this.buildTag(regionLabel(candidate)));
       this.place(node, candidate.rect);
 
       node.addEventListener("mouseenter", () => {
@@ -1087,27 +1197,25 @@ class LensEditorOverlay implements LensEditor {
   }
 
   /**
-   * Put one outline where its element is.
+   * Put one outline where its element is, and decide what it sits above.
    *
-   * Also the only writer of `data-empty` and of the size on the hover tag, so a
-   * box that gains or loses a geometry between measurements says so instead of
-   * keeping the first answer it was given.
+   * Also the only writer of `data-empty`, so a box that gains or loses a
+   * geometry between measurements says so instead of keeping the first answer it
+   * was given — and the only writer of the stacking order, because that is
+   * derived from the geometry and has to be re-derived when the geometry moves.
+   * A page that reflows can turn the tightest box under the pointer into the
+   * widest one.
    */
   private place(node: HTMLElement, rect: RegionRect): void {
+    const width = Math.max(0, rect.width);
+    const height = Math.max(0, rect.height);
     node.style.left = `${rect.x}px`;
     node.style.top = `${rect.y}px`;
-    node.style.width = `${Math.max(0, rect.width)}px`;
-    node.style.height = `${Math.max(0, rect.height)}px`;
+    node.style.width = `${width}px`;
+    node.style.height = `${height}px`;
+    node.style.zIndex = String(zIndexForArea(width * height));
 
-    const empty = rect.width <= 0 || rect.height <= 0;
-    setFlag(node, "empty", empty);
-
-    const dim = node.querySelector<HTMLElement>(".tag .dim");
-    if (dim) {
-      dim.textContent = empty
-        ? "no box"
-        : `${Math.round(rect.width)}×${Math.round(rect.height)}`;
-    }
+    setFlag(node, "empty", rect.width <= 0 || rect.height <= 0);
   }
 
   /**
@@ -1159,25 +1267,12 @@ class LensEditorOverlay implements LensEditor {
     return undefined;
   }
 
-  /** The hover label: what this box is called, what we think it is, how big it
-   * is. Every field comes from the catalog, so none of it is page text. */
-  private buildTag(label: string, candidate: RegionCandidate): HTMLElement {
+  /** The label on the box in play: one phrase, from the catalog, so none of it
+   * is page text. See `regionLabel`. */
+  private buildTag(label: string): HTMLElement {
     const tag = this.doc.createElement("span");
     tag.className = "tag";
-
-    const name = this.doc.createElement("span");
-    name.className = "name";
-    name.textContent = label;
-
-    const kind = this.doc.createElement("span");
-    kind.className = "kind";
-    kind.textContent = candidate.kindGuess;
-
-    // Filled by `place`, which owns the geometry and re-owns it after a reflow.
-    const dim = this.doc.createElement("span");
-    dim.className = "dim";
-
-    tag.append(name, kind, dim);
+    tag.textContent = label;
     return tag;
   }
 
@@ -1224,11 +1319,19 @@ class LensEditorOverlay implements LensEditor {
   // MARK: - Bar contents
 
   private renderBar(): void {
+    this.renderAside();
     this.renderContext();
     this.renderChips();
     this.renderNotice();
     this.renderProposal();
     this.syncAffordances();
+  }
+
+  private renderAside(): void {
+    const node = this.asideNode;
+    if (!node) return;
+    node.textContent = this.readerShowing ? READER_SHOWING_MESSAGE : "";
+    node.hidden = !this.readerShowing;
   }
 
   private renderChips(): void {
@@ -1392,11 +1495,15 @@ class LensEditorOverlay implements LensEditor {
   private syncAffordances(): void {
     const selectedCount = this.selected.size;
     if (this.countNode) {
+      // The idle case is not blank any more. Nothing is drawn until the pointer
+      // is over a box, so this line is what tells a person the page itself is
+      // the control — and it costs nothing, because the slot was already here
+      // and already empty whenever nothing was selected.
       this.countNode.textContent = this.asking
         ? "asking…"
         : selectedCount > 0
           ? `${selectedCount} selected`
-          : "";
+          : POINTING_HINT;
     }
 
     const hasPromptText = (this.input?.value ?? "").trim().length > 0;
@@ -2096,6 +2203,7 @@ class LensEditorOverlay implements LensEditor {
     this.chipList = undefined;
     this.contextList = undefined;
     this.noticeNode = undefined;
+    this.asideNode = undefined;
     this.proposalBox = undefined;
     this.patternNode = undefined;
     this.saveButton = undefined;
@@ -2116,6 +2224,7 @@ class LensEditorOverlay implements LensEditor {
     this.pinnedPattern = undefined;
     this.asking = false;
     this.notice = "";
+    this.readerShowing = false;
     this.previousFocus = undefined;
   }
 }
@@ -2126,20 +2235,69 @@ export function createLensEditor(doc: Document): LensEditor {
 
 // MARK: - Helpers
 
+/** `RegionCandidate.kindGuess` in the words a person uses. The vocabulary is
+ * closed — `guessKind` in `regions.ts` produces exactly these — and "unknown"
+ * has no entry on purpose: see `regionLabel`. */
+const KIND_LABELS: Record<string, string> = {
+  header: "Header",
+  footer: "Footer",
+  nav: "Navigation",
+  aside: "Sidebar",
+  main: "Main content",
+  feed: "List of items",
+  media: "Media",
+  comments: "Comments",
+};
+
 /**
- * What to call a region on screen.
+ * What to write on the box in play.
  *
- * Identifiers only — an id, a class token, a role, a tag name. The page's own
- * words are not available here and must not become available: a label reading
- * "Suggested for you" would be page text in our chrome, one copy away from a
- * draft and from the app. Invariant 4.
+ * It used to be `div unknown 680×325` — a tag name, our own kind vocabulary and
+ * a pixel measurement — sitting in the middle of somebody's prose. A person here
+ * is answering one question, "is this the thing I mean", and they answer it by
+ * looking at the box that just lit up. So the label says the only thing the box
+ * cannot: what we think this part of the page *is*, in a word they already use.
+ *
+ * When we have no idea, `regionName` is the fallback rather than the word
+ * "unknown", because an id or a class is at least a name for the thing, and the
+ * tag name and the size are dropped in both cases: `div` describes every second
+ * box on the web, and the size is the box, which is already drawn.
+ *
+ * The page's own words are not available here and must not become available: a
+ * label reading "Suggested for you" would be page text in our chrome, one copy
+ * away from a draft and from the app. Invariant 4.
  */
 function regionLabel(candidate: RegionCandidate): string {
+  return KIND_LABELS[candidate.kindGuess] ?? regionName(candidate);
+}
+
+/**
+ * The identifier a region is known by.
+ *
+ * Kept for the accessible name, which has a job the visible label does not: to
+ * distinguish a hundred and twenty entries read out one after another, with no
+ * boxes on screen to tell them apart. Identifiers only — invariant 4 again.
+ */
+function regionName(candidate: RegionCandidate): string {
   if (candidate.elementID) return `#${candidate.elementID}`;
   const first = candidate.classes[0];
   if (first) return `${candidate.tag}.${first}`;
   if (candidate.role) return `${candidate.tag}[${candidate.role}]`;
   return candidate.tag;
+}
+
+/**
+ * Where a box of this area sits in the region layer. See `Z_TOP`.
+ *
+ * Monotone and clamped: bigger is lower, nothing goes below 1 (which would put
+ * it behind the scrim), and nothing above `Z_TOP` (which would put it over the
+ * bar). A zero-area region is a stub the user can still point at, so it sits at
+ * the top rather than being buried under every box that overlaps it.
+ */
+function zIndexForArea(area: number): number {
+  if (!Number.isFinite(area) || area <= 0) return Z_TOP;
+  const rank = Math.min(Z_TOP - 1, Math.round(area / Z_AREA_STEP));
+  return Z_TOP - rank;
 }
 
 /** The deepest node an event was dispatched on that the caller is allowed to

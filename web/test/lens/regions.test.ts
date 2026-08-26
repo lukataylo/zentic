@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { buildRegionCatalog } from "../../src/lens/regions.js";
+import { cssPath } from "../../src/skeleton.js";
 import type { RegionCandidate, RegionCatalog } from "../../src/wire.js";
 
 // Segmentation is what makes a page addressable, and the catalog is the one
@@ -252,6 +253,58 @@ describe("a selector is only offered if it matches one element", () => {
 
   it("still offers the container, which is genuinely one element", () => {
     expect(find(build(), "div.gridContainer")?.itemCount).toBe(8);
+  });
+});
+
+// -- measured -- The Verge: fourteen of a live article's hundred and twenty
+// candidates were deep enough that their only anchor was a `cssPath` of 242 to
+// 247 characters, past the 240 the shape gate allows. The catalog offered them,
+// the overlay drew a box for each, the app refused every one before the model was
+// shown the page, and an op naming one was discarded on the way back — so a
+// prompt about a box that was plainly on screen came back having done nothing,
+// for a reason nothing anywhere said out loud.
+describe("a region is only offered if a lens could name it", () => {
+  /** A nesting deep enough that the path to the leaf runs past the cap.
+   *
+   * Every level has a same-tag sibling before it, which is what a real page's
+   * markup does and what makes `cssPath` spell each step `div:nth-of-type(2)` —
+   * nineteen characters a level. Nothing on the way down carries an id or a
+   * stable class, so the path is the only anchor there is. */
+  function burrow(depth: number): string {
+    let inner = "<p>Turnstones worked along the strandline until the tide turned.</p>";
+    for (let level = 0; level < depth; level += 1) {
+      inner = `<div>Fieldfares</div><div>${inner}</div>`;
+    }
+    return inner;
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = `<main id="content">${burrow(14)}</main>`;
+  });
+
+  it("has a fixture whose path really is too long, or it proves nothing", () => {
+    const leaf = document.querySelector("#content p")!;
+    // `cssPath` is what the catalog falls back to, so this is the number the gate
+    // is judging. If a change to the path builder makes it shorter, this test
+    // stops testing anything and says so here rather than passing quietly.
+    expect(cssPath(leaf.parentElement!).length).toBeGreaterThan(240);
+  });
+
+  it("offers nothing whose selector is longer than a lens may carry", () => {
+    for (const candidate of build().candidates) {
+      for (const selector of [candidate.selector, ...candidate.alternates]) {
+        expect(selector.length).toBeLessThanOrEqual(240);
+      }
+    }
+  });
+
+  it("still offers the shallow regions, and numbers them without a gap", () => {
+    const catalog = build();
+
+    expect(offers(catalog, "#content")).toBe(true);
+    expect(catalog.candidates.map((candidate) => candidate.id)).toEqual(
+      catalog.candidates.map((_, index) => `r${index}`),
+    );
   });
 });
 

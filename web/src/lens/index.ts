@@ -96,7 +96,9 @@ export function engineOptions(config: ReaderConfiguration): LensEngineOptions {
  * that produced it.
  */
 export interface LensEngineHooks {
-  /** True while `ReaderView` is rendered over the page. */
+  /** True while `ReaderView` is *painting over* the page — `isCovering`, not
+   * `isRendered`. A reader that is mounted but hidden (⌘\, an SPA route change)
+   * leaves the site's own DOM on screen, and a lens's ops are visible on it. */
   isReaderRendered?: () => boolean;
   /** Re-post a whole-lens report the engine revised after the initial pass. */
   onReport?: (reports: LensReport[]) => void;

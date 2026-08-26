@@ -1,3 +1,4 @@
+import { safeRegionSelector } from "./selectors.js";
 import { elementArea, viewportSize } from "../dom.js";
 import { cssPath, pathPattern } from "../skeleton.js";
 import type { ItemFieldCandidate, RegionCandidate, RegionCatalog, RegionRect } from "../wire.js";
@@ -285,40 +286,51 @@ export function buildRegionCatalog(doc: Document, options: RegionCatalogOptions)
   scanned.sort((a, b) => b.area - a.area || b.textLength - a.textLength);
 
   const matchCounts = new Map<string, number>();
-  const candidates: RegionCandidate[] = scanned
-    .slice(0, Math.max(1, options.limit))
-    .map((scan, index) => {
-      const repeated = repeatedItems(scan.element, repeats);
-      const selectors = deriveSelectors(doc, scan.element, repeats, matchCounts);
-      const elementID = regionIdentifier(scan.element, repeats);
+  const candidates: RegionCandidate[] = [];
+  for (const scan of scanned.slice(0, Math.max(1, options.limit))) {
+    const repeated = repeatedItems(scan.element, repeats);
+    // Only selectors a lens is actually allowed to carry, and the same gate the
+    // app applies on the way back in. The catalog used to offer whatever
+    // `deriveSelectors` produced, including a `cssPath` fallback for a node deep
+    // enough that the path ran past the shape gate's length cap — fourteen of a
+    // real article's hundred and twenty. Those regions were drawn as boxes the
+    // user could point at, dropped before the model was ever shown them, and
+    // every op naming one was discarded on the way back: a prompt about a box
+    // that was on screen, answered with nothing, for a reason nothing said.
+    const derived = usableSelectors(deriveSelectors(doc, scan.element, repeats, matchCounts));
+    const selectors = derived.length > 0 ? derived : usableSelectors([cssPath(scan.element)]);
+    const anchor = selectors[0];
+    if (anchor === undefined) continue;
 
-      return {
-        id: `r${index}`,
-        selector: selectors[0] ?? cssPath(scan.element),
-        alternates: selectors.slice(1),
+    const elementID = regionIdentifier(scan.element, repeats);
+
+    candidates.push({
+      id: `r${candidates.length}`,
+      selector: anchor,
+      alternates: selectors.slice(1),
+      tag: scan.tag,
+      classes: stableClasses(scan.element).slice(0, 12),
+      kindGuess: guessKind(scan.element, {
         tag: scan.tag,
-        classes: stableClasses(scan.element).slice(0, 12),
-        kindGuess: guessKind(scan.element, {
-          tag: scan.tag,
-          role: scan.role,
-          textLength: scan.textLength,
-          linkCount: scan.linkCount,
-          mediaCount: scan.mediaCount,
-          itemCount: repeated?.count ?? 0,
-        }),
-        rect: scan.rect,
-        depth: depthOf(scan.element),
+        role: scan.role,
         textLength: scan.textLength,
         linkCount: scan.linkCount,
-        paragraphCount: scan.paragraphCount,
-        imageCount: scan.imageCount,
+        mediaCount: scan.mediaCount,
         itemCount: repeated?.count ?? 0,
-        itemFields: repeated ? itemFields(scan.element, repeated.selector) : [],
-        ...(elementID ? { elementID } : {}),
-        ...(scan.role ? { role: scan.role } : {}),
-        ...(repeated ? { itemSelector: repeated.selector } : {}),
-      };
+      }),
+      rect: scan.rect,
+      depth: depthOf(scan.element),
+      textLength: scan.textLength,
+      linkCount: scan.linkCount,
+      paragraphCount: scan.paragraphCount,
+      imageCount: scan.imageCount,
+      itemCount: repeated?.count ?? 0,
+      itemFields: repeated ? itemFields(scan.element, repeated.selector) : [],
+      ...(elementID ? { elementID } : {}),
+      ...(scan.role ? { role: scan.role } : {}),
+      ...(repeated ? { itemSelector: repeated.selector } : {}),
     });
+  }
 
   return {
     origin,
@@ -326,6 +338,27 @@ export function buildRegionCatalog(doc: Document, options: RegionCatalogOptions)
     viewport: { width: Math.round(view.width), height: Math.round(view.height) },
     candidates,
   };
+}
+
+/**
+ * The offered selectors a lens is allowed to carry, in the order they arrived.
+ *
+ * The catalog is an *offer*, and an offer the receiving end will refuse is worse
+ * than no offer: the overlay draws a box for every candidate, so a region whose
+ * only selector fails the shape gate is a box a person can point at, describe,
+ * and get nothing back for. The gate here is the same function `ops.ts` and the
+ * editor use, and its length cap is the same number Swift's `LensToken` holds —
+ * so what this page offers is exactly what the model is shown and exactly what
+ * an op may name.
+ */
+function usableSelectors(offered: string[]): string[] {
+  const kept: string[] = [];
+  for (const selector of offered) {
+    const safe = safeRegionSelector(selector);
+    if (safe === undefined || kept.includes(safe)) continue;
+    kept.push(safe);
+  }
+  return kept;
 }
 
 /** Our own overlay and inserted nodes are not part of the page and never a region.

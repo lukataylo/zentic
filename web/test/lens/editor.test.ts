@@ -244,10 +244,21 @@ describe("mounting", () => {
     const first = regions()[0]!;
     expect(first.style.left).toBe("20px");
     expect(first.style.width).toBe("100px");
-    // Names come from the catalog's identifiers, never from page text.
-    expect(one(".region .tag .name").textContent).toBe("#related");
-    expect(one(".region .tag .kind").textContent).toBe("aside");
-    expect(one(".region .tag .dim").textContent).toBe("100×80");
+    // One phrase, in a person's words, and it comes from the catalog's kind
+    // guess rather than from page text. The tag name, our internal vocabulary
+    // and the pixel size are all gone: see `regionLabel`.
+    expect(one(".region .tag").textContent).toBe("Sidebar");
+    // The accessible name still carries the identifier, because a screen reader
+    // has 120 of these in a row and no boxes to tell them apart.
+    expect(first.getAttribute("aria-label")).toBe("Sidebar, #related");
+  });
+
+  it("names a region we cannot classify after its identifier, never 'unknown'", () => {
+    editor.mount(CATALOG, []);
+
+    // `r2` has no kind guess we recognise, so the label falls back to the name
+    // of the thing rather than printing our own word for "no idea".
+    expect(regions()[2]!.querySelector(".tag")?.textContent).toBe("div.r2");
   });
 
   it("keeps a zero-size region addressable rather than dropping it", () => {
@@ -255,7 +266,6 @@ describe("mounting", () => {
 
     const empty = regions()[2]!;
     expect(empty.hasAttribute("data-empty")).toBe(true);
-    expect(empty.querySelector(".dim")?.textContent).toBe("no box");
 
     click(empty);
     expect(selectedIDs()).toEqual(["r2"]);
@@ -358,6 +368,160 @@ describe("mounting", () => {
   });
 });
 
+/**
+ * The overlay's own stylesheet, as text.
+ *
+ * The rules below are the whole of what this surface draws, and jsdom has no
+ * cascade to ask inside a closed shadow root — so they are read as the artefact
+ * WebKit reads. Not a proxy for the design: on this surface the design *is* which
+ * state paints what, and that lives nowhere else.
+ */
+function ruleBodies(selector: string): string[] {
+  const sheet = shadow.querySelector("style")?.textContent ?? "";
+  const bodies: string[] = [];
+  // Comments first, or a selector named inside one counts as a rule.
+  for (const rule of sheet.replace(/\/\*[\s\S]*?\*\//g, "").split("}")) {
+    const [head, body] = rule.split("{");
+    if (head === undefined || body === undefined) continue;
+    const selectors = head.split(",").map((part) => part.trim());
+    if (selectors.includes(selector)) bodies.push(body.trim());
+  }
+  return bodies;
+}
+
+describe("what the overlay draws", () => {
+  // The fault: `Budget.lensRegionCandidateLimit` is 120, and every candidate was
+  // outlined at once — nested three and four deep over the same paragraph, with
+  // the page washed behind them. The surface exists so a person can point at the
+  // box they mean, and a page covered in rectangles is one you cannot read well
+  // enough to point at anything. So rest draws nothing and every mark is spent on
+  // the box in play.
+
+  it("draws no outline on a region at rest", () => {
+    editor.mount(CATALOG, []);
+
+    const base = ruleBodies(".region");
+    expect(base).toHaveLength(1);
+    expect(base[0]).toContain("box-shadow: none");
+    // The ring that used to be on all 120 of them.
+    expect(base[0]).not.toContain("var(--edge)");
+    // And the pointer says the page is the control, since nothing else does.
+    expect(base[0]).toContain("cursor: crosshair");
+  });
+
+  it("gives focus exactly what hover gets", () => {
+    editor.mount(CATALOG, []);
+
+    // Tab is the only way to reach a region without a pointer, so a focus ring
+    // quieter than the hover ring would make the keyboard a second-class way to
+    // use the surface. One rule, three ways in.
+    const hovered = ruleBodies(".region:hover");
+    const focused = ruleBodies(".region:focus-visible");
+    expect(hovered).toHaveLength(1);
+    expect(focused).toEqual(hovered);
+    expect(hovered[0]).toContain("inset 0 0 0 2px var(--accent)");
+  });
+
+  it("lets a hovered region outdraw the quiet mark the draft leaves on it", () => {
+    editor.mount(CATALOG, []);
+
+    // Every state here is one attribute deep, so they all have the same
+    // specificity and the last one declared wins. A region an op already acts on
+    // therefore has to be declared before hover, or pointing at it would draw it
+    // *fainter* than pointing at the region beside it.
+    const sheet = shadow.querySelector("style")?.textContent ?? "";
+    expect(sheet.indexOf(".region[data-touched]")).toBeLessThan(
+      sheet.indexOf(".region:focus-visible {"),
+    );
+  });
+
+  it("keeps the page readable behind the scrim", () => {
+    editor.mount(CATALOG, []);
+
+    // A wash, not a dimmer: the user is reading the page in order to point at
+    // part of it. Anything heavy enough to push the prose back a plane is heavy
+    // enough to stop them finding the box they mean.
+    const scrim = ruleBodies(".scrim")[0] ?? "";
+    const alpha = Number(/rgba\([^)]*?([0-9.]+)\)/.exec(scrim)?.[1] ?? "1");
+    expect(alpha).toBeLessThanOrEqual(0.2);
+  });
+
+  it("puts the tightest box under the pointer on top of the ones around it", () => {
+    // A pointer over a paragraph is over four candidates at once — the paragraph,
+    // the article, the column, the page wrapper. Exactly one of them can be the
+    // one the user means, and it is the smallest: the others are still reachable
+    // by pointing at a part of them the smaller one does not cover.
+    editor.mount(
+      {
+        ...CATALOG,
+        candidates: [
+          candidate("page", { rect: { x: 0, y: 0, width: 1200, height: 4000 } }),
+          candidate("column", { rect: { x: 0, y: 0, width: 700, height: 3000 } }),
+          candidate("para", { rect: { x: 0, y: 0, width: 700, height: 60 } }),
+        ],
+      },
+      [],
+    );
+
+    const [page, column, para] = regions().map((node) => Number(node.style.zIndex));
+    expect(para).toBeGreaterThan(column!);
+    expect(column).toBeGreaterThan(page!);
+    // Never behind the scrim, never over the prompt bar.
+    expect(page).toBeGreaterThan(0);
+    expect(para).toBeLessThanOrEqual(10_000);
+  });
+
+});
+
+describe("what the overlay says about itself", () => {
+  it("says nothing about the reader until it is told to", () => {
+    editor.mount(CATALOG, []);
+    expect(one(".aside").hidden).toBe(true);
+  });
+
+  it("says a lens authored over the reader will not show yet", () => {
+    editor.mount(CATALOG, []);
+
+    // At Reader the site's own DOM is underneath our render, so every op is
+    // correctly reported `skipped` and a lens saved here changes nothing anyone
+    // can see. The overlay draws over that hidden document either way, so
+    // without this the surface looks exactly like it does when it works.
+    editor.setReaderShowing(true);
+    const aside = one(".aside");
+    expect(aside.hidden).toBe(false);
+    expect(aside.textContent).toContain("below Reader");
+    // Not a failure: the lens is fine and will be saved.
+    expect(notice().hidden).toBe(true);
+    expect(labelled("Save Lens").disabled).toBe(true);
+
+    // The rail is reachable while the editor is up, and a warning that has
+    // stopped applying is worse than no warning.
+    editor.setReaderShowing(false);
+    expect(one(".aside").hidden).toBe(true);
+  });
+
+  it("does not carry the warning into the next editing session", () => {
+    editor.mount(CATALOG, []);
+    editor.setReaderShowing(true);
+    expect(one(".aside").hidden).toBe(false);
+
+    editor.mount(CATALOG, []);
+    expect(one(".aside").hidden).toBe(true);
+  });
+
+  it("tells a person the page itself is the control", () => {
+    editor.mount(CATALOG, []);
+
+    // With nothing drawn at rest, this line is the whole of "what can I point
+    // at" — and the honest answer is everything, so it is one sentence rather
+    // than a legend.
+    expect(one(".count").textContent).toBe("Point anywhere on the page");
+
+    click(regions()[0]!);
+    expect(one(".count").textContent).toBe("1 selected");
+  });
+});
+
 describe("selection", () => {
   beforeEach(() => editor.mount(CATALOG, []));
 
@@ -440,7 +604,10 @@ describe("prompting", () => {
     expect(notice().hidden).toBe(false);
     expect(notice().textContent).toBe("The model is unavailable.");
     expect(labelled("Ask").disabled).toBe(false);
-    expect(one(".count").textContent).toBe("");
+    // Out of "asking…" and back to the standing hint, not to nothing: with no
+    // outline drawn at rest this line is what says the page itself is the
+    // control.
+    expect(one(".count").textContent).toBe("Point anywhere on the page");
 
     // Asking again is a fresh start, not a second failure.
     click(labelled("Ask"));
@@ -1249,7 +1416,13 @@ describe("reflow", () => {
       expect(regions()[0]!.style.left).toBe("300px");
       expect(regions()[0]!.style.top).toBe("500px");
       expect(regions()[0]!.style.width).toBe("240px");
-      expect(one(".region .tag .dim").textContent).toBe("240×90");
+      // The stacking is derived from the geometry, so it is re-derived too: a
+      // reflow can turn the tightest box under the pointer into the widest one,
+      // and an order fixed at build time would go on handing the pointer to the
+      // wrong region.
+      expect(Number(regions()[0]!.style.zIndex)).toBeLessThan(
+        Number(regions()[1]!.style.zIndex),
+      );
 
       // A box that gains a geometry stops claiming it has none.
       expect(regions()[2]!.hasAttribute("data-empty")).toBe(false);

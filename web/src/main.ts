@@ -123,10 +123,20 @@ function main(): void {
   let hasLenses = (config.lenses ?? []).length > 0;
   try {
     lenses = new LensEngine(document, engineOptions(config), {
-      // A lens acts on the site's own DOM. While the reader is showing its own
-      // render of the page, that DOM is hidden, so nothing a lens does is on
-      // screen and no report may claim otherwise.
-      isReaderRendered: () => view.isRendered,
+      // A lens acts on the site's own DOM. While the reader is *painting over*
+      // that DOM, nothing a lens does is on screen and no report may claim
+      // otherwise.
+      //
+      // `isCovering`, not `isRendered`, and the difference is the whole of
+      // whether ⌘\ works. `hide()` sets `display: none` on the overlay host and
+      // leaves it mounted, so `isRendered` stays true for the rest of the
+      // document's life — and every structural op stayed suppressed on a page
+      // the user had just asked to see, while the CSS half of the same lens
+      // applied. The engine's own note says "`main.ts` re-runs this pass on that
+      // switch, so the structural ops land the moment the original is the thing
+      // being looked at"; this is the reading that makes that true. It is also
+      // the predicate `VisibilityController` already uses for the same question.
+      isReaderRendered: () => view.isCovering,
       onReport: postReports,
     });
     if (hasLenses) lenses.setLenses(config.lenses ?? []);
@@ -253,6 +263,14 @@ function main(): void {
     return overlay;
   };
 
+  /** Keep the editor's standing statement about the reader true.
+   *
+   * The rail and ⌘\ are both reachable while the overlay is up, and a warning
+   * that has stopped applying is worse than no warning: the user reads "nothing
+   * saved here will show" over a page where it now would. Only ever the editor
+   * that already exists — this must not build one. */
+  const syncEditorReader = () => editor?.setReaderShowing(view.isCovering);
+
   const context: PipelineContext = {
     doc: document,
     config,
@@ -316,6 +334,8 @@ function main(): void {
         } else {
           await start();
         }
+        // The rail is reachable while the lens editor is up.
+        syncEditorReader();
         break;
 
       case "setLevel": {
@@ -356,6 +376,7 @@ function main(): void {
         } else {
           await start();
         }
+        syncEditorReader();
         break;
       }
 
@@ -463,6 +484,13 @@ function main(): void {
           // a mount that failed leaves the app closing an editor that was never
           // there, and the user pressing ⌥⌘L twice to get one.
           if (mounted) {
+            // Straight after the mount, and from the same reading the engine
+            // suppresses on. A lens authored while the reader is showing is
+            // saved correctly and changes nothing anyone can see, because the
+            // regions it names are on the document underneath — and the overlay
+            // draws over that document whatever is on top of it, so without this
+            // the surface looks exactly like it does when it works.
+            overlay.setReaderShowing(view.isCovering);
             bridge.post({ v: WIRE_VERSION, type: "lensModeChanged", payload: true });
           } else if (editing) {
             bridge.postFailure(
