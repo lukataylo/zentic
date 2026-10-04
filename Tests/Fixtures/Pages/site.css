@@ -1,0 +1,21 @@
+/* The fixture site's own design. Minimal turns this off; the page's status
+   line and the integration tests both notice. */
+body {
+  margin: 0 auto;
+  max-width: 44rem;
+  padding: 2rem;
+  font: 17px/1.6 "Times New Roman", serif;
+  background: rgb(250, 240, 220);
+  color: rgb(120, 30, 30);
+}
+h1 {
+  font-size: 40px;
+  letter-spacing: -0.02em;
+}
+.ad-slot {
+  border: 2px dashed rgb(200, 0, 0);
+  padding: 1rem;
+}
+.site-only {
+  display: none;
+}

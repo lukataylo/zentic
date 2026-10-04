@@ -40,5 +40,9 @@ let package = Package(
             name: "ZenticKitTests",
             dependencies: ["ZenticKit"]
         ),
+        .testTarget(
+            name: "ZenticMacTests",
+            dependencies: ["ZenticMac"]
+        ),
     ]
 )
