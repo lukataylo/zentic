@@ -83,7 +83,8 @@ final class Windows {
             browser = Browser()
         }
         open.append(browser)
-        let holdsBack = launch == .recoveredRepeatedly && restoredIDs.contains(browser.id)
+        // Held back once, when first restored; a window reopened later loads.
+        let holdsBack = launch == .recoveredRepeatedly && restoredIDs.remove(browser.id) != nil
         if !holdsBack { browser.selectedTab?.realize() }
         if browser.allTabs.isEmpty { browser.showCommandBar(newTab: true) }
         return browser
