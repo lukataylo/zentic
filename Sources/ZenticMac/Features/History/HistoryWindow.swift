@@ -170,7 +170,7 @@ private struct DayHeader: View {
             Button("Delete All from \(title)", role: .destructive, action: delete)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(day.entries.count) pages")
+        .accessibilityLabel(Text("\(title), ^[\(day.entries.count) page](inflect: true)"))
         .accessibilityAddTraits(.isHeader)
         .accessibilityAction(named: "Delete All from \(title)", delete)
     }
