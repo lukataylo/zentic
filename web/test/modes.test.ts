@@ -199,3 +199,21 @@ describe("custom hides never become the site's own", () => {
     expect(document.getElementById("hero")!.hasAttribute("data-zentic-hidden")).toBe(false);
   });
 });
+
+describe("re-applying is free", () => {
+  beforeEach(() => reset(PAGE));
+  afterEach(() => restoreReadyState());
+
+  // Found in review: every page load re-asserts the mode, and replacing the
+  // custom stylesheet each time restyled the whole page for nothing.
+  it("the same custom version twice does not touch its stylesheet", () => {
+    const version = { base: "minimal" as const, css: "h1{color:red}", hide: ["#gone"] };
+    apply({ mode: "custom", custom: version });
+    const sheet = document.getElementById("zentic-custom");
+    const observer = new MutationObserver(() => {});
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    apply({ mode: "custom", custom: { ...version } });
+    expect(observer.takeRecords()).toHaveLength(0);
+    expect(document.getElementById("zentic-custom")).toBe(sheet);
+  });
+});

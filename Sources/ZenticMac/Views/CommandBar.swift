@@ -7,10 +7,12 @@ struct CommandBar: View {
     @Environment(AppModel.self) private var app
     @FocusState private var focused: Bool
     @State private var highlighted = 0
+    /// Computed when the text changes, not on every redraw — hovering a row
+    /// redraws, and scoring thousands of history entries per frame shows.
+    @State private var results: [Result] = []
 
     var body: some View {
         @Bindable var browser = browser
-        let results = suggestions
         ZStack(alignment: .top) {
             Color.black.opacity(0.18)
                 .ignoresSafeArea()
@@ -69,8 +71,12 @@ struct CommandBar: View {
         .onAppear {
             focused = true
             highlighted = 0
+            results = suggestions
         }
-        .onChange(of: browser.commandBar.text) { highlighted = 0 }
+        .onChange(of: browser.commandBar.text) {
+            highlighted = 0
+            results = suggestions
+        }
         .onExitCommand { dismiss() }
     }
 

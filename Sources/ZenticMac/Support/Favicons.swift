@@ -13,7 +13,12 @@ final class Favicons {
 
     private var memory: [String: NSImage] = [:]
     private var failed: Set<String> = []
-    private var inFlight: [String: Task<NSImage?, Never>] = [:]
+    /// Sites with no icon on disk, so asking again costs no disk read.
+    private var notOnDisk: Set<String> = []
+    /// The icon URL each site last declared. A page declares its icon on every
+    /// load; only a *new* declaration is worth a request.
+    private var declaredFor: [String: URL] = [:]
+    private var inFlight: [String: Task<Fetched?, Never>] = [:]
     private let directory: URL
     private let session: URLSession
 
@@ -30,20 +35,24 @@ final class Favicons {
     func cached(for url: URL?) -> NSImage? {
         guard let key = SiteKey.for(url) else { return nil }
         if let image = memory[key] { return image }
+        if notOnDisk.contains(key) { return nil }
         let file = directory.appendingPathComponent(key + ".png")
         if let image = NSImage(contentsOf: file) {
             memory[key] = image
             return image
         }
+        notOnDisk.insert(key)
         return nil
     }
 
     /// Fetch an icon for `pageURL`, preferring what the page declared.
     func icon(for pageURL: URL, declared: URL?) async -> NSImage? {
         guard let key = SiteKey.for(pageURL) else { return nil }
-        if let image = cached(for: pageURL), declared == nil { return image }
-        if let task = inFlight[key] { return await task.value }
-        if failed.contains(key), declared == nil { return nil }
+        let isNewDeclaration = declared != nil && declaredFor[key] != declared
+        if let image = cached(for: pageURL), !isNewDeclaration { return image }
+        if let task = inFlight[key] { return await task.value?.image }
+        if failed.contains(key), !isNewDeclaration { return nil }
+        if let declared { declaredFor[key] = declared }
 
         var candidates: [URL] = []
         if let declared, declared.scheme == "https" || declared.scheme == "http" || declared.scheme == "data" {
@@ -54,30 +63,37 @@ final class Favicons {
         }
 
         let session = self.session
-        let task = Task<NSImage?, Never> {
+        let file = directory.appendingPathComponent(key + ".png")
+        let task = Task<Fetched?, Never> {
             for candidate in candidates {
-                if let image = await Self.fetch(candidate, session: session) { return image }
+                if let fetched = await Self.fetch(candidate, session: session) {
+                    // Already PNG; written off the main thread.
+                    try? fetched.png.write(to: file, options: .atomic)
+                    return fetched
+                }
             }
             return nil
         }
         inFlight[key] = task
-        let image = await task.value
+        let fetched = await task.value
         inFlight[key] = nil
 
-        guard let image else {
+        guard let image = fetched?.image else {
             failed.insert(key)
             return cached(for: pageURL)
         }
         memory[key] = image
-        if let png = image.pngData() {
-            try? png.write(to: directory.appendingPathComponent(key + ".png"), options: .atomic)
-        }
         return image
+    }
+
+    private struct Fetched: @unchecked Sendable {
+        let image: NSImage
+        let png: Data
     }
 
     /// Fetch and rasterise at 64px: `.ico` files hold several sizes and NSImage
     /// picks a soft 16px one when drawing small on Retina.
-    private nonisolated static func fetch(_ url: URL, session: URLSession) async -> NSImage? {
+    private nonisolated static func fetch(_ url: URL, session: URLSession) async -> Fetched? {
         let data: Data
         if url.scheme == "data" {
             guard let d = try? Data(contentsOf: url) else { return nil }
@@ -98,15 +114,8 @@ final class Favicons {
         guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
             let png = rep.representation(using: .png, properties: [:])
         else { return nil }
-        let result = NSImage(data: png)
-        result?.size = NSSize(width: 32, height: 32)
-        return result
-    }
-}
-
-extension NSImage {
-    func pngData() -> Data? {
-        guard let tiff = tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
-        return rep.representation(using: .png, properties: [:])
+        guard let result = NSImage(data: png) else { return nil }
+        result.size = NSSize(width: 32, height: 32)
+        return Fetched(image: result, png: png)
     }
 }

@@ -1,15 +1,7 @@
 import { post } from "./post";
 
-// Site icon and theme colour, for the sidebar and the toolbar tint.
-
-export interface PageMeta {
-  icon: string | null;
-  themeColor: string | null;
-}
-
-export function readMeta(doc: Document = document): PageMeta {
-  return { icon: bestIcon(doc), themeColor: themeColor(doc) };
-}
+// The site's icon, for the sidebar. (The toolbar takes its colour from
+// WebKit's own sample of the page background, not from here.)
 
 export function bestIcon(doc: Document): string | null {
   const links = Array.from(
@@ -38,17 +30,6 @@ export function bestIcon(doc: Document): string | null {
   return best?.href ?? null;
 }
 
-function themeColor(doc: Document): string | null {
-  const metas = Array.from(doc.querySelectorAll<HTMLMetaElement>("meta[name='theme-color' i]"));
-  for (const meta of metas) {
-    const media = meta.getAttribute("media");
-    if (media && !(doc.defaultView?.matchMedia?.(media).matches ?? false)) continue;
-    const content = meta.getAttribute("content")?.trim();
-    if (content) return content;
-  }
-  return null;
-}
-
 function absolute(href: string, doc: Document): string {
   try {
     return new URL(href, doc.baseURI).href;
@@ -58,13 +39,12 @@ function absolute(href: string, doc: Document): string {
 }
 
 export function startMetaReporting(): void {
-  let last = "";
+  let last: string | null = "";
   const send = () => {
-    const meta = readMeta();
-    const key = `${meta.icon}|${meta.themeColor}`;
-    if (key === last) return;
-    last = key;
-    post({ type: "meta", icon: meta.icon, themeColor: meta.themeColor });
+    const icon = bestIcon(document);
+    if (icon === last) return;
+    last = icon ?? "";
+    post({ type: "meta", icon });
   };
   const start = () => {
     send();

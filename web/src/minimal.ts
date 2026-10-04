@@ -42,9 +42,16 @@ let scannedShapes = new Set<string>();
 let bodyRescans = 0;
 const MAX_BODY_RESCANS = 4;
 const RESCAN_DELAY_MS = 250;
-const MAX_RESCANS = 16;
+// Each rescan restyles the page twice (site styles on, then off again), so
+// it is capped low; after that, late content keeps the heuristics only.
+const MAX_RESCANS = 6;
 
 /** Turn minimal on. Safe to call repeatedly. */
+/** Whether Minimal has already taken the page over. */
+export function minimalActive(): boolean {
+  return active;
+}
+
 export function enableMinimal(): void {
   if (active) return;
   active = true;
@@ -245,11 +252,24 @@ function shapeOf(el: Element): string {
  * hidden rather than stacked.
  */
 function hideDuplicate(el: Element): boolean {
-  const html = el.outerHTML;
-  if (html.length < 200) return false;
-  for (const sibling of Array.from(el.parentElement?.children ?? [])) {
-    if (sibling === el || sibling.hasAttribute(HIDDEN)) continue;
-    if (sibling.localName === el.localName && sibling.outerHTML === html) {
+  // Cheap checks first: this runs for every element a feed adds. Only the
+  // immediate neighbours are compared, never a whole list of siblings, and
+  // the HTML is only serialised when everything cheaper already matches.
+  const parent = el.parentElement;
+  if (!parent || parent.childElementCount > 50) return false;
+  const length = el.textContent?.length ?? 0;
+  if (length < 40) return false;
+  for (const sibling of [el.previousElementSibling, el.nextElementSibling]) {
+    if (!sibling || sibling.hasAttribute(HIDDEN)) continue;
+    if (
+      sibling.localName !== el.localName ||
+      sibling.className !== el.className ||
+      sibling.childElementCount !== el.childElementCount ||
+      sibling.textContent?.length !== length
+    ) {
+      continue;
+    }
+    if (sibling.outerHTML === el.outerHTML) {
       el.setAttribute(HIDDEN, "duplicate");
       return true;
     }

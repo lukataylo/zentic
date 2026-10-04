@@ -26,8 +26,7 @@ export interface ApplyResult {
 
 export type OutboundMessage =
   | { type: "scroll"; y: number; direction: "up" | "down" }
-  | { type: "meta"; icon: string | null; themeColor: string | null }
-  | { type: "consent"; outcome: string };
+  | { type: "meta"; icon: string | null };
 
 /** Marks every element Zentic itself inserted, so we never disable our own sheets. */
 export const OWN = "data-zentic";

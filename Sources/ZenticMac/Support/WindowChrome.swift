@@ -10,10 +10,10 @@ struct VisualEffect: NSViewRepresentable {
         let view = NSVisualEffectView()
         view.material = material
         view.blendingMode = blending
-        // Always live. By default AppKit flattens vibrancy to an opaque grey
-        // whenever the window isn't key (Settings open, another app in front),
-        // and the glass frame would visibly switch off.
-        view.state = .active
+        // Live even when the window isn't key — by default AppKit flattens
+        // vibrancy to grey then, and the glass visibly switches off — except in
+        // Low Power Mode, where the battery matters more than the blur.
+        view.state = ProcessInfo.processInfo.isLowPowerModeEnabled ? .followsWindowActiveState : .active
         return view
     }
 

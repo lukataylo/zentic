@@ -22,13 +22,16 @@ public enum FilterListCatalog {
             url: URL(string: "https://easylist.to/easylist/easyprivacy.txt")!,
             isDefault: true
         ),
+        // Off by default: cookie walls are answered by autoconsent, and this
+        // list's ~7,800 cosmetic rules are a stylesheet WebKit injects into
+        // every document and frame of every page, for banners already handled.
         FilterListSource(
             id: "easylist-cookie",
             title: "EasyList Cookie",
             url: URL(
                 string: "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"
             )!,
-            isDefault: true
+            isDefault: false
         ),
         // Peter Lowe's list is a plain domain blocklist rather than an EasyList
         // dialect, so essentially all of it survives conversion to Safari syntax —
@@ -42,10 +45,6 @@ public enum FilterListCatalog {
             )!,
             isDefault: true
         ),
-        // The engagement furniture the whole product exists to remove: newsletter
-        // interstitials, social widgets, "recommended for you" rails. Layer 2
-        // discards these anyway on a page it restructures, but this also cleans up
-        // the pages Zentic deliberately leaves alone.
         // uBlock Origin's own filters, which is where anything EasyList has not
         // caught up with lands first — malware/scam hosts in `badware`, and the
         // trackers `privacy` covers beyond EasyPrivacy. Both are plain ABP syntax
@@ -62,6 +61,8 @@ public enum FilterListCatalog {
             url: URL(string: "https://ublockorigin.github.io/uAssets/filters/privacy.txt")!,
             isDefault: true
         ),
+        // Newsletter interstitials, social widgets, "recommended for you"
+        // rails: the clutter Clean exists to remove.
         FilterListSource(
             id: "easylist-annoyances",
             title: "EasyList Annoyances",

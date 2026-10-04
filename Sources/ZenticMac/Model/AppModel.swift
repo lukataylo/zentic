@@ -97,9 +97,9 @@ final class AppModel {
         guard !q.isEmpty else { return [] }
         return history.values
             .compactMap { entry -> (HistoryEntry, Double)? in
-                let url = entry.url.absoluteString.lowercased()
-                let host = URLGuess.displayHost(entry.url).lowercased()
-                let title = entry.title.lowercased()
+                let url = entry.searchURL
+                let host = entry.searchHost
+                let title = entry.searchTitle
                 var score = 0.0
                 if host.hasPrefix(q) { score += 6 }
                 else if url.contains(q) { score += 2 }
@@ -126,15 +126,36 @@ final class AppModel {
         historySaveTask?.cancel()
         historySaveTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled, let self else { return }
-            self.saveHistoryNow()
+            guard !Task.isCancelled, let self, self.historyLoaded else { return }
+            // Encoding thousands of entries is off the main thread: a page
+            // visit must never cost a frame.
+            let entries = self.historySnapshot()
+            let file = self.historyFile
+            await Task.detached(priority: .utility) { file.save(entries) }.value
         }
     }
 
+    /// Not until the file has been read: saving a half-loaded history would
+    /// overwrite the rest of it.
+    @ObservationIgnored private var historyLoaded = false
+
+    /// Synchronous, for app termination.
     func saveHistoryNow() {
-        let entries = history.values.sorted { $0.lastVisit > $1.lastVisit }.prefix(5000)
-        historyFile.save(Array(entries))
+        guard historyLoaded else { return }
+        historySaveTask?.cancel()
+        historyFile.save(historySnapshot())
     }
+
+    private func historySnapshot() -> [HistoryEntry] {
+        let kept = Array(history.values.sorted { $0.lastVisit > $1.lastVisit }.prefix(Self.historyLimit))
+        // The file is capped; memory is kept to the same cap.
+        if kept.count < history.count {
+            history = Dictionary(kept.map { ($0.url.absoluteString, $0) }, uniquingKeysWith: { a, _ in a })
+        }
+        return kept
+    }
+
+    static let historyLimit = 5000
 
     // MARK: Preferences
 
@@ -196,8 +217,7 @@ final class AppModel {
                 Favorite(id: UUID(), url: URL(string: "https://www.theguardian.com")!, title: "The Guardian"),
                 Favorite(id: UUID(), url: URL(string: "https://github.com")!, title: "GitHub"),
             ]
-        history = Dictionary(
-            (historyFile.load() ?? []).map { ($0.url.absoluteString, $0) }, uniquingKeysWith: { a, _ in a })
+        history = [:]
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(URLGuess.SearchEngine.init) ?? .duckDuckGo
         tint = defaults.string(forKey: "sidebarTint").flatMap(SidebarTint.init) ?? .indigo
         model = defaults.string(forKey: "openAIModel") ?? OpenAIDesigner.defaultModel
@@ -205,6 +225,18 @@ final class AppModel {
         translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
         appearance = defaults.string(forKey: "appearance").flatMap(AppAppearance.init) ?? .system
         appearance.apply()
+
+        // History is only searched, never shown at launch: decode it off the
+        // main thread so it never delays the first window.
+        let file = historyFile
+        Task { [weak self] in
+            let entries = await Task.detached(priority: .utility) { file.load() ?? [] }.value
+            guard let self else { return }
+            for entry in entries where self.history[entry.url.absoluteString] == nil {
+                self.history[entry.url.absoluteString] = entry
+            }
+            self.historyLoaded = true
+        }
     }
 }
 
@@ -214,11 +246,39 @@ struct Favorite: Codable, Identifiable, Hashable {
     var title: String
 }
 
-struct HistoryEntry: Codable, Hashable {
-    var url: URL
-    var title: String
+struct HistoryEntry: Codable, Hashable, Sendable {
+    var url: URL { didSet { index() } }
+    var title: String { didSet { index() } }
     var lastVisit: Date
     var visits: Int
+
+    // Lowercased once, not on every keystroke of every search.
+    private(set) var searchURL = ""
+    private(set) var searchHost = ""
+    private(set) var searchTitle = ""
+
+    private enum CodingKeys: String, CodingKey { case url, title, lastVisit, visits }
+
+    init(url: URL, title: String, lastVisit: Date, visits: Int) {
+        self.url = url
+        self.title = title
+        self.lastVisit = lastVisit
+        self.visits = visits
+        index()
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            url: try c.decode(URL.self, forKey: .url), title: try c.decode(String.self, forKey: .title),
+            lastVisit: try c.decode(Date.self, forKey: .lastVisit), visits: try c.decode(Int.self, forKey: .visits))
+    }
+
+    private mutating func index() {
+        searchURL = url.absoluteString.lowercased()
+        searchHost = URLGuess.displayHost(url).lowercased()
+        searchTitle = title.lowercased()
+    }
 }
 
 struct SavedSession: Codable {

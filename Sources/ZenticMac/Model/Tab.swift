@@ -59,7 +59,13 @@ final class Tab: Identifiable {
     /// the one the new web view is created with.
     @ObservationIgnored private var openerConfiguration: WKWebViewConfiguration?
 
-    var isRealized: Bool { webView != nil }
+    /// Whether the tab has a live web view. Observable (unlike `webView`) so
+    /// the page card follows a tab being suspended or restored.
+    private(set) var isRealized = false
+    /// When the tab was last shown — the browser suspends the least recent.
+    var lastShown = Date()
+    /// Back/forward list and scroll position, kept across a suspension.
+    @ObservationIgnored private var savedState: Any?
     var displayHost: String { URLGuess.displayHost(url ?? pendingURL) }
     var siteKey: String? { SiteKey.for(url ?? pendingURL) }
 
@@ -117,11 +123,21 @@ final class Tab: Identifiable {
         self.webView = webView
 
         observe(webView)
+        isRealized = true
         if let target = pendingURL {
             pendingURL = nil
+            let state = savedState
+            savedState = nil
             // Load only once the blockers are attached; otherwise the first
             // page of a new tab would go out unblocked.
-            prepareBlocking(for: target) { webView.load(URLRequest(url: target)) }
+            prepareBlocking(for: target) {
+                if let state {
+                    // Back where the user left it: history, scroll position, form state.
+                    webView.interactionState = state
+                } else {
+                    webView.load(URLRequest(url: target))
+                }
+            }
         }
         return webView
     }
@@ -131,6 +147,7 @@ final class Tab: Identifiable {
     func suspend() {
         guard let webView else { return }
         pendingURL = webView.url ?? url
+        savedState = webView.interactionState
         webView.stopLoading()
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
         observations.removeAll()
@@ -138,8 +155,23 @@ final class Tab: Identifiable {
         webView.uiDelegate = nil
         webView.removeFromSuperview()
         self.webView = nil
+        isRealized = false
         delegate = nil
         isLoading = false
+        // The next web view gets a fresh controller with nothing attached.
+        blockingAttached = nil
+        blockingChange = nil
+    }
+
+    /// Whether suspending would interrupt something the user would notice:
+    /// sound or video playing, the camera or microphone in use, or a custom
+    /// version being designed.
+    func isBusy() async -> Bool {
+        guard let webView else { return false }
+        // An unkept custom version lives only on the live page.
+        if design.isPresented || previewing != nil { return true }
+        if webView.cameraCaptureState != .none || webView.microphoneCaptureState != .none { return true }
+        return await webView.requestMediaPlaybackState() == .playing
     }
 
     private static func makeConfiguration() -> WKWebViewConfiguration {
@@ -148,7 +180,8 @@ final class Tab: Identifiable {
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.isTextInteractionEnabled = true
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
-        configuration.mediaTypesRequiringUserActionForPlayback = []
+        // Safari's rule: muted video may autoplay, sound waits for the user.
+        configuration.mediaTypesRequiringUserActionForPlayback = .audio
         // Without a Safari token many sites serve a degraded page to WKWebView.
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         return configuration
@@ -159,7 +192,8 @@ final class Tab: Identifiable {
     func installScripts(on controller: WKUserContentController? = nil) {
         guard let controller = controller ?? webView?.configuration.userContentController else { return }
         controller.removeAllUserScripts()
-        for script in InPageScript.userScripts(AppModel.shared.book.inPageConfig()) {
+        let consent = blockingAttached ?? AppModel.shared.mode(for: url ?? pendingURL).blocks
+        for script in InPageScript.userScripts(AppModel.shared.book.inPageConfig(), consent: consent) {
             controller.addUserScript(script)
         }
     }
@@ -327,6 +361,8 @@ final class Tab: Identifiable {
         // Strictly in order. Attaching waits on compiled lists and detaching
         // does not, so two quick navigations could otherwise finish backwards
         // and leave the lists attached on a page the user set to Original.
+        // Cookie-wall dismissal travels with blocking (both off on Original).
+        installScripts(on: controller)
         let previous = blockingChange
         blockingChange = Task {
             await previous?.value
@@ -358,13 +394,28 @@ final class Tab: Identifiable {
         guard let url = webView?.url else { return }
         // A page restored from the back/forward cache was styled when it was
         // cached, perhaps under a mode the user has since changed. `apply` is
-        // idempotent, so this costs nothing when nothing changed.
+        // idempotent and leaves the DOM alone when nothing changed.
         if SiteKey.isWeb(url), previewing == nil {
             apply(InPageConfig.pageConfig(mode: mode, custom: AppModel.shared.custom(for: url)))
         }
         AppModel.shared.recordVisit(url: url, title: title)
         if icon == nil || declaredIcon == nil { refreshIcon() }
         browser?.tabDidChange(self)
+    }
+
+    @ObservationIgnored private var recentCrashes: [Date] = []
+
+    /// WebKit's content process went away — a crash, or macOS reclaiming
+    /// memory. Only the tab on screen reloads now, and not in a loop; a
+    /// background tab is suspended and reloads when next shown.
+    fileprivate func contentProcessTerminated() {
+        guard browser?.selectedTab === self else { return suspend() }
+        recentCrashes = recentCrashes.filter { $0.timeIntervalSinceNow > -10 } + [.now]
+        if recentCrashes.count > 2 {
+            failure = LoadFailure(url: url, message: "This page keeps crashing.", code: NSURLErrorUnknown)
+        } else {
+            webView?.reload()
+        }
     }
 
     fileprivate func didFail(_ error: Error, url: URL?) {
@@ -520,7 +571,7 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        webView.reload()
+        tab?.contentProcessTerminated()
     }
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {

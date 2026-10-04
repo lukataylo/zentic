@@ -56,19 +56,20 @@ struct WebContainer: NSViewRepresentable {
             }
         }
 
+        // Enter/exit on a strip along the top only — no mouse-moved events
+        // for every pixel of travel across the page.
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
             trackingAreas.forEach(removeTrackingArea)
             addTrackingArea(
                 NSTrackingArea(
-                    rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-                    owner: self))
+                    rect: NSRect(x: 0, y: 0, width: bounds.width, height: 64),
+                    options: [.mouseEnteredAndExited, .activeInKeyWindow], owner: self))
         }
 
-        override func mouseMoved(with event: NSEvent) {
-            super.mouseMoved(with: event)
-            let point = convert(event.locationInWindow, from: nil)
-            update(point.y < 64)
+        override func mouseEntered(with event: NSEvent) {
+            super.mouseEntered(with: event)
+            update(true)
         }
 
         override func mouseExited(with event: NSEvent) {

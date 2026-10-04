@@ -125,7 +125,18 @@ public enum APIKeyStore {
         cache.set(nil, for: provider)
     }
 
-    public static func has(_ provider: Provider) -> Bool { load(provider) != nil }
+    /// Whether a key is stored, from its attributes alone: no secret is read,
+    /// so this never prompts and is cheap enough for launch.
+    public static func has(_ provider: Provider) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: provider.rawValue,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+    }
 
     /// A key with its middle removed, for showing in a preferences field.
     public static func redacted(_ provider: Provider) -> String? {

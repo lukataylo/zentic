@@ -56,9 +56,10 @@ public enum CSSSanitizer {
         var seen = Set<String>()
         return selectors.compactMap { raw in
             let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Same rule as `isSafeSelectorText` in web/src/sanitize.ts.
             guard !s.isEmpty, s.count <= 300,
                 !s.contains("{"), !s.contains("}"), !s.contains(";"),
-                !s.contains("</"), !s.lowercased().contains("url(")
+                !s.contains("<"), !s.contains("@"), !s.lowercased().contains("url(")
             else { return nil }
             let lowered = s.lowercased()
             guard !["html", "body", "head", ":root", "*"].contains(lowered) else { return nil }

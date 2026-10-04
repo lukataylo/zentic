@@ -1,13 +1,14 @@
 import AutoConsent, { filterCompactRules, type ConsentState, type RuleBundle } from "@duckduckgo/autoconsent";
-import compactRules from "@duckduckgo/autoconsent/rules/compact-rules.json";
+// The rules arrive as a string (see the `json-as-text` plugin in build.mjs):
+// a 268 KB object literal costs the engine a full compile on every page, a
+// string literal costs a scan, and it is only parsed on pages that need it.
+import compactRulesText from "@duckduckgo/autoconsent/rules/compact-rules.json";
 
 // Cookie-wall dismissal, via DuckDuckGo's autoconsent.
 //
-// Runs as early as possible — before the settle wait, not after — for one
-// reason: a consent dialog that has already painted is a dialog the user saw. On
-// an eligible page the document is hidden anyway, so this is belt-and-braces
-// there; on a page we decline to restructure it is the only thing standing
-// between the reader and the wall.
+// Runs at document-end (see consent-entry.ts). Known CMP containers are
+// pre-hidden from then until the wall is answered, so a dismissed dialog
+// rarely gets a frame on screen.
 //
 // ## Why not the extension wiring
 //
@@ -27,14 +28,9 @@ import compactRules from "@duckduckgo/autoconsent/rules/compact-rules.json";
 export type ConsentOutcome = "dismissed" | "none" | "timeout" | "unavailable";
 
 export interface ConsentOptions {
-  /** Hard stop. Sits inside the reveal failsafe, like every other stage. */
+  /** Hard stop: give up on a wall after this long. */
   budgetMs: number;
-  /**
-   * Whether to let autoconsent pre-hide known CMP containers.
-   *
-   * Off when the reader has already hidden the whole document: a second hiding
-   * mechanism with its own 2s expiry can only fight ours.
-   */
+  /** Let autoconsent pre-hide known CMP containers while it works. */
   prehide: boolean;
   debug: boolean;
 }
@@ -105,17 +101,22 @@ function defaultDriver(options: ConsentOptions): ConsentDriver | undefined {
   // Filtering before decoding matters: the bundled ruleset is ~780 CMPs and
   // decoding all of them costs more than the whole rest of the pipeline. This
   // keeps the generic rules plus the ones whose URL pattern matches.
-  const compact = filterCompactRules(compactRules as never, {
+  const compact = filterCompactRules(JSON.parse(compactRulesText as unknown as string) as never, {
     url: location.href,
     mainFrame: true,
   });
   const rules: RuleBundle = { autoconsent: [], compact };
 
+  const publish = () => {
+    for (const listener of listeners) listener(consent.state);
+  };
   const consent = new AutoConsent(
     async (message) => {
-      if (message.type === "autoconsentDone" || message.type === "autoconsentError") {
-        if (options.debug) console.info("[zentic] autoconsent", message);
+      if (options.debug && (message.type === "autoconsentDone" || message.type === "autoconsentError")) {
+        console.info("[zentic] autoconsent", message);
       }
+      // State moves when the library talks; publish then rather than polling.
+      queueMicrotask(publish);
     },
     {
       enabled: true,
@@ -125,7 +126,7 @@ function defaultDriver(options: ConsentOptions): ConsentDriver | undefined {
       enableGeneratedRules: true,
       enableHeuristicDetection: true,
       // Reject-only. Clicking "accept" to make a dialog go away would be
-      // consenting on the reader's behalf, which is not ours to do.
+      // consenting on the user's behalf, which is not ours to do.
       heuristicMode: "reject",
       // The default is 20 retries at ~half a second each, which is an order of
       // magnitude past our entire budget.
@@ -145,17 +146,15 @@ function defaultDriver(options: ConsentOptions): ConsentDriver | undefined {
     rules,
   );
 
-  // AutoConsent#initialize already schedules start() itself, so the driver's
-  // start() only has to publish state transitions. Polling rather than patching:
-  // the library exposes no state-change hook, and monkey-patching a vendored
-  // class is how a dependency bump turns into a silent regression.
+  // AutoConsent#initialize already schedules start() itself. State changes
+  // are published as the library sends messages; one slow poll catches the
+  // quiet terminal state ("nothing detected"), which sends none.
   return {
     start(): void {
       const poll = setInterval(() => {
-        const state = consent.state;
-        for (const listener of listeners) listener(state);
-        if (TERMINAL[state.lifecycle]) clearInterval(poll);
-      }, 50);
+        publish();
+        if (TERMINAL[consent.state.lifecycle]) clearInterval(poll);
+      }, 1000);
       setTimeout(() => clearInterval(poll), options.budgetMs + 100);
     },
     onStateChange(listener): void {

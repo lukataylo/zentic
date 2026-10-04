@@ -70,5 +70,5 @@ function removeBlocks(css: string, opener: RegExp): string {
  * (`.md\\:hidden`) and a selector cannot fetch anything.
  */
 export function isSafeSelectorText(selector: string): boolean {
-  return selector.length > 0 && selector.length <= 400 && !/[{};<@]/.test(selector) && !/url\s*\(/i.test(selector);
+  return selector.length > 0 && selector.length <= 300 && !/[{};<@]/.test(selector) && !/url\s*\(/i.test(selector);
 }

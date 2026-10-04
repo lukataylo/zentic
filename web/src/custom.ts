@@ -14,6 +14,14 @@ let result: ApplyResult = { hidden: [], rejected: [] };
 let readyListener: (() => void) | null = null;
 
 export function applyCustom(version: CustomVersion): ApplyResult {
+  // Re-applying the same version (every page load re-asserts the mode) must
+  // not touch the DOM: replacing a stylesheet restyles the whole page.
+  if (
+    current && current.base === version.base && current.css === version.css &&
+    current.hide.join("\n") === version.hide.join("\n") && document.getElementById(CUSTOM_ID)?.isConnected
+  ) {
+    return result;
+  }
   current = version;
   render();
   if (document.readyState === "loading" && !readyListener) {

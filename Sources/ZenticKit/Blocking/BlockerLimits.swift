@@ -1,12 +1,8 @@
 import ContentBlockerConverter
 import Foundation
 
-/// Limits and thresholds for the blocking layer.
-///
-/// These are deliberately *not* in ``Budget``, which is a contract shared with the
-/// reader and the shell. Two of the numbers here are read off the OS at runtime
-/// rather than being constants, so they could not live in an `enum` of
-/// `static let`s anyway.
+/// Limits and thresholds for the blocking layer. Some are read off the OS at
+/// runtime rather than being constants.
 public enum BlockerLimits {
     /// Hard ceiling on entries in one compiled `WKContentRuleList`, as imposed by
     /// the running OS: 150k from Safari 15 on, 50k before that.

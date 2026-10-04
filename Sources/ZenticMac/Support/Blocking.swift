@@ -2,11 +2,8 @@ import Foundation
 import WebKit
 import ZenticKit
 
-/// The app's one content blocker.
-///
-/// `BlockerEngine` was written for M2 and then never attached to anything, which
-/// is why nothing was ever blocked: the compiler, the cache and the converter all
-/// worked, and no web view had ever seen a rule list. This is the missing wire.
+/// The app's one content blocker, and the glue that attaches its compiled
+/// lists to tabs.
 ///
 /// One engine for the whole app, not one per tab. Compiling EasyList takes seconds
 /// and WebKit caches the result by identifier, so a second engine would either

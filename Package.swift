@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Zentic",
-    platforms: [.macOS(.v26), .iOS(.v26)],
+    platforms: [.macOS(.v26)],
     products: [
         .library(name: "ZenticKit", targets: ["ZenticKit"]),
         .executable(name: "ZenticMac", targets: ["ZenticMac"]),
@@ -26,6 +26,7 @@ let package = Package(
             ],
             resources: [
                 .copy("Resources/zentic.js"),
+                .copy("Resources/zentic-consent.js"),
                 .copy("Blocking/Resources/seed.txt"),
             ]
         ),

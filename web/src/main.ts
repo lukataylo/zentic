@@ -1,4 +1,4 @@
-import { apply } from "./modes";
+import { apply, mode, unlockScroll } from "./modes";
 import { startMetaReporting } from "./meta";
 import { startScrollReporting } from "./scroll";
 import { snapshot } from "./snapshot";
@@ -22,6 +22,8 @@ if (!window.zentic) {
     apply,
     snapshot,
     health,
+    mode,
+    unlockScroll,
   });
   try {
     apply(window.__zenticConfig ?? { mode: "original", custom: null });

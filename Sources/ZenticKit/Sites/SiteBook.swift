@@ -72,7 +72,7 @@ public struct SiteBook: Codable, Sendable, Hashable {
     }
 }
 
-/// The table the in-page script reads. Mirrors `SiteTable` in `web/src/main.ts`.
+/// The per-site table `InPageScript.bootstrap` embeds in every page.
 public struct InPageConfig: Codable, Sendable, Hashable {
     public struct Entry: Codable, Sendable, Hashable {
         public var mode: SiteMode

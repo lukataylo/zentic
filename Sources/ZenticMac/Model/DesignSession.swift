@@ -115,7 +115,9 @@ final class DesignSession {
     ) async throws -> CustomVersion {
         let answer = try await designer.design(request)
         try Task.checkCancellation()
-        trace("design", "base=\(answer.base.rawValue) hide=\(answer.hide)\n\(answer.css)")
+        #if DEBUG
+            trace("design", "base=\(answer.base.rawValue) hide=\(answer.hide)\n\(answer.css)")
+        #endif
         return CustomVersion(
             base: answer.base, css: answer.css, hide: answer.hide, summary: answer.summary, prompts: prompts)
     }

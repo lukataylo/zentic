@@ -25,6 +25,7 @@ final class Browser {
 
     init() {
         restore()
+        watchMemory()
         AppModel.shared.onSitesChanged.append { [weak self] old, new in
             self?.sitesChanged(from: old, to: new)
         }
@@ -35,10 +36,65 @@ final class Browser {
     func select(_ tab: Tab) {
         guard selectedID != tab.id else { return }
         findBar.isPresented = false
+        selectedTab?.lastShown = .now
         selectedID = tab.id
+        tab.lastShown = .now
         tab.realize()
         scheduleSave()
+        trimLiveTabs()
     }
+
+    // MARK: - Memory
+
+    /// Live web views kept beyond the one on screen. Each is a WebKit content
+    /// process — tens to hundreds of megabytes — so the rest are suspended:
+    /// a title, an icon and their saved state, restored where they left off.
+    static let maxLiveTabs = 6
+    /// A background tab untouched this long is suspended regardless.
+    static let idleLimit: Duration = .seconds(20 * 60)
+
+    @ObservationIgnored private var trimming = false
+
+    /// Suspend background tabs over the limit, or idle too long, least
+    /// recently shown first — skipping any that are playing or recording.
+    func trimLiveTabs(keeping limit: Int = Browser.maxLiveTabs) {
+        guard !trimming else { return }
+        trimming = true
+        let candidates = tabs
+            .filter { $0.isRealized && $0.id != selectedID }
+            .sorted { $0.lastShown > $1.lastShown }
+        Task {
+            defer { trimming = false }
+            var kept = 0
+            for tab in candidates {
+                let idle = Date.now.timeIntervalSince(tab.lastShown) > Double(Self.idleLimit.components.seconds)
+                if kept < limit && !idle {
+                    kept += 1
+                    continue
+                }
+                if await tab.isBusy() { continue }
+                guard tab.id != selectedID else { continue }
+                tab.suspend()
+            }
+        }
+    }
+
+    private func watchMemory() {
+        // Under memory pressure keep only the page on screen.
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.trimLiveTabs(keeping: 0) }
+        }
+        source.resume()
+        memorySource = source
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.trimLiveTabs() }
+        }
+        idleTimer?.tolerance = 60
+    }
+
+    @ObservationIgnored private var memorySource: DispatchSourceMemoryPressure?
+    @ObservationIgnored private var idleTimer: Timer?
 
     @discardableResult
     func openTab(_ url: URL?, after anchor: Tab? = nil, select: Bool = true) -> Tab {

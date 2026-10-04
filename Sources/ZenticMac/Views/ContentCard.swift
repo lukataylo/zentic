@@ -71,7 +71,14 @@ struct ContentCard: View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(scheme == .dark ? 0.10 : 0.06), lineWidth: 0.5)
         }
-        .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.12), radius: 10, x: 0, y: 2)
+        // The shadow is cast by a plain shape behind the card, not by the card
+        // itself: a shadow on a view hosting a web view forces an offscreen
+        // render pass of the page on every frame it changes.
+        .background {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.12), radius: 10, x: 0, y: 2)
+        }
         .animation(.smooth(duration: 0.3), value: browser.findBar.isPresented)
         .animation(.smooth(duration: 0.36), value: tab?.design.isPresented)
         .animation(.smooth(duration: 0.2), value: browser.commandBar.isPresented)

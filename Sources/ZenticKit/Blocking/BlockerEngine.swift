@@ -141,13 +141,27 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
 
         let value = try await task.value
         installed = value
-        if !isComplete { startBackgroundRefresh() }
+        if !isComplete {
+            startBackgroundRefresh()
+        } else if listsAreStale() {
+            // Complete but old: refresh well after launch, never on its path.
+            startBackgroundRefresh(after: .seconds(30))
+        }
         return value
     }
 
-    private func startBackgroundRefresh() {
+    /// Whether any fetched list is past `BlockerLimits.listMaxAge`. Without
+    /// this a fully installed set was never refreshed on its own.
+    private func listsAreStale() -> Bool {
+        (storage.readManifest()?.lists ?? []).contains {
+            $0.sourceURL != nil && now().timeIntervalSince($0.fetchedAt) > BlockerLimits.listMaxAge
+        }
+    }
+
+    private func startBackgroundRefresh(after delay: Duration = .zero) {
         guard refreshesInBackground, backgroundTask == nil else { return }
         backgroundTask = Task(priority: .utility) { [weak self] in
+            if delay > .zero { try? await Task.sleep(for: delay) }
             guard let self else { return }
             _ = try? await self.refresh(force: false)
             await self.clearBackgroundTask()

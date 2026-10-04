@@ -128,7 +128,7 @@ public enum SiteKey {
     /// leading `www.`. `www.apple.com` and `apple.com` are one site to a person.
     ///
     /// The in-page script derives the same key from `location.hostname`, so the
-    /// two must agree — see `siteKey` in `web/src/main.ts`.
+    /// two must agree — see `InPageScript.bootstrap`.
     public static func `for`(_ url: URL?) -> String? {
         guard let host = url?.host(percentEncoded: false)?.lowercased(), !host.isEmpty else {
             return nil
