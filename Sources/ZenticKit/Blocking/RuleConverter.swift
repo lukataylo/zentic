@@ -1,25 +1,9 @@
 import ContentBlockerConverter
 import Foundation
 
-/// Which half of a converted filter list an entry belongs to.
-///
-/// The split exists so ``ShieldState/blockingOnly`` can mean something. WebKit
-/// evaluates each `WKContentRuleList` independently, so an `ignore-previous-rules`
-/// entry in one list cannot cancel a rule in another — which rules out the obvious
-/// design of "one small allowlist list layered over the big ones". The only lever
-/// left is *which lists are attached* to a tab, so cosmetic rules have to be
-/// compiled separately from network rules to be detachable on their own.
-public enum RuleClass: String, Sendable, Codable, CaseIterable {
-    /// `block` and `block-cookies`: stops the request reaching the network.
-    case network
-    /// `css-display-none`: hides an element that loaded from first-party markup.
-    case cosmetic
-}
-
 /// One compiled-list-worth of Safari content-blocking JSON.
 public struct RuleListChunk: Sendable, Hashable {
-    public var ruleClass: RuleClass
-    /// Index within its class, for a stable identifier.
+    /// Index within its list, for a stable identifier.
     public var index: Int
     public var entryCount: Int
     public var json: String
@@ -43,10 +27,9 @@ public struct ConvertedFilterList: Sendable, Hashable {
 /// Drives SafariConverterLib and splits its output into compilable chunks.
 public enum RuleConverter {
     private static let exceptionAction = "ignore-previous-rules"
-    private static let cosmeticAction = "css-display-none"
 
     /// Converts Adblock-Plus-syntax rules to Safari content-blocking JSON, split
-    /// by ``RuleClass`` and then by `entriesPerList`.
+    /// by `entriesPerList`.
     ///
     /// - Parameter entriesPerList: Entries allowed in one chunk. Defaults to the
     ///   OS ceiling; tests lower it to exercise splitting.
@@ -92,15 +75,7 @@ public enum RuleConverter {
 
         let entries = canonicalise(try decode(result.safariRulesJSON, listID: listID))
 
-        var chunks: [RuleListChunk] = []
-        for ruleClass in RuleClass.allCases {
-            chunks += try split(
-                entries.filter { belongs($0, to: ruleClass) },
-                ruleClass: ruleClass,
-                listID: listID,
-                entriesPerList: entriesPerList
-            )
-        }
+        let chunks = try split(entries, listID: listID, entriesPerList: entriesPerList)
 
         return ConvertedFilterList(
             listID: listID,
@@ -233,29 +208,9 @@ public enum RuleConverter {
         ].joined(separator: "\u{1}")
     }
 
-    // MARK: - Classification
-
-    /// Exceptions belong to *both* classes.
-    ///
-    /// That is not a shortcut, it is what the original ordering already does: the
-    /// converter emits `ignore-previous-rules` entries after the `css-display-none`
-    /// entries as well as after the blocking ones, so an unqualified `@@||site^`
-    /// already unhides on that site. Copying them into both classes preserves that
-    /// behaviour instead of quietly changing it.
-    private static func belongs(_ entry: BlockerEntry, to ruleClass: RuleClass) -> Bool {
-        switch entry.action.type {
-        case exceptionAction: true
-        case cosmeticAction: ruleClass == .cosmetic
-        // Unknown actions land in `.network`, the class that stays attached at
-        // every shield level except `.off`, so a converter update that adds an
-        // action type fails towards blocking rather than silently towards not.
-        default: ruleClass == .network
-        }
-    }
-
     // MARK: - Splitting
 
-    /// Splits one class's entries into chunks of at most `entriesPerList`.
+    /// Splits a list's entries into chunks of at most `entriesPerList`.
     ///
     /// Every chunk gets a copy of *all* the exceptions, because a chunk that keeps
     /// a block rule but loses the `@@` rule that excepts it over-blocks, and
@@ -272,7 +227,6 @@ public enum RuleConverter {
     /// into needless extra lists would be worse than a named gap.
     private static func split(
         _ entries: [BlockerEntry],
-        ruleClass: RuleClass,
         listID: String,
         entriesPerList: Int
     ) throws -> [RuleListChunk] {
@@ -295,7 +249,6 @@ public enum RuleConverter {
             let merged = mergeByIndex(decisive[start..<end], exceptions)
             chunks.append(
                 RuleListChunk(
-                    ruleClass: ruleClass,
                     index: chunks.count,
                     entryCount: merged.count,
                     json: try encode(merged.map { entries[$0] }, listID: listID)

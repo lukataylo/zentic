@@ -501,7 +501,7 @@ final class Tab: Identifiable {
         let previous = blockingChange
         blockingChange = Task {
             await previous?.value
-            await Blocking.reattach(to: controller, shield: on ? .standard : .off)
+            await Blocking.reattach(to: controller, blocking: on)
             proceed()
         }
     }
