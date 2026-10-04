@@ -55,9 +55,10 @@ struct WindowBackground: View {
                 colors: tint.colors(dark: scheme == .dark),
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
-            // Translucency 0 is a solid wash; 1 is nearly clear glass. Never
-            // fully clear — the sidebar's text needs something to sit on.
-            .opacity(0.92 - app.translucency * (scheme == .dark ? 0.62 : 0.66))
+            // Translucency 0 is a fairly dense wash, 1 nearly clear glass; the
+            // whole range shows the desktop through. Never fully clear: the
+            // sidebar's text needs something to sit on.
+            .opacity(0.6 - app.translucency * 0.48)
         }
         .ignoresSafeArea()
     }

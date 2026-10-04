@@ -24,8 +24,7 @@ struct VisualEffect: NSViewRepresentable {
 }
 
 /// Reaches the hosting `NSWindow` to set what SwiftUI scene modifiers cannot:
-/// a transparent, full-size titlebar with the traffic lights seated on the
-/// toolbar's row.
+/// a transparent, full-size titlebar over the tinted glass frame.
 struct WindowConfigurator: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
@@ -40,39 +39,12 @@ struct WindowConfigurator: NSViewRepresentable {
             window.tabbingMode = .disallowed
             window.collectionBehavior.insert(.fullScreenPrimary)
             window.setFrameAutosaveName("ZenticBrowserWindow")
-            context.coordinator.observe(window)
+            TrafficLights.window = window
         }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    @MainActor
-    final class Coordinator {
-        private var tokens: [NSObjectProtocol] = []
-
-        func observe(_ window: NSWindow) {
-            tokens.forEach(NotificationCenter.default.removeObserver)
-            let center = NotificationCenter.default
-            tokens = []
-
-            // AppKit lays the titlebar out again on every resize and on leaving
-            // full screen, so the traffic lights are re-seated each time.
-            for name in [
-                NSWindow.didResizeNotification, NSWindow.didExitFullScreenNotification,
-                NSWindow.didBecomeKeyNotification, NSWindow.didEndLiveResizeNotification,
-            ] {
-                tokens.append(
-                    center.addObserver(forName: name, object: window, queue: .main) { [weak window] _ in
-                        MainActor.assumeIsolated { window.map(TrafficLights.seat) }
-                    })
-            }
-            TrafficLights.seat(window)
-            DispatchQueue.main.async { TrafficLights.seat(window) }
-        }
-    }
 
     final class ConfiguratorView: NSView {
         var onWindow: ((NSWindow) -> Void)?
@@ -164,21 +136,16 @@ struct GlassSurface<S: Shape>: View {
     }
 }
 
-/// Moves the close/minimise/zoom buttons down so they sit on the same line as
-/// the floating toolbar's buttons, as in Arc and Dia, instead of hugging the
-/// window's top edge above them.
+/// Hides the close/minimise/zoom buttons along with a collapsed sidebar, so
+/// the page gets every pixel; they come back when the sidebar does.
 @MainActor
 enum TrafficLights {
-    /// Distance from the window's top edge to the buttons' centre: the card's
-    /// 8pt inset plus half the toolbar row (9pt top padding + 34pt buttons).
-    static let centreY: CGFloat = 8 + 9 + 17
-    static let leading: CGFloat = 20
-
-    private static weak var window: NSWindow?
+    /// Set when the window appears; applies whatever was asked for before.
+    static weak var window: NSWindow? {
+        didSet { setHidden(hidden) }
+    }
     private static var hidden = false
 
-    /// Hide the buttons with the sidebar, so a collapsed sidebar gives the
-    /// page every pixel; they come back with it when it slides in.
     static func setHidden(_ hide: Bool) {
         hidden = hide
         guard let window else { return }
@@ -189,35 +156,6 @@ enum TrafficLights {
                 button.animator().alphaValue = hide ? 0 : 1
             }
             button.isEnabled = !hide
-        }
-    }
-
-    static func seat(_ window: NSWindow) {
-        self.window = window
-        guard !window.styleMask.contains(.fullScreen),
-            let close = window.standardWindowButton(.closeButton),
-            let mini = window.standardWindowButton(.miniaturizeButton),
-            let zoom = window.standardWindowButton(.zoomButton),
-            let titlebar = close.superview,
-            let container = titlebar.superview
-        else { return }
-
-        // Make the titlebar tall enough to hold the buttons at their new
-        // height; otherwise they are clipped by it.
-        let height = centreY * 2
-        var frame = container.frame
-        frame.size.height = height
-        frame.origin.y = window.frame.height - height
-        container.frame = frame
-        titlebar.frame = container.bounds
-
-        let spacing = mini.frame.minX - close.frame.minX
-        for (index, button) in [close, mini, zoom].enumerated() {
-            button.setFrameOrigin(
-                NSPoint(
-                    x: leading + CGFloat(index) * spacing,
-                    y: (height - button.frame.height) / 2))
-            button.alphaValue = hidden ? 0 : 1
         }
     }
 }

@@ -13,7 +13,7 @@ struct Sidebar: View {
             // The traffic lights sit here. The strip moves the window, as a
             // titlebar would.
             WindowDragArea()
-                .frame(height: 58)
+                .frame(height: 40)
 
             if !app.favorites.isEmpty {
                 FavoritesGrid()
