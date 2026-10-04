@@ -17,29 +17,30 @@ final class Windows {
         directory: JSONFile<Int>.defaultDirectory.appendingPathComponent("Tabs", isDirectory: true))
 
     /// Browsers whose window is open, oldest first.
-    private(set) var open: [Browser] = []
+    @ObservationIgnored private(set) var open: [Browser] = []
     /// Restored or newly made, waiting for their window to appear.
-    private var pending: [Browser] = []
+    @ObservationIgnored private var pending: [Browser] = []
     /// The last ordinary window, kept after it was closed so that reopening
     /// from the Dock, or ⌘N, brings the same spaces and tabs back.
-    private var parked: Browser?
+    @ObservationIgnored private var parked: Browser?
     /// The ordinary window closed most recently while others stayed open —
     /// its spaces and pinned tabs belong to it alone, so closing it by
-    /// mistake must not lose them. Kept asleep, in memory only.
+    /// mistake must not lose them. Kept asleep, in memory only. The one
+    /// observed property: the menu's Reopen Closed Window follows it.
     private var recentlyClosed: Browser?
     /// Restored from the session; their selected tab is held back after
     /// repeated crashes on launch.
-    private var restoredIDs: Set<UUID> = []
-    private var openWindowAction: OpenWindowAction?
-    private var openedRestoredWindows = false
-    private var terminating = false
+    @ObservationIgnored private var restoredIDs: Set<UUID> = []
+    @ObservationIgnored private var openWindowAction: OpenWindowAction?
+    @ObservationIgnored private var openedRestoredWindows = false
+    @ObservationIgnored private var terminating = false
 
     private let sessionFile = JSONFile<SessionSnapshot>(name: "session.json")
     private let launchGuard = LaunchGuard(directory: JSONFile<Int>.defaultDirectory)
     /// Session and marker writes, in order, off the main thread. Quitting
     /// writes through it synchronously, so an older session still queued can
     /// never land on top of the final one.
-    @ObservationIgnored private let io = DispatchQueue(label: "Zentic.session", qos: .utility)
+    private let io = DispatchQueue(label: "Zentic.session", qos: .utility)
     let launch: LaunchGuard.Outcome
 
     private init() {
@@ -217,9 +218,9 @@ final class Windows {
     /// A background tab untouched this long is suspended regardless.
     static let idleLimit: Duration = .seconds(20 * 60)
 
-    private var trimming = false
-    private var memorySource: DispatchSourceMemoryPressure?
-    private var idleTimer: Timer?
+    @ObservationIgnored private var trimming = false
+    @ObservationIgnored private var memorySource: DispatchSourceMemoryPressure?
+    @ObservationIgnored private var idleTimer: Timer?
 
     /// Suspend background tabs over the limit, or idle too long, least
     /// recently shown first — skipping any that are playing or recording.
