@@ -31,6 +31,12 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 65
 fi
 
+if ! security find-identity -v -p codesigning | grep -q '"Developer ID Application'; then
+  echo "error: no \"Developer ID Application\" signing identity in the keychain." >&2
+  echo "Create one in Xcode → Settings → Accounts → Manage Certificates, then run this again." >&2
+  exit 78
+fi
+
 if ! notary_check=$(xcrun notarytool history --keychain-profile "$profile" 2>&1); then
   echo "error: no usable notarytool keychain profile named \"$profile\". notarytool said:\n" >&2
   print -r -- "$notary_check" | sed 's/^/  /' >&2
@@ -97,8 +103,22 @@ codesign --verify --deep --strict "$app"
 step "Notarizing $version ($build_number) — usually a few minutes"
 # notarytool takes a zip, a dmg or a pkg, not a bare .app.
 ditto -c -k --keepParent "$app" "$out/Zentic-notarize.zip"
-xcrun notarytool submit "$out/Zentic-notarize.zip" --keychain-profile "$profile" --wait
+# A rejected submission ("Invalid") is still a successful submit, so read the
+# verdict rather than trusting the exit code, and show Apple's log on rejection
+# instead of letting the stapler fail later with "no ticket".
+if ! result=$(xcrun notarytool submit "$out/Zentic-notarize.zip" --keychain-profile "$profile" \
+    --wait --output-format json); then
+  print -r -- "$result" >&2
+  exit 1
+fi
 rm "$out/Zentic-notarize.zip"
+verdict=$(print -r -- "$result" | plutil -extract status raw -o - -)
+if [[ "$verdict" != Accepted ]]; then
+  submission=$(print -r -- "$result" | plutil -extract id raw -o - -)
+  echo "error: notarization came back \"$verdict\". Apple's log:" >&2
+  xcrun notarytool log "$submission" --keychain-profile "$profile" >&2
+  exit 1
+fi
 
 step "Stapling"
 # Stapling attaches the ticket to the app, so Gatekeeper accepts it offline.

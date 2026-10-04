@@ -102,9 +102,10 @@ ZENTIC_DATA_DIR=/tmp/zentic-try build/Zentic.app/Contents/MacOS/Zentic
 ```
 
 Everything Zentic writes then goes there instead: site choices, history, session,
-favicons, the blocker cache, preferences, downloads, and cookies and site storage
-(a WebKit store of its own). The one exception is AppKit's own window position,
-which goes to the app's normal preferences.
+favicons, the blocker cache and its compiled lists, preferences, downloads, and
+cookies and site storage (a WebKit store of its own). API keys go to a Keychain
+entry of their own, so a test run never sees or deletes your real one. The one
+exception is AppKit's own window position, which goes to the app's normal preferences.
 
 ## Privacy
 

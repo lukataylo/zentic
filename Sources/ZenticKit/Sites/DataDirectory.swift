@@ -4,9 +4,9 @@ import Foundation
 /// Where Zentic keeps everything it writes.
 ///
 /// Normally `~/Library/Application Support/Zentic`. Setting `ZENTIC_DATA_DIR`
-/// moves all of it — files, preferences, cookies, the blocker's compiled lists and
-/// downloads — somewhere else, so a test run or a second copy of the app can
-/// never read or overwrite the data of the copy someone is actually browsing with.
+/// moves all of it — files, preferences, cookies, API keys, the blocker's compiled
+/// lists and downloads — somewhere else, so a test run or a second copy of the app
+/// can never read or overwrite the data of the copy someone is actually browsing with.
 public enum DataDirectory {
     public static let environmentKey = "ZENTIC_DATA_DIR"
 
@@ -32,11 +32,11 @@ public enum DataDirectory {
             : URL.downloadsDirectory
     }
 
-    /// The identifier of the isolated `WKWebsiteDataStore`, so cookies and site
-    /// storage are kept apart too. WebKit decides where that store lives on
-    /// disk, so the best we can do is a store of our own: derived from the path,
-    /// relaunching on the same directory finds the same cookies.
-    public static var websiteDataStoreID: UUID { storeID(for: root) }
+    /// Names the stores Zentic cannot place on disk itself: the isolated
+    /// `WKWebsiteDataStore` (cookies, site storage) and the Keychain service for
+    /// API keys. Derived from the path, so relaunching on the same directory finds
+    /// the same cookies and key.
+    public static var isolationID: UUID { storeID(for: root) }
 
     static func resolve(_ environment: [String: String]) -> URL {
         if let path = override(in: environment) {

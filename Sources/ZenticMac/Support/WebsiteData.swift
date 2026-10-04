@@ -7,5 +7,5 @@ extension WKWebsiteDataStore {
     /// When `ZENTIC_DATA_DIR` isolates the app, the user's real cookies are left
     /// alone — see ``DataDirectory``.
     @MainActor static let zentic: WKWebsiteDataStore =
-        DataDirectory.isIsolated ? WKWebsiteDataStore(forIdentifier: DataDirectory.websiteDataStoreID) : .default()
+        DataDirectory.isIsolated ? WKWebsiteDataStore(forIdentifier: DataDirectory.isolationID) : .default()
 }

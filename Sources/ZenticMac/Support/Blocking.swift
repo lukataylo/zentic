@@ -10,7 +10,11 @@ import ZenticKit
 /// duplicate that work or race the first one for the same store.
 @MainActor
 enum Blocking {
-    static let engine = BlockerEngine(compiler: WebKitRuleListCompiler())
+    /// Compiled lists live in the engine's own store under `DataDirectory`, not
+    /// WebKit's default one: the default store is shared by every copy of the app,
+    /// so an isolated test run would garbage-collect the lists of the copy someone
+    /// is browsing with.
+    static let engine = WebKitContentBlocker()
 
     /// Warm the lists at launch, off the critical path.
     ///

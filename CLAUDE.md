@@ -72,6 +72,7 @@ Each one has a test.
 - Liquid Glass cannot sample a web view. Surfaces over a page use `GlassSurface`
   (see `WindowChrome.swift`).
 - Everything Zentic writes goes under `DataDirectory.root`; preferences go through
-  `DataDirectory.defaults`, never `UserDefaults.standard`, and web views use
-  `WKWebsiteDataStore.zentic`. Otherwise `ZENTIC_DATA_DIR` stops isolating.
+  `DataDirectory.defaults`, never `UserDefaults.standard`, web views use
+  `WKWebsiteDataStore.zentic`, and stores that live elsewhere (Keychain) are keyed
+  by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
 - Tests are written against real failure modes. If a test can't fail, delete it.

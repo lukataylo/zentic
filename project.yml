@@ -35,6 +35,9 @@ targets:
     dependencies:
       - package: ZenticPackage
         product: ZenticKit
+    # A shared scheme, so xcodebuild need not invent one (it warns when it does)
+    # and the UI-test target has a scheme to join.
+    scheme: {}
     settings:
       base:
         PRODUCT_NAME: Zentic
