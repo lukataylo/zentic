@@ -306,6 +306,31 @@ them and the feature hides itself.
 `SyncedDevice`s instead of syncing, for working on the interface without CloudKit.
 An isolated run (`ZENTIC_DATA_DIR`) syncs in a zone of its own, so it never appears
 on your real Macs.
+## Updates and problem reports
+
+**Updates.** *Zentic › Check for Updates…*, or let it check by itself (Settings ›
+General › Software Update, where you can also have updates download and install
+on their own). Updates come from this repository's GitHub releases through
+[Sparkle](https://sparkle-project.org). Each one is signed with the developer's key
+and checked against the key built into the app before it is unpacked, and the feed
+listing them is signed too. A check fetches that feed and sends nothing else: no
+system profile, no identifiers. Builds from `swift run` have no updater, and neither
+does a copy running with `ZENTIC_DATA_DIR` (Sparkle keeps its settings with the app's
+real preferences).
+
+**Problem reports.** When Zentic crashes, hangs, or uses too much CPU or disk, macOS
+hands the next launch a diagnostic (MetricKit), and Zentic keeps it in Settings ›
+Diagnostics. After an unexpected quit, Zentic also writes its own report: the crash
+log macOS saved (already symbolicated), and what the app was doing just before.
+That's the number of windows and tabs and the last few actions, like *Closed a tab*
+or *Switched space*. Never a page, address or title, and nothing from private
+windows. The notice after a crash has a **Send Report…** button for that report.
+
+Reports stay on your Mac, in `Diagnostics/` in the data folder, for 60 days and at
+most 30. **Nothing is ever sent automatically.** Each report can be read in full,
+copied, saved, deleted or emailed to the developer. Email opens a draft in your mail
+app with the report attached, and you decide whether to send it. What the viewer
+shows is exactly what gets sent.
 
 ## Keyboard
 
@@ -362,6 +387,31 @@ drawn in code: change `scripts/render-icon.swift`, run it, commit the PNGs.
 and stops with instructions if there isn't one. Credentials live in your keychain,
 never in the repo.
 
+### Releasing an update
+
+Sparkle updates are signed with an Ed25519 key. Its public half is `SUPublicEDKey`
+in `App/Info.plist`. Its private half lives in the release Mac's login keychain,
+under Sparkle's account `zentic`, and never in the repo. Sparkle's tools are in
+`build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/` once either script
+has run.
+
+1. **Once per Mac:** make sure the key is there: `generate_keys --account zentic -p`
+   prints the public key, which must match Info.plist. Back it up somewhere safe
+   with `generate_keys --account zentic -x zentic-sparkle.key`. On a new Mac,
+   import that backup with `-f`. If the key is lost, installed copies can never
+   update again.
+2. Raise `MARKETING_VERSION` in `project.yml` and commit. The build number is the
+   commit count, which Sparkle compares.
+3. `scripts/release.sh`. It checks that the keychain key matches Info.plist, then
+   archives, notarizes and staples the app. It zips it, signs the zip with
+   `sign_update`, downloads the published `appcast.xml` (so older releases stay
+   listed) and runs `generate_appcast` to add this version and sign the feed.
+   Both files end up in `build/release/updates/`.
+4. Create a GitHub release tagged `v<version>` and upload **both**
+   `Zentic-<version>.zip` and `appcast.xml`. The app reads
+   `releases/latest/download/appcast.xml`, so publishing the release is what
+   ships it. Never edit `appcast.xml` by hand: it is signed.
+
 Zentic is not sandboxed — no browser outside the App Store is, because a browser
 reads and writes wherever you point it. Web content still runs in WebKit's own
 sandboxed processes; the app itself runs under the Hardened Runtime and is notarized.
@@ -388,6 +438,9 @@ exception is AppKit's own window position, which goes to the app's normal prefer
 - Saved passwords stay in the login Keychain, are read only to fill, show or copy one
   after Touch ID or your password, and are filled only on explicit choice into the
   exact secure origin they belong to.
+- No telemetry. Nothing about browsing leaves the Mac except the pages themselves.
+- Update checks fetch one signed file from GitHub and send nothing about you. Problem
+  reports never leave the Mac unless you copy, save or email one yourself.
 - A custom version's stylesheet is sanitised twice, in Swift before it's stored and in
   the page before it's applied. Anything that could fetch a URL (`url()`, `@import`,
   `@font-face`, `image-set()`, CSS escapes) is removed, and a sheet that still could is

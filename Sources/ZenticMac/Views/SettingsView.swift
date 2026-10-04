@@ -11,6 +11,7 @@ struct SettingsView: View {
             SwiftUI.Tab("Permissions", systemImage: "hand.raised") { PermissionsSettings() }
             SwiftUI.Tab("Security", systemImage: "checkmark.shield") { SafetySettings() }
             SwiftUI.Tab("Extensions", systemImage: "puzzlepiece.extension") { ExtensionsSettings() }
+            SwiftUI.Tab("Diagnostics", systemImage: "stethoscope") { DiagnosticsSettings() }
         }
         .frame(width: 560)
     }
@@ -86,6 +87,8 @@ private struct GeneralSettings: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            SoftwareUpdateSection()
         }
         .formStyle(.grouped)
         .frame(height: 690)

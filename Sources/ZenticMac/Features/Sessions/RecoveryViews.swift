@@ -5,6 +5,8 @@ import ZenticKit
 struct RecoveryToast: View {
     let outcome: LaunchGuard.Outcome
     var dismiss: () -> Void
+    /// Opens the report about the quit, to read and, if they choose, send.
+    var sendReport: () -> Void
     @State private var appeared = false
 
     var body: some View {
@@ -22,6 +24,11 @@ struct RecoveryToast: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Button("Send Report…", action: sendReport)
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .help("See what Zentic recorded about the quit, and email it to the developer if you like")
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
@@ -37,11 +44,15 @@ struct RecoveryToast: View {
         .padding(.trailing, 10)
         .padding(.vertical, 10)
         .panelGlass(in: .capsule)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .task {
             appeared = true
             AccessibilityNotification.Announcement("Zentic quit unexpectedly. Your tabs are back.").post()
-            try? await Task.sleep(for: .seconds(outcome == .recoveredRepeatedly ? 12 : 7))
+            // Long enough to reach Send Report… without hurrying.
+            // A cancelled wait means the view went away, not that time is up:
+            // dismissing then would take the notice down before anyone saw it.
+            guard (try? await Task.sleep(for: .seconds(outcome == .recoveredRepeatedly ? 14 : 10))) != nil
+            else { return }
             dismiss()
         }
     }

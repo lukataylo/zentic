@@ -82,5 +82,17 @@
 	<string>A website you are visiting is asking to use your microphone, for example for a call or voice message. Zentic asks you first, every site separately, and nothing is recorded by Zentic itself.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>A website you are visiting is asking where you are, for example to show nearby places. Zentic asks you first, every site separately, and never keeps or sends your location anywhere else.</string>
+	<!-- Sparkle. The private half of this key is in the release machine's login
+	     keychain (account "zentic"), never in this repo; see README › Releasing. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/lukataylo/zentic/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>VTzYtIttsSjQnMcUSz8k+5dX88qXTMRbD4CAP3BRcvc=</string>
+	<!-- The appcast itself is signed too, so a tampered feed cannot point at
+	     anything, and an archive is verified before it is unpacked. -->
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

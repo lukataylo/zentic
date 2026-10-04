@@ -813,6 +813,7 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        Breadcrumbs.note("A page's web process ended", in: tab?.browser)
         tab?.contentProcessTerminated()
     }
 

@@ -19,9 +19,10 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Library/` | `HistoryEntry`, `HistoryRange` (Clear History spans), `HistoryDay` (grouping), `Bookmark`/`BookmarkList`, `BookmarkImport` (Netscape HTML), `DownloadName` (safe, unique file names) |
 | `Sources/ZenticKit/Extensions/` | `ExtensionRecord` (what the user allowed, persisted), `SiteAccess`, `SitePattern`, `ExtensionDiscovery`, `KeyChord`, `TabMoves` |
 | `Sources/ZenticKit/Sync/` | `SyncedDevice` (one Mac's tabs, built from the session; its CloudKit record), `SyncedDevices` (merge), `SyncPacing` |
+| `Sources/ZenticKit/Diagnostics/` | `ProblemReport` and its store, `MetricKitReports` (MetricKit JSON → report), `SystemCrashLog` (macOS `.ips`), `Symbolicator`, `Breadcrumb` |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour), `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings), `Recheck/` (`Rechecks`: drift of kept versions, its dot and picker actions), `Sync/` (`TabSync`: iCloud tabs over CKSyncEngine) |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour), `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings), `Recheck/` (`Rechecks`: drift of kept versions, its dot and picker actions), `Sync/` (`TabSync`: iCloud tabs over CKSyncEngine), `Diagnostics/` (MetricKit, breadcrumbs, Settings › Diagnostics, the report viewer), `Updates/` (Sparkle) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -114,6 +115,12 @@ Each one has a test.
     (`CustomBaseline.isSameKind`) or `Drift.missesOnOtherPages` distinct other pages.
     Private windows are never checked (what is found outlives the window). A legacy version's baseline is adopted
     only from a page that `canBeBaseline` (never an error page).
+14. **A problem report leaves the Mac only by the user's hand.** Copy, Save… and
+    Email to Developer… in `ReportView`/`ReportActions` are the only exits, and the
+    viewer shows the report's entire `text`, so what is sent is what was read. A
+    `Breadcrumb` holds fixed phrases from the app and counts, never a URL, title or
+    typed text, and private windows record none. `LaunchGuard.record` never
+    recreates a removed marker, or a clean quit would be reported as a crash.
 
 ## Conventions
 
@@ -149,4 +156,9 @@ Each one has a test.
   unentitled build (`swift run`) is killed by CloudKit otherwise. The iCloud
   entitlements live in `App/Zentic-iCloud.entitlements`, chosen by `ZENTIC_ICLOUD`
   in `project.yml`; keep it equal to `Zentic.entitlements` plus iCloud (tested).
+- Sparkle is in the app target only (`project.yml`); code using it sits behind
+  `#if canImport(Sparkle)` so `swift run` builds without it. An isolated run
+  (`ZENTIC_DATA_DIR`) never starts the updater.
+- A new app-level action worth knowing about after a crash gets a
+  `Breadcrumbs.note("…", in: browser)` — a fixed phrase, never page data.
 - Tests are written against real failure modes. If a test can't fail, delete it.

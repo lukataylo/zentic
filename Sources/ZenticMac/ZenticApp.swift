@@ -20,6 +20,7 @@ struct ZenticApp: App {
             BrowserCommands()
             PasswordCommands()
             BookmarkCommands()
+            UpdateCommands()
         }
 
         // Each is reached from its own menu item; `commandsRemoved` keeps
@@ -66,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate()
         OpenFromElsewhere.didFinishLaunching(notification)
         TabSync.shared.start()
+        Diagnostics.shared.start()
+        #if canImport(Sparkle)
+        _ = Updates.shared  // starts the updater's schedule
+        #endif
     }
 
     /// The other Macs should see the tabs this one quit with. Held up for a
