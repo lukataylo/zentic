@@ -33,19 +33,52 @@ Your key lives in the macOS Keychain and is sent only to OpenAI, only when you d
 
 ## The window
 
-Arc-style tinted glass sidebar (tint and translucency in Settings), favourites grid,
+Arc-style tinted glass sidebar (translucency in Settings), favourites grid,
 drag-to-reorder tabs. The page sits on a rounded card with a floating glass toolbar.
 Scroll down and the toolbar folds into a small pill naming the site. Scroll up, hover
 the top edge or click the pill, and it opens again. The toolbar follows the page's own
 light or dark. Hide the sidebar (`⌃⌘S`) and resting the pointer on the window's left
 edge slides it back in.
 
+## Windows, spaces and pinned tabs
+
+**Windows.** `⌘N` opens another window with its own tabs; menus act on the window in
+front. Close the last one and Zentic keeps running; click the Dock icon or press `⌘N`
+and it comes back as you left it. Close one of several by mistake and *File ›
+Reopen Closed Window* brings it back, spaces and all. Any tab can move to a new window
+from its menu.
+
+**Spaces.** Each window has spaces: a name, an icon (a symbol or an emoji) and a
+colour, each with its own pinned and open tabs. Switch with the icons at the bottom of
+the sidebar, a two-finger swipe across the sidebar, or `⌃1`–`⌃9`. Right-click a space
+to edit, reorder or delete it. Favourites belong to every space. The address bar
+(`⌘T`, `⌘L`) finds open tabs in any space of the window.
+
+**Pinned tabs** sit above *New Tab*. They are places rather than pages: `⌘W` on one
+unloads it and puts it back on its pinned address instead of closing it. Pin by
+dragging a tab onto the space's name or from the tab's menu; removing a pinned tab
+asks first.
+
+**Private windows** (`⇧⌘N`) wear a deep graphite-indigo frame and an eye-slash mark.
+Each has its own in-memory cookie and cache store. Nothing from one is written to
+disk — no history, no saved tabs, no icon cache — and a site version chosen there
+applies to that window only. Content blocking works as usual. They are not restored.
+
+**Crash-safe sessions.** Every ordinary window, space, pinned and open tab is saved as
+you go, and each tab's back/forward list and scroll position is kept in its own small
+file, so a relaunch puts pages back where they were. If Zentic quits unexpectedly it
+says so, once, and restores everything; if it crashes twice in a row within 30 seconds
+of launching, it restores the tabs without loading the selected one until you click
+it. A session file it cannot read is set aside, never overwritten.
+
 ## Keyboard
 
 | | |
 |---|---|
+| `⌘N` / `⇧⌘N` | new window / new private window |
 | `⌘T` / `⌘L` | new tab / go to address (search, open tabs, history) |
-| `⌘W` / `⇧⌘T` | close tab / reopen it |
+| `⌘W` / `⇧⌘T` | close tab (unload a pinned one) / reopen it |
+| `⌃1`–`⌃9` | switch space |
 | `⌥⌘1`–`⌥⌘4` | Original, Clean, Minimal, Custom |
 | `⌥⌘0` | the site's version picker |
 | `⌥⌘E` | design or refine your version of this site |

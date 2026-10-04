@@ -43,7 +43,9 @@ struct WebContainer: NSViewRepresentable {
 
         func show(_ webView: WKWebView?) {
             guard current !== webView else { return }
-            current?.removeFromSuperview()
+            // Only if still ours: a tab moved to another window took its web
+            // view along, and removing it here would blank that window.
+            if current?.superview === self { current?.removeFromSuperview() }
             current = webView
             guard let webView else { return }
             webView.frame = bounds

@@ -121,12 +121,19 @@ struct CommandBar: View {
         }
 
         let q = text.lowercased()
-        for tab in browser.tabs where tab !== browser.selectedTab || browser.commandBar.opensNewTab {
-            guard tab.title.lowercased().contains(q) || tab.displayHost.lowercased().contains(q) else { continue }
-            results.append(
-                Result(
-                    id: "t" + tab.id.uuidString, kind: .tab(tab), title: tab.title.isEmpty ? tab.displayHost : tab.title,
-                    subtitle: tab.displayHost, icon: tab.icon, symbol: "square.on.square", trailing: "Switch to Tab"))
+        // Every space of this window, the current one first.
+        let spaces = [browser.space] + browser.spaces.filter { $0 !== browser.space }
+        for space in spaces {
+            for tab in space.allTabs where tab !== browser.selectedTab || browser.commandBar.opensNewTab {
+                guard tab.title.lowercased().contains(q) || tab.displayHost.lowercased().contains(q) else { continue }
+                let elsewhere = space !== browser.space
+                results.append(
+                    Result(
+                        id: "t" + tab.id.uuidString, kind: .tab(tab), title: tab.title.isEmpty ? tab.displayHost : tab.title,
+                        subtitle: elsewhere ? "\(space.name) · \(tab.displayHost)" : tab.displayHost, icon: tab.icon,
+                        symbol: "square.on.square", trailing: elsewhere ? "Switch to \(space.name)" : "Switch to Tab"))
+                if results.count >= 4 { break }
+            }
             if results.count >= 4 { break }
         }
 

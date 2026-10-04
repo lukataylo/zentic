@@ -14,7 +14,9 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
-| `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (tabs), `Tab` (one web view), `DesignSession` |
+| `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
+| `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -64,11 +66,20 @@ Each one has a test.
    blockers and the message handler live on it.
 7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists and
    (on request) OpenAI.
+8. **A private window writes nothing to disk.** No session, history, favicon cache or
+   tab state; its site choices are an in-memory overlay (`SiteBook.overlaying`) and its
+   cookies live in its own `WKWebsiteDataStore.nonPersistent()`. Every write path
+   checks `isPrivate`; add the check to any new one.
+9. **A session that can't be read is never overwritten.** `JSONFile` moves it aside,
+   a newer `SessionSnapshot.version` refuses to decode, and tab-state files are pruned
+   only against a session that was actually read.
 
 ## Conventions
 
 - In-page code runs in the `zentic` `WKContentWorld`; page script cannot see it.
 - Don't use system shortcuts: ⌘E (Use Selection for Find) and ⌥⌘D (Dock) are taken.
+- Menu commands act on `@FocusedValue(Browser.self)`; never reach for a global browser.
+- The live-tab limit (`Windows.maxLiveTabs`) is app-wide, across windows and spaces.
 - Liquid Glass cannot sample a web view. Surfaces over a page use `GlassSurface`
   (see `WindowChrome.swift`).
 - Everything Zentic writes goes under `DataDirectory.root`; preferences go through

@@ -26,6 +26,8 @@ struct VisualEffect: NSViewRepresentable {
 /// Reaches the hosting `NSWindow` to set what SwiftUI scene modifiers cannot:
 /// a transparent, full-size titlebar over the tinted glass frame.
 struct WindowConfigurator: NSViewRepresentable {
+    /// Called once the window exists, after the shared setup.
+    var onWindow: (NSWindow) -> Void = { _ in }
 
     func makeNSView(context: Context) -> NSView {
         let view = ConfiguratorView()
@@ -38,8 +40,7 @@ struct WindowConfigurator: NSViewRepresentable {
             window.isMovableByWindowBackground = false
             window.tabbingMode = .disallowed
             window.collectionBehavior.insert(.fullScreenPrimary)
-            window.setFrameAutosaveName("ZenticBrowserWindow")
-            TrafficLights.window = window
+            onWindow(window)
         }
         return view
     }
@@ -140,14 +141,7 @@ struct GlassSurface<S: Shape>: View {
 /// the page gets every pixel; they come back when the sidebar does.
 @MainActor
 enum TrafficLights {
-    /// Set when the window appears; applies whatever was asked for before.
-    static weak var window: NSWindow? {
-        didSet { setHidden(hidden) }
-    }
-    private static var hidden = false
-
-    static func setHidden(_ hide: Bool) {
-        hidden = hide
+    static func setHidden(_ hide: Bool, in window: NSWindow?) {
         guard let window else { return }
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             guard let button = window.standardWindowButton(kind) else { continue }

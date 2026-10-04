@@ -182,7 +182,7 @@ struct Composer: View {
         }
     }
 
-    private var hasVersion: Bool { tab.previewing != nil || app.custom(for: tab.url) != nil }
+    private var hasVersion: Bool { tab.previewing != nil || tab.browser?.custom(for: tab.url) != nil }
 
     private var placeholder: String {
         hasVersion ? "What should change?" : "Describe how you want \(tab.displayHost) to look…"

@@ -5,19 +5,18 @@ import ZenticKit
 @main
 struct ZenticApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var browser = AppDelegate.browser
 
     var body: some Scene {
-        Window("Zentic", id: "browser") {
-            BrowserView()
-                .environment(browser)
-                .environment(AppModel.shared)
-                .frame(minWidth: 720, minHeight: 480)
-                .containerBackground(.clear, for: .window)
+        // One scene, many windows: each is opened with its browser's id.
+        WindowGroup("Zentic", id: "browser", for: UUID.self) { $windowID in
+            BrowserWindow(windowID: $windowID)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1360, height: 880)
-        .commands { BrowserCommands(browser: browser) }
+        // Zentic restores its own windows from the session, spaces and all;
+        // SwiftUI restoring them as well would open each one twice.
+        .restorationBehavior(.disabled)
+        .commands { BrowserCommands() }
 
         Settings {
             SettingsView()
@@ -28,15 +27,13 @@ struct ZenticApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// One browser for the app's one window. It outlives the window, so closing
-    /// the window and reopening it from the Dock brings the same tabs back.
-    static let browser = Browser()
-
     func applicationWillFinishLaunching(_ notification: Notification) {
         // `swift run` launches a bare executable with no bundle; make it a
         // proper foreground app with a Dock icon and menu bar.
         NSApp.setActivationPolicy(.regular)
         AppModel.shared.appearance.apply()
+        // Before anything else can crash: notes the launch, reads the session.
+        _ = Windows.shared
         Blocking.warm()
     }
 
@@ -45,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        Self.browser.saveNow()
+        Windows.shared.saveForTermination()
         AppModel.shared.saveHistoryNow()
     }
 

@@ -55,7 +55,7 @@ final class DesignSession {
         let instruction = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !instruction.isEmpty, !isWorking, let url = tab.url else { return }
         // Refine what is on screen: the preview if there is one, else the kept version.
-        let current = tab.previewing ?? AppModel.shared.custom(for: url)
+        let current = tab.previewing ?? tab.browser?.custom(for: url)
         let started = Date()
         phase = .working(started: started, note: nil)
         rejected = []
@@ -91,7 +91,7 @@ final class DesignSession {
                     if let still = await Self.problem(before: before, tab: tab) {
                         trace("design", "giving up: \(still)")
                         // Back to what was on screen before this attempt.
-                        if let current, current != AppModel.shared.custom(for: url) {
+                        if let current, current != tab.browser?.custom(for: url) {
                             _ = await tab.preview(current)
                         } else {
                             tab.applyMode()
@@ -152,7 +152,7 @@ final class DesignSession {
     /// Make the preview the site's version from now on.
     func keep(on tab: Tab) {
         guard let version = tab.previewing else { return }
-        AppModel.shared.saveCustom(version, for: tab.url)
+        tab.browser?.saveCustom(version, for: tab.url)
         reset()
     }
 
