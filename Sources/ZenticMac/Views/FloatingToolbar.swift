@@ -157,7 +157,10 @@ private struct AddressPill: View {
             // it everywhere except the badge.
             ZStack {
                 Button {
-                    browser.editAddress()
+                    // The full toolbar is on screen (even if it slid back in
+                    // over a scrolled page), so the address is edited right
+                    // here; the lookup panel is for new tabs and the pill.
+                    browser.editingAddress = true
                 } label: {
                     Color.clear
                         .frame(maxWidth: .infinity)
