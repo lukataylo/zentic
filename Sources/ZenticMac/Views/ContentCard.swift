@@ -51,6 +51,13 @@ struct ContentCard: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
+            if let tab {
+                // On the page like the toolbar it hangs from, so in the page's scheme.
+                PasswordOverlays(passwords: tab.passwords)
+                    .id(tab.id)
+                    .environment(\.colorScheme, pageScheme(tab))
+            }
+
             if let tab, tab.design.isPresented {
                 Composer(tab: tab, design: tab.design)
                     .frame(maxHeight: .infinity, alignment: .bottom)

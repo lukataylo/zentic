@@ -18,7 +18,7 @@ public enum InPageScript {
     /// code by weight, so it runs at document-end, off the path to first paint.
     public static let consentBundle = resource("zentic-consent")
 
-    private static func resource(_ name: String) -> String {
+    static func resource(_ name: String) -> String {
         guard let url = Bundle.module.url(forResource: name, withExtension: "js"),
             let source = try? String(contentsOf: url, encoding: .utf8)
         else {

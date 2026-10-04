@@ -45,6 +45,8 @@ final class Tab: Identifiable {
     }
 
     let design = DesignSession()
+    /// The save prompt and AutoFill menu for this tab's sign-ins.
+    @ObservationIgnored private(set) lazy var passwords = TabPasswords(tab: self)
 
     /// Set by the browser so the tab can open new tabs and report changes.
     /// The tab's window decides its sites' modes (a private window keeps its
@@ -280,6 +282,7 @@ final class Tab: Identifiable {
         for script in InPageScript.userScripts((browser?.book ?? AppModel.shared.book).inPageConfig(), consent: consent) {
             controller.addUserScript(script)
         }
+        controller.addUserScript(InPageScript.passwordScript(saving: !isPrivate))
     }
 
     private func observe(_ webView: WKWebView) {
@@ -472,6 +475,7 @@ final class Tab: Identifiable {
         }
         declaredIcon = nil
         chromeCollapsed = false
+        passwords.pageChanged()
     }
 
     fileprivate func didFinish() {
@@ -764,6 +768,10 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let body = message.body as? [String: Any] else { return }
+        if (body["type"] as? String)?.hasPrefix("login-") == true {
+            tab?.passwords.receive(body, from: message.frameInfo.securityOrigin)
+            return
+        }
         tab?.receive(body)
     }
 }

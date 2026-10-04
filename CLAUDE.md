@@ -13,15 +13,16 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
+| `Sources/ZenticKit/Passwords/` | `LoginOrigin`, `PasswordPolicy` (what to offer, where to fill), `PasswordKeychain`, the sign-in script |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
 | `scripts/` | `build-app.sh` (→ `build/Zentic.app`), `release.sh` (archive, notarize, staple, zip) |
-| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `scroll.ts` |
+| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `scroll.ts`; `passwords.ts` (its own bundle, `zentic-passwords.js`) |
 
 ## Build
 
@@ -73,6 +74,15 @@ Each one has a test.
 9. **A session that can't be read is never overwritten.** `JSONFile` moves it aside,
    a newer `SessionSnapshot.version` refuses to decode, and tab-state files are pruned
    only against a session that was actually read.
+
+10. **A password is filled only on explicit choice, into the exact secure origin it was
+    saved for.** Never silently, never into a frame, never over plain `http`.
+    `PasswordPolicy.canFill` is checked before and after Touch ID, and the page's
+    `fill` refuses unless `location.origin` still matches. Origins come from WebKit's
+    `frameInfo.securityOrigin`, never from the page. A sign-in counts only if the person
+    typed into its password field (trusted `input`; a page's `requestSubmit()` fires a
+    trusted `submit`), and passwords live only in the Keychain (`PasswordKeychain`), read
+    behind `Passwords.unlock`.
 
 ## Conventions
 
