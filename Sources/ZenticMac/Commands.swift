@@ -114,7 +114,7 @@ struct BrowserCommands: Commands {
                     CertificateTrust.show(trust, for: tab.displayHost, in: browser?.window)
                 }
             }
-            .disabled(tab?.url?.scheme != "https" && tab?.securityWarning == nil)
+            .disabled(tab?.canShowCertificate != true)
             Divider()
             Button("Page Settings…") {
                 // A transient popover opened while the menu is still tracking is

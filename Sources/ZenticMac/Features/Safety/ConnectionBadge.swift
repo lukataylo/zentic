@@ -12,9 +12,9 @@ struct ConnectionBadge: View {
     let tab: Tab
     @State private var explaining = false
 
-    private enum State { case plainHTTP, httpForm, certificateException }
+    private enum Kind { case plainHTTP, httpForm, certificateException }
 
-    private var state: State? {
+    private var state: Kind? {
         if tab.isOnCertificateException { return .certificateException }
         guard tab.url?.scheme == "http", tab.securityWarning == nil else { return nil }
         return tab.hasInsecureForm ? .httpForm : .plainHTTP
@@ -43,8 +43,8 @@ struct ConnectionBadge: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("This connection is not secure")
-            .accessibilityLabel("Not secure")
+            .help(state == .certificateException ? "Zentic couldn’t verify this site’s certificate" : "This connection is not secure")
+            .accessibilityLabel(state == .certificateException ? "Certificate not verified" : "Not secure")
             .accessibilityHint("Explains why this connection is not secure")
             .popover(isPresented: $explaining, arrowEdge: .bottom) {
                 ConnectionExplanation(tab: tab, state: state) { explaining = false }
@@ -55,7 +55,7 @@ struct ConnectionBadge: View {
 
     private struct ConnectionExplanation: View {
         let tab: Tab
-        let state: State
+        let state: Kind
         var dismiss: () -> Void
 
         var body: some View {
@@ -92,7 +92,7 @@ struct ConnectionBadge: View {
                         Button("Show Certificate") {
                             dismiss()
                             if let trust = tab.serverTrust {
-                                CertificateTrust.show(trust, for: host, in: NSApp.keyWindow)
+                                CertificateTrust.show(trust, for: host, in: tab.browser?.window)
                             }
                         }
                     } else if let secure = secureURL {

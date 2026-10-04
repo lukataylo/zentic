@@ -44,7 +44,8 @@ final class CertificateTrust {
     /// if `error` is not that.
     nonisolated static func warning(for error: NSError) async -> CertificateWarning? {
         guard isCertificateError(error), let url = error.userInfo[NSURLErrorFailingURLErrorKey] as? URL,
-            let object = error.userInfo[NSURLErrorFailingURLPeerTrustErrorKey]
+            let object = error.userInfo[NSURLErrorFailingURLPeerTrustErrorKey] as CFTypeRef?,
+            CFGetTypeID(object) == SecTrustGetTypeID()
         else { return nil }
         let trust = object as! SecTrust
         guard let check = await CertificateCheck.evaluate(trust) else { return nil }
@@ -55,8 +56,12 @@ final class CertificateTrust {
         error.domain == NSURLErrorDomain && certificateErrors.contains(error.code)
     }
 
+    /// `SecureConnectionFailed` too: WebKit reports some refused
+    /// certificates (revoked ones among them) that way. If the certificate
+    /// turns out to be fine, the failure was the TLS handshake itself and
+    /// the ordinary error page says so.
     private nonisolated static let certificateErrors: Set<Int> = [
-        NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasBadDate,
+        NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasBadDate,
         NSURLErrorServerCertificateNotYetValid, NSURLErrorServerCertificateHasUnknownRoot,
     ]
 

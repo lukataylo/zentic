@@ -20,11 +20,13 @@ extension Tab {
     /// "Go Back": the page underneath is still the one the user came from,
     /// because the warned-about load never committed. With nothing
     /// underneath — a link opened from Mail into a new tab — the tab goes.
+    ///
+    /// A tab restored at launch onto a listed site has history but nothing
+    /// on screen: it steps back to the entry before, as Back would.
     func leaveWarning() {
         securityWarning = nil
-        if webView?.backForwardList.currentItem == nil {
-            browser?.close(self)
-        }
+        guard let webView, webView.url == nil || webView.backForwardList.currentItem == nil else { return }
+        if webView.canGoBack { webView.goBack() } else { browser?.close(self) }
     }
 
     /// "Visit This Site Anyway": remember the choice for this run of the app,
@@ -48,10 +50,25 @@ extension Tab {
     }
 
     /// The certificate to show for the page on screen, or the refused one
-    /// while its error page is up.
+    /// while its error page is up. None under a dangerous-site warning: the
+    /// web view still holds the previous site's, which would be shown under
+    /// the listed site's name.
     var serverTrust: SecTrust? {
-        if case .certificate(let warning) = securityWarning { return warning.trust }
-        return webView?.serverTrust
+        switch securityWarning {
+        case .certificate(let warning): warning.trust
+        case .dangerous: nil
+        case nil: url?.scheme == "https" ? webView?.serverTrust : nil
+        }
+    }
+
+    /// Whether Page › Show Certificate… has anything to show. Observable
+    /// state only, so the menu item updates without the menu being reopened.
+    var canShowCertificate: Bool {
+        switch securityWarning {
+        case .certificate: true
+        case .dangerous: false
+        case nil: url?.scheme == "https"
+        }
     }
 
     /// Look for password or card fields on a page served over plain HTTP, so

@@ -7,10 +7,14 @@ struct SecurityWarningView: View {
     let warning: SecurityWarning
 
     var body: some View {
-        switch warning {
-        case .dangerous(let threat): ThreatPage(tab: tab, threat: threat)
-        case .certificate(let certificate): CertificatePage(tab: tab, warning: certificate)
+        Group {
+            switch warning {
+            case .dangerous(let threat): ThreatPage(tab: tab, threat: threat)
+            case .certificate(let certificate): CertificatePage(tab: tab, warning: certificate)
+            }
         }
+        // A new warning is a new page: details closed, the entrance played again.
+        .id(warning.url)
     }
 }
 
@@ -101,9 +105,9 @@ private struct CertificatePage: View {
     }
 
     private var showCertificate: WarningAction {
-        let warning = warning
+        let (warning, window) = (warning, tab.browser?.window)
         return WarningAction(title: "Show Certificate") {
-            CertificateTrust.show(warning.trust, for: warning.host, in: NSApp.keyWindow)
+            CertificateTrust.show(warning.trust, for: warning.host, in: window)
         }
     }
 

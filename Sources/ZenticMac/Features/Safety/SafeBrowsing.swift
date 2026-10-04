@@ -92,6 +92,13 @@ final class SafeBrowsing {
                 try? await Task.sleep(for: checkedAt == nil ? .seconds(3) : .seconds(30))
                 await update(force: false)
             }
+            // Offline on the very first launch leaves nothing to check
+            // against, and the daily refresh is a day away. Try again a few
+            // times, further apart each time, until there is a list.
+            for minutes in [1, 5, 15, 60] where isEnabled && hostCount == 0 && lastError != nil {
+                try? await Task.sleep(for: .seconds(minutes * 60))
+                await update(force: false)
+            }
             scheduleDailyRefresh()
         }
     }

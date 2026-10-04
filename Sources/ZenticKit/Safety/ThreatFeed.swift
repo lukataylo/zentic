@@ -2,7 +2,7 @@ import Foundation
 
 /// What a listed host is known for. The interstitial explains the two very
 /// differently: phishing wants your password, malware wants your Mac.
-public enum ThreatKind: String, Codable, Sendable, CaseIterable {
+public enum ThreatKind: Sendable, CaseIterable {
     case malware, phishing
 }
 
@@ -18,7 +18,7 @@ public enum ThreatKind: String, Codable, Sendable, CaseIterable {
 /// Tranco/Umbrella popularity lists, so a phishing page parked on a shared
 /// host cannot get the whole of that host flagged. Phishing Army was ruled
 /// out by its non-commercial licence, OpenPhish's own feed by its terms.
-public struct ThreatFeed: Sendable, Hashable, Identifiable {
+public struct ThreatFeed: Sendable {
     public let id: String
     public let kind: ThreatKind
     public let title: String

@@ -1,12 +1,15 @@
+import CryptoKit
 import Foundation
 
 /// The dangerous hosts, held as sorted 64-bit hashes: the check that runs in
 /// `decidePolicyFor` on the main thread is a handful of binary searches, and
 /// forty thousand hosts cost 320 KB instead of the megabytes their strings would.
 ///
-/// FNV-1a over 64 bits: with ~50k entries the chance that a given host
-/// collides with any of them is around 1 in 10¹⁴, and the hash is stable
-/// across launches, which Swift's own `Hasher` deliberately is not.
+/// The first 64 bits of SHA-256: stable across launches, which Swift's own
+/// `Hasher` deliberately is not, and — unlike a fast non-cryptographic hash
+/// such as FNV — nobody can craft a listed host that collides with a real
+/// site's and get that site flagged for everyone. By chance, a given host
+/// collides with one of ~50k entries around once in 10¹⁴.
 public struct ThreatSet: Sendable, Equatable {
     private var hashes: [ThreatKind: [UInt64]]
 
@@ -48,12 +51,7 @@ public struct ThreatSet: Sendable, Equatable {
     }
 
     static func hash(_ string: String) -> UInt64 {
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x0000_0100_0000_01b3
-        }
-        return hash
+        SHA256.hash(data: Data(string.utf8)).withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) }
     }
 }
 

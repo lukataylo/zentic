@@ -37,6 +37,8 @@ final class Tab: Identifiable {
     var securityWarning: SecurityWarning?
     /// An `http:` page asking for a password or card number.
     var hasInsecureForm = false
+    /// Working out why a certificate failed; dropped if the tab moves on first.
+    @ObservationIgnored private var certificateDiagnosis: Task<Void, Never>?
 
     /// The mode the document on screen is in — what the toolbar should show.
     private(set) var mode: SiteMode = .clean
@@ -343,11 +345,19 @@ final class Tab: Identifiable {
         }
     }
 
-    func goBack() { webView?.goBack() }
+    func goBack() {
+        // The warned-about load never entered history: Back from its warning
+        // is the page underneath, not the one before that.
+        if securityWarning != nil { return leaveWarning() }
+        webView?.goBack()
+    }
     func goForward() { webView?.goForward() }
 
     func reload() {
         failure = nil
+        // Under a warning the web view still holds the previous page;
+        // reloading means trying the warned-about address again.
+        if let warning = securityWarning { return load(warning.url) }
         guard let webView else {
             realize()
             return
@@ -466,6 +476,7 @@ final class Tab: Identifiable {
     fileprivate func didStartNavigation() {
         failure = nil
         securityWarning = nil
+        certificateDiagnosis?.cancel()
         chromeCollapsed = false
     }
 
@@ -522,11 +533,12 @@ final class Tab: Identifiable {
             url: url ?? (ns.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? self.url,
             message: ns.localizedDescription, code: ns.code)
         guard CertificateTrust.isCertificateError(ns) else { return self.failure = failure }
-        Task {
+        certificateDiagnosis?.cancel()
+        certificateDiagnosis = Task {
             // A certificate failure gets its own page; diagnosing it takes a
             // trust evaluation off the main thread first.
             let warning = await CertificateTrust.warning(for: ns)
-            guard webView?.isLoading != true else { return }
+            guard !Task.isCancelled else { return }
             if let warning { securityWarning = .certificate(warning) } else { self.failure = failure }
         }
     }
@@ -635,11 +647,14 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             NSWorkspace.shared.open(url)
             return (.cancel, preferences)
         }
-        if navigationAction.shouldPerformDownload { return (.download, preferences) }
-        if navigationAction.targetFrame?.isMainFrame == true, let tab, let threat = await SafeBrowsing.shared.warning(for: url) {
+        // Downloads too: a file from a malware host is the very thing to stop.
+        if navigationAction.targetFrame?.isMainFrame == true || navigationAction.shouldPerformDownload, let tab,
+            let threat = await SafeBrowsing.shared.warning(for: url)
+        {
             tab.securityWarning = .dangerous(threat)
             return (.cancel, preferences)
         }
+        if navigationAction.shouldPerformDownload { return (.download, preferences) }
         if navigationAction.targetFrame?.isMainFrame == true, let tab {
             await withCheckedContinuation { continuation in
                 tab.prepareBlocking(for: url) { continuation.resume() }
