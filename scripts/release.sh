@@ -3,16 +3,22 @@
 #
 #   scripts/release.sh
 #
-# Steps: archive (Developer ID) → export → notarize → staple → zip. The result is
-# build/release/Zentic-<version>.zip, ready to hand to anyone on macOS 26.
+# Steps: archive (Developer ID) → export → notarize → staple → zip → sign for
+# Sparkle → appcast. The result, in build/release/updates/, is
+# Zentic-<version>.zip and appcast.xml: upload both to a GitHub release tagged
+# v<version> (README › Releasing). Nothing is published from here.
 #
 # Notarization credentials come from a notarytool keychain profile named
-# "zentic-notary". This script never sees or stores the credentials themselves.
+# "zentic-notary"; the Sparkle signing key is the login-keychain item
+# generate_keys made for account "zentic". This script never sees or stores
+# either secret itself.
 set -euo pipefail
 
 cd "${0:A:h}/.."
 
 profile=zentic-notary
+sparkle_account=zentic
+feed=https://github.com/lukataylo/zentic/releases/latest/download/appcast.xml
 out=build/release
 
 step() { print -P "%B==> $1%b" }
@@ -56,6 +62,29 @@ EOF
   exit 78
 fi
 
+# Sparkle's tools come with its Swift package; resolving fetches them.
+xcodegen generate --quiet
+xcodebuild -resolvePackageDependencies -project Zentic.xcodeproj -scheme Zentic \
+  -derivedDataPath build/DerivedData -quiet
+sparkle_bin=build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin
+if [[ ! -x "$sparkle_bin/sign_update" ]]; then
+  echo "error: Sparkle's tools are missing from $sparkle_bin." >&2
+  exit 69
+fi
+
+# An update signed with any key but the one in Info.plist is refused by every
+# installed copy, so check the pair now rather than after notarizing.
+if ! public_key=$("$sparkle_bin/generate_keys" --account "$sparkle_account" -p 2>/dev/null); then
+  echo "error: no Sparkle signing key for account \"$sparkle_account\" in the login keychain." >&2
+  echo "On the release Mac, import the backup: $sparkle_bin/generate_keys --account $sparkle_account -f <file>" >&2
+  exit 78
+fi
+plist_key=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' App/Info.plist)
+if [[ "$public_key" != "$plist_key" ]]; then
+  echo "error: the keychain's Sparkle key ($public_key) is not the one in App/Info.plist ($plist_key)." >&2
+  exit 78
+fi
+
 build_number=$(git rev-list --count HEAD)
 
 # MARK: Archive and export
@@ -63,7 +92,6 @@ build_number=$(git rev-list --count HEAD)
 step "Archiving build $build_number"
 rm -rf "$out"
 mkdir -p "$out"
-xcodegen generate --quiet
 xcodebuild \
   -project Zentic.xcodeproj \
   -scheme Zentic \
@@ -127,10 +155,39 @@ spctl --assess --type execute --verbose "$app"
 
 # MARK: Package
 
-zip="$out/Zentic-$version.zip"
+# generate_appcast reads every archive in this folder, so it holds only this one.
+updates="$out/updates"
+mkdir -p "$updates"
+zip="$updates/Zentic-$version.zip"
 ditto -c -k --keepParent "$app" "$zip"
 
-# Auto-update slots in here: sign "$zip" for Sparkle and add it to the appcast.
+# MARK: Sign and add to the appcast
 
-step "Done"
+step "Signing for Sparkle"
+signature=$("$sparkle_bin/sign_update" --account "$sparkle_account" -p "$zip")
+
+step "Updating appcast.xml"
+# Start from the published feed so earlier releases stay listed. There is none
+# before the first release; generate_appcast then starts a new one.
+if curl -fsSL "$feed" -o "$updates/appcast.xml"; then
+  echo "Extending the published appcast."
+else
+  rm -f "$updates/appcast.xml"
+  echo "No published appcast yet; starting one."
+fi
+# Also signs the feed itself, which Info.plist requires (SURequireSignedFeed).
+"$sparkle_bin/generate_appcast" --account "$sparkle_account" \
+  --download-url-prefix "https://github.com/lukataylo/zentic/releases/download/v$version/" \
+  --link https://github.com/lukataylo/zentic \
+  "$updates"
+
+# Ed25519 signatures are deterministic: the appcast must carry exactly the one
+# made above, or its newest entry describes some other archive.
+if ! grep -qF "$signature" "$updates/appcast.xml"; then
+  echo "error: appcast.xml does not carry the signature of $zip." >&2
+  exit 1
+fi
+
+step "Done. Upload both to a GitHub release tagged v$version:"
 echo "$PWD/$zip"
+echo "$PWD/$updates/appcast.xml"

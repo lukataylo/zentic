@@ -32,7 +32,12 @@ struct BrowserView: View {
         }
         .overlay(alignment: .bottom) {
             if let outcome = browser.recoveryNotice {
-                RecoveryToast(outcome: outcome) { browser.recoveryNotice = nil }
+                RecoveryToast(outcome: outcome) {
+                    browser.recoveryNotice = nil
+                } sendReport: {
+                    browser.recoveryNotice = nil
+                    browser.showsIncidentReport = true
+                }
                     .padding(.bottom, 22)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -47,6 +52,7 @@ struct BrowserView: View {
         .sheet(item: Bindable(browser).spaceDraft) { draft in
             SpaceEditor(draft: draft)
         }
+        .sheet(isPresented: Bindable(browser).showsIncidentReport) { IncidentReportSheet() }
     }
 }
 

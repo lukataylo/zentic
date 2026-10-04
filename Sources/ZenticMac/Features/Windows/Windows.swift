@@ -42,9 +42,11 @@ final class Windows {
     /// never land on top of the final one.
     private let io = DispatchQueue(label: "Zentic.session", qos: .utility)
     let launch: LaunchGuard.Outcome
+    /// What the previous run was doing, when it ended without quitting.
+    let previousRun: Breadcrumb?
 
     private init() {
-        launch = launchGuard.begin()
+        (launch, previousRun) = launchGuard.begin()
         let session = sessionFile.load()
         pending = session?.windows.map(Browser.init(restoring:)) ?? []
         restoredIDs = Set(pending.map(\.id))
@@ -129,6 +131,7 @@ final class Windows {
             // No ordinary window open: ⌘N brings the last one back.
             return show(parked)
         }
+        if !isPrivate { Breadcrumbs.note("Opened a window") }
         let browser = Browser(isPrivate: isPrivate)
         pending.append(browser)
         show(browser)
@@ -158,6 +161,7 @@ final class Windows {
         // still contain them.
         guard !terminating, let index = open.firstIndex(where: { $0 === browser }) else { return }
         open.remove(at: index)
+        if !browser.isPrivate { Breadcrumbs.note("Closed a window") }
         if browser.isPrivate {
             // Its pages, cookies and caches go with it.
             browser.closeAllTabs(forgettingState: false)
@@ -193,6 +197,14 @@ final class Windows {
             let file = self.sessionFile
             self.io.async { file.save(snapshot) }
         }
+    }
+
+    /// Keep the breadcrumb with the unclean-exit marker, in order with the
+    /// marker's other writes, so none can land after a clean quit removes it.
+    func record(_ breadcrumb: Breadcrumb) {
+        guard !terminating else { return }
+        let launchGuard = self.launchGuard
+        io.async { launchGuard.record(breadcrumb) }
     }
 
     /// Quitting: save everything now, and record that the quit was clean.
@@ -244,6 +256,7 @@ final class Windows {
                 // Shown while we waited.
                 guard !open.contains(where: { $0.selectedTab === tab }) else { continue }
                 tab.suspend()
+                if tab.browser?.isPrivate == false { Breadcrumbs.note("Suspended a background tab") }
             }
         }
     }
@@ -252,7 +265,10 @@ final class Windows {
         // Under memory pressure keep only the pages on screen.
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
         source.setEventHandler { [weak self] in
-            MainActor.assumeIsolated { self?.trimLiveTabs(keeping: 0) }
+            MainActor.assumeIsolated {
+                Breadcrumbs.note("Memory pressure: kept only the pages on screen")
+                self?.trimLiveTabs(keeping: 0)
+            }
         }
         source.resume()
         memorySource = source

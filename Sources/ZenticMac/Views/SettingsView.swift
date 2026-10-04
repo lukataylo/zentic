@@ -7,6 +7,7 @@ struct SettingsView: View {
             SwiftUI.Tab("General", systemImage: "gearshape") { GeneralSettings() }
             SwiftUI.Tab("Intelligence", systemImage: "wand.and.sparkles") { IntelligenceSettings() }
             SwiftUI.Tab("Sites", systemImage: "globe") { SitesSettings() }
+            SwiftUI.Tab("Diagnostics", systemImage: "stethoscope") { DiagnosticsSettings() }
         }
         .frame(width: 560)
     }
@@ -71,6 +72,8 @@ private struct GeneralSettings: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            SoftwareUpdateSection()
         }
         .formStyle(.grouped)
         .frame(height: 440)

@@ -16,7 +16,10 @@ struct ZenticApp: App {
         // Zentic restores its own windows from the session, spaces and all;
         // SwiftUI restoring them as well would open each one twice.
         .restorationBehavior(.disabled)
-        .commands { BrowserCommands() }
+        .commands {
+            BrowserCommands()
+            UpdateCommands()
+        }
 
         Settings {
             SettingsView()
@@ -39,6 +42,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate()
+        Diagnostics.shared.start()
+        #if canImport(Sparkle)
+        _ = Updates.shared  // starts the updater's schedule
+        #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {

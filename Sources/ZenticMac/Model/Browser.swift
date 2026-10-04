@@ -31,6 +31,8 @@ final class Browser: Identifiable {
     var spaceDraft: SpaceDraft?
     /// Set on the first window after an unexpected quit, until dismissed.
     var recoveryNotice: LaunchGuard.Outcome?
+    /// The report about that quit, opened from the notice's Send Report….
+    var showsIncidentReport = false
 
     /// The window's frame, kept for the next launch.
     @ObservationIgnored var frame: NSRect? { didSet { scheduleSave() } }
@@ -152,6 +154,7 @@ final class Browser: Identifiable {
         guard target.id != spaceID, spaces.contains(where: { $0 === target }) else { return }
         findBar.isPresented = false
         selectedTab?.didHide()
+        Breadcrumbs.note("Switched space", in: self)
         spaceID = target.id
         if realizingSelection, let tab = target.selected {
             tab.lastShown = .now
@@ -225,6 +228,7 @@ final class Browser: Identifiable {
         } else {
             target.tabs.insert(tab, at: 0)
         }
+        Breadcrumbs.note("Opened a tab", in: self)
         if select { self.select(tab) }
         scheduleSave()
     }
@@ -247,6 +251,7 @@ final class Browser: Identifiable {
             return
         }
         guard let index = owner.tabs.firstIndex(where: { $0 === tab }) else { return }
+        Breadcrumbs.note("Closed a tab", in: self)
         if SiteKey.isWeb(tab.url) { closed.append(tab.snapshotSource) }
         if closed.count > 30 { closed.removeFirst() }
         discard(tab)
@@ -475,6 +480,7 @@ final class Browser: Identifiable {
             tab.design.present()
             return
         }
+        Breadcrumbs.note("Chose \(mode.title) for a site", in: self)
         tab.design.reset()
         setMode(mode, for: tab.url)
         // Also correct when the choice equals what is stored already (e.g. a

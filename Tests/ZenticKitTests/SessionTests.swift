@@ -75,9 +75,9 @@ private func temporaryDirectory() -> URL {
 @Suite struct LaunchGuardTests {
     @Test func aCleanQuitIsNotReportedAsACrash() {
         let guard_ = LaunchGuard(directory: temporaryDirectory())
-        #expect(guard_.begin() == .clean)
+        #expect(guard_.begin().outcome == .clean)
         guard_.end()
-        #expect(guard_.begin() == .clean)
+        #expect(guard_.begin().outcome == .clean)
     }
 
     @Test func endingWithoutQuittingIsReported() {
@@ -85,23 +85,23 @@ private func temporaryDirectory() -> URL {
         _ = guard_.begin()
         guard_.markStartupSurvived()
         // No end(): killed, or crashed after running a while.
-        #expect(guard_.begin() == .recovered)
+        #expect(guard_.begin().outcome == .recovered)
     }
 
     @Test func twoCrashesInARowOnLaunchHoldBackTheSelectedPage() {
         let guard_ = LaunchGuard(directory: temporaryDirectory())
         _ = guard_.begin()  // crashes within the startup window
-        #expect(guard_.begin() == .recovered)  // and again
-        #expect(guard_.begin() == .recoveredRepeatedly)
+        #expect(guard_.begin().outcome == .recovered)  // and again
+        #expect(guard_.begin().outcome == .recoveredRepeatedly)
     }
 
     @Test func aRunThatSurvivesStartupResetsTheCount() {
         let guard_ = LaunchGuard(directory: temporaryDirectory())
         _ = guard_.begin()
-        #expect(guard_.begin() == .recovered)
+        #expect(guard_.begin().outcome == .recovered)
         guard_.markStartupSurvived()
         // Crashed later on: one crash, not a launch loop.
-        #expect(guard_.begin() == .recovered)
+        #expect(guard_.begin().outcome == .recovered)
     }
 }
 

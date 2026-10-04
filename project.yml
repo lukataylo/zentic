@@ -24,6 +24,11 @@ settings:
 packages:
   ZenticPackage:
     path: .
+  # Auto-update. The app target only: `swift run ZenticMac` builds without it,
+  # and the code that uses it is behind `#if canImport(Sparkle)`.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.0
 
 targets:
   Zentic:
@@ -35,6 +40,7 @@ targets:
     dependencies:
       - package: ZenticPackage
         product: ZenticKit
+      - package: Sparkle
     # A shared scheme, so xcodebuild need not invent one (it warns when it does)
     # and the UI-test target has a scheme to join.
     scheme: {}
