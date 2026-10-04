@@ -14,7 +14,7 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
-| `Sources/ZenticKit/Library/` | `HistoryEntry`, `HistoryRange` (Clear History spans), `HistoryDay` (grouping), `Bookmark`/`BookmarkList`, `BookmarkImport` (Netscape HTML) |
+| `Sources/ZenticKit/Library/` | `HistoryEntry`, `HistoryRange` (Clear History spans), `HistoryDay` (grouping), `Bookmark`/`BookmarkList`, `BookmarkImport` (Netscape HTML), `DownloadName` (safe, unique file names) |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
 | `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries) |

@@ -166,7 +166,7 @@ struct DownloadsList: View {
                     Text("No Downloads")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
-                    Text(isPrivate ? "Files downloaded in private windows are listed here until you quit." : "Files you download appear here.")
+                    Text(isPrivate ? "Files downloaded in private windows are listed here until the last private window closes." : "Files you download appear here.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
@@ -258,7 +258,8 @@ private struct DownloadRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(item.name.isEmpty ? "Download starting" : item.name)
         .accessibilityValue(status)
-        .accessibilityAction(named: "Show in Finder") { downloads.reveal(item) }
+        // The row is one element, so its buttons are offered as its actions.
+        .accessibilityActions { actions }
     }
 
     @ViewBuilder

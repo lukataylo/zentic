@@ -73,7 +73,12 @@ final class Downloads {
         }
         let folder = DataDirectory.downloads
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let url = Self.unusedName(for: suggested, in: folder)
+        // Another download may have claimed a name without having written
+        // its file yet; two that share one would collide.
+        let claimed = Set(items.compactMap(\.file))
+        let url = DownloadName.unused(for: suggested, in: folder) {
+            claimed.contains($0) || FileManager.default.fileExists(atPath: $0.path)
+        }
         item.file = url
         item.name = url.lastPathComponent
         // Saved now, as interrupted until it ends: quitting mid-download
@@ -85,6 +90,7 @@ final class Downloads {
     fileprivate func finished(_ task: WKDownload) {
         guard let item = byTask.removeValue(forKey: ObjectIdentifier(task)) else { return }
         item.finish()
+        forgetPrivateIfClosed(item)
         // Bounces the Downloads stack in the Dock, as Safari's downloads do.
         if let path = item.file?.path {
             DistributedNotificationCenter.default().post(name: .init("com.apple.DownloadFileFinished"), object: path)
@@ -95,6 +101,7 @@ final class Downloads {
     fileprivate func failed(_ task: WKDownload, error: Error, resumeData: Data?) {
         guard let item = byTask.removeValue(forKey: ObjectIdentifier(task)) else { return }
         item.fail(error, resumeData: resumeData)
+        forgetPrivateIfClosed(item)
         save()
     }
 
@@ -106,7 +113,9 @@ final class Downloads {
         item.state = .pausing
         task.cancel { [weak self, weak item] data in
             MainActor.assumeIsolated {
-                guard let self, let item else { return }
+                // Cancelled, or finished, while the pause was on its way: that
+                // outcome stands.
+                guard let self, let item, item.state == .pausing else { return }
                 self.byTask[ObjectIdentifier(task)] = nil
                 item.paused(resumeData: data)
                 self.save()
@@ -163,6 +172,17 @@ final class Downloads {
         save()
     }
 
+    /// The last private window closed: what it downloaded is forgotten with
+    /// it, as its pages are. Transfers still running carry on and are
+    /// forgotten when they end.
+    func forgetPrivate() {
+        items.removeAll { $0.isPrivate && !$0.state.isUnderway }
+    }
+
+    private func forgetPrivateIfClosed(_ item: Download) {
+        if item.isPrivate, !Windows.shared.hasPrivateWindow { items.removeAll { $0 === item } }
+    }
+
     func reveal(_ item: Download) {
         guard let file = item.file else { return }
         checkingFile(item) { NSWorkspace.shared.activateFileViewerSelecting([file]) }
@@ -192,7 +212,8 @@ final class Downloads {
     private func host(for item: Download) -> WKWebView {
         if let webView = item.host { return webView }
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = item.dataStore ?? .zentic
+        // A private download never goes near the user's own cookies.
+        configuration.websiteDataStore = item.dataStore ?? (item.isPrivate ? .nonPersistent() : .zentic)
         let webView = WKWebView(frame: .zero, configuration: configuration)
         item.host = webView
         return webView
@@ -206,22 +227,6 @@ final class Downloads {
         let records = items.filter { !$0.isPrivate }.prefix(Self.keptLimit).map(\.record)
         let file = self.file
         io.async { file.save(Array(records)) }
-    }
-
-    static func unusedName(for suggested: String, in folder: URL) -> URL {
-        // A server's suggestion is a name, not a path: `../` must not walk
-        // out of the Downloads folder.
-        let cleaned = (suggested as NSString).lastPathComponent.trimmingCharacters(in: .whitespaces)
-        let name = cleaned.isEmpty || cleaned.hasPrefix(".") ? "download" + cleaned : cleaned
-        var url = folder.appendingPathComponent(name)
-        let base = url.deletingPathExtension().lastPathComponent
-        let ext = url.pathExtension
-        var n = 2
-        while FileManager.default.fileExists(atPath: url.path) {
-            url = folder.appendingPathComponent(ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)")
-            n += 1
-        }
-        return url
     }
 }
 
@@ -364,7 +369,7 @@ final class Download: Identifiable {
         stopWatching()
         resumeData = nil
         host = nil
-        dataStore = nil
+        // `dataStore` stays: Try Again must start over in the same store.
         state = .cancelled
         isRecent = true
     }

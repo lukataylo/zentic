@@ -145,6 +145,8 @@ final class Windows {
 
     var canReopenWindow: Bool { recentlyClosed != nil }
 
+    var hasPrivateWindow: Bool { open.contains(where: \.isPrivate) }
+
     /// How History › Recently Closed names the closed window.
     var recentlyClosedWindowTitle: String? {
         guard let recentlyClosed else { return nil }
@@ -186,6 +188,7 @@ final class Windows {
         if browser.isPrivate {
             // Its pages, cookies and caches go with it.
             browser.closeAllTabs(forgettingState: false)
+            if !hasPrivateWindow { Downloads.shared.forgetPrivate() }
         } else if open.contains(where: { !$0.isPrivate }) {
             // Out of the session, and its tabs' files go; their state stays
             // in memory for Reopen Closed Window.
