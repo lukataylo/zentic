@@ -39,6 +39,10 @@ extension SyncedDevice {
 
     /// Nil for a record this version cannot read: missing fields, or spaces
     /// written by a newer Zentic.
+    ///
+    /// Only web addresses are kept. A click on a synced tab loads it, so a
+    /// `javascript:` or `file:` address in a record — however it got there —
+    /// must never reach a tab.
     public init?(record: CKRecord) {
         guard record.recordType == Self.recordType,
             let name = record[Field.name] as? String,
@@ -48,7 +52,30 @@ extension SyncedDevice {
             payload.version <= Self.payloadVersion
         else { return nil }
         let kind = (record[Field.kind] as? String).flatMap(Kind.init) ?? .desktop
-        self.init(id: record.recordID.recordName, name: name, kind: kind, modified: modified, spaces: payload.spaces)
+        let spaces = payload.spaces.map { space in
+            var space = space
+            space.pinned.removeAll { !SiteKey.isWeb($0.url) }
+            space.tabs.removeAll { !SiteKey.isWeb($0.url) }
+            return space
+        }
+        self.init(id: record.recordID.recordName, name: name, kind: kind, modified: modified, spaces: spaces)
+    }
+}
+
+extension SyncedDevices {
+    /// A fetch's changes. CKSyncEngine fetches every zone in the private
+    /// database, and each isolated run (`ZENTIC_DATA_DIR`) keeps its device in
+    /// a zone of its own: only records in `zone` are this install's other
+    /// Macs, and `ownID`'s record is this Mac, not another one.
+    public mutating func apply(
+        fetched records: [CKRecord], deleted: [CKRecord.ID], in zone: CKRecordZone.ID, ownID: String
+    ) {
+        for record in records where record.recordID.zoneID == zone && record.recordID.recordName != ownID {
+            if let device = SyncedDevice(record: record) { apply(device) }
+        }
+        for id in deleted where id.zoneID == zone {
+            remove(id: id.recordName)
+        }
     }
 }
 

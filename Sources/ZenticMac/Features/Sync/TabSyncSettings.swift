@@ -46,7 +46,10 @@ struct TabSyncSettings: View {
                     .foregroundStyle(.secondary)
             case .synced(let date?):
                 Label {
-                    Text("Last synced \(date, format: .relative(presentation: .named))")
+                    // Re-rendered each minute, so "Last synced" never sits at a stale "now".
+                    TimelineView(.everyMinute) { _ in
+                        Text("Last synced \(date, format: .relative(presentation: .named))")
+                    }
                 } icon: {
                     Image(systemName: "checkmark.icloud")
                         .foregroundStyle(.green)

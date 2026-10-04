@@ -7,6 +7,9 @@ import ZenticKit
 struct OtherDevicesSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("otherDevicesCollapsed", store: DataDirectory.defaults) private var collapsed = false
+    /// Macs folded away, by id; kept here rather than in each row so switching
+    /// spaces (which rebuilds the section) does not unfold them.
+    @AppStorage("otherDevicesFolded", store: DataDirectory.defaults) private var foldedIDs = ""
     private var sync: TabSync { .shared }
 
     var body: some View {
@@ -15,7 +18,7 @@ struct OtherDevicesSection: View {
                 header
                 if !collapsed {
                     ForEach(sync.devices) { device in
-                        DeviceGroup(device: device)
+                        DeviceGroup(device: device, expanded: expandedBinding(for: device.id))
                     }
                     .transition(reveal)
                 }
@@ -55,6 +58,18 @@ struct OtherDevicesSection: View {
         .accessibilityAddTraits(.isHeader)
     }
 
+    private func expandedBinding(for id: String) -> Binding<Bool> {
+        Binding {
+            !foldedIDs.split(separator: "\n").contains(Substring(id))
+        } set: { expanded in
+            var ids = foldedIDs.split(separator: "\n").map(String.init).filter { $0 != id }
+            // Only Macs still listed, so ids of long-gone ones do not pile up.
+            ids = ids.filter { folded in sync.devices.contains { $0.id == folded } }
+            if !expanded { ids.append(id) }
+            foldedIDs = ids.joined(separator: "\n")
+        }
+    }
+
     private var animation: Animation {
         reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.36, dampingFraction: 0.86)
     }
@@ -69,7 +84,7 @@ private struct DeviceGroup: View {
     @Environment(Browser.self) private var browser
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let device: SyncedDevice
-    @State private var expanded = true
+    @Binding var expanded: Bool
     @State private var showsAll = false
     @State private var hovering = false
 
@@ -144,8 +159,8 @@ private struct DeviceGroup: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
-        .help("\(device.name) — \(device.tabCount) tabs")
-        .accessibilityLabel("\(device.name), \(device.tabCount) tabs")
+        .help(Text("\(device.name) — ^[\(device.tabCount) tab](inflect: true)"))
+        .accessibilityLabel(Text("\(device.name), ^[\(device.tabCount) tab](inflect: true)"))
         .accessibilityValue(expanded ? "Expanded" : "Collapsed")
         .accessibilityHint("Shows or hides the tabs open on this Mac")
     }

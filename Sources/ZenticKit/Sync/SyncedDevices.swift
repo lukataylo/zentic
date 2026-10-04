@@ -36,7 +36,7 @@ public struct SyncedDevices: Codable, Sendable, Equatable {
 }
 
 extension [SyncedDevice] {
-    /// Tabs on these devices whose title or address contains `query`, most
+    /// Tabs on these devices whose title or host contains `query`, most
     /// recently sent device first, each address once.
     public func tabs(matching query: String, limit: Int) -> [(device: SyncedDevice, tab: SyncedDevice.Tab)] {
         let q = query.trimmingCharacters(in: .whitespaces)

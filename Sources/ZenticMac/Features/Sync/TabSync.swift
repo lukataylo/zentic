@@ -126,8 +126,13 @@ final class TabSync {
         status = .starting
         Task {
             defer { starting = false }
+            // On the cache's own queue, so it is read after any pending
+            // delete: an account switch removes the file and restarts at once,
+            // and must not start from the previous account's state.
             let file = self.file
-            let cache = await Task.detached(priority: .utility) { file.load() ?? Cache() }.value
+            let cache = await withCheckedContinuation { done in
+                io.async { done.resume(returning: file.load() ?? Cache()) }
+            }
             let container = CKContainer(identifier: Self.containerID)
             let account = (try? await container.accountStatus()) ?? .couldNotDetermine
             guard isEnabled else { return }
@@ -221,8 +226,13 @@ final class TabSync {
     private func queueIfChanged() {
         guard let engine else { return }
         let current = thisDevice()
-        if let sent = cache?.sent, sent.id == current.id, sent.hasSameContent(as: current) { return }
+        // Kept even when unchanged: a save still pending (offline) must send
+        // these tabs, not the ones queued before the user put them back.
         queued = current
+        if let sent = cache?.sent, sent.id == current.id, sent.hasSameContent(as: current) {
+            engine.state.remove(pendingRecordZoneChanges: [.saveRecord(recordID)])
+            return
+        }
         lastQueuedAt = .now
         // The engine sends it within moments, and retries if offline.
         engine.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
@@ -307,17 +317,12 @@ final class TabSync {
             showDevices()
 
         case .fetchedRecordZoneChanges(let changes):
-            for modification in changes.modifications {
-                let record = modification.record
-                if record.recordID == recordID {
-                    cache?.systemFields = record.encodedSystemFields
-                } else if let device = SyncedDevice(record: record) {
-                    cache?.devices.apply(device)
-                }
+            let records = changes.modifications.map(\.record)
+            if let own = records.first(where: { $0.recordID == recordID }) {
+                cache?.systemFields = own.encodedSystemFields
             }
-            for deletion in changes.deletions where deletion.recordID != recordID {
-                cache?.devices.remove(id: deletion.recordID.recordName)
-            }
+            cache?.devices.apply(
+                fetched: records, deleted: changes.deletions.map(\.recordID), in: zoneID, ownID: deviceID)
             showDevices()
 
         case .sentRecordZoneChanges(let sent):
@@ -361,6 +366,11 @@ final class TabSync {
             cache?.systemFields = nil
         case .quotaExceeded:
             problem = "iCloud storage is full."
+            return
+        case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy,
+            .notAuthenticated, .operationCancelled:
+            // The engine retries these by itself when conditions allow. Being
+            // offline is not a problem worth a warning in Settings.
             return
         default:
             problem = error.localizedDescription

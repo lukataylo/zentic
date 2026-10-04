@@ -123,6 +123,24 @@ private func device(_ id: String, modified: Date, tabs: [String] = ["https://exa
         #expect(SyncedDevice(record: record) == nil)
     }
 
+    @Test func onlyWebAddressesFromARecordReachATab() throws {
+        let record = CKRecord(recordType: SyncedDevice.recordType, recordID: CKRecord.ID(recordName: "other", zoneID: zone))
+        try SyncedDevice(
+            id: "other", name: "Mac", kind: .desktop, modified: .now,
+            spaces: [
+                .init(
+                    name: "Work", icon: "star",
+                    pinned: [.init(title: "Script", url: URL(string: "javascript:alert(1)")!)],
+                    tabs: [
+                        .init(title: "File", url: URL(string: "file:///etc/passwd")!),
+                        .init(title: "Page", url: URL(string: "https://example.com")!),
+                    ])
+            ]
+        ).write(to: record)
+        let device = try #require(SyncedDevice(record: record))
+        #expect(device.allTabs.map(\.url.absoluteString) == ["https://example.com"])
+    }
+
     @Test func systemFieldsSurviveTheRoundTripSoTheNextSaveIsAnUpdate() throws {
         let record = CKRecord(recordType: SyncedDevice.recordType, recordID: CKRecord.ID(recordName: "me", zoneID: zone))
         let restored = try #require(CKRecord(systemFields: record.encodedSystemFields))
@@ -152,6 +170,28 @@ private func device(_ id: String, modified: Date, tabs: [String] = ["https://exa
 
         devices.remove(id: "new")
         #expect(devices.others(than: "me", now: now).map(\.id) == ["old"])
+    }
+
+    @Test func aFetchKeepsOnlyOtherMacsInThisInstallsZone() throws {
+        let zone = CKRecordZone.ID(zoneName: "Tabs", ownerName: CKCurrentUserDefaultName)
+        // An isolated test run's zone: never one of the user's Macs.
+        let testZone = CKRecordZone.ID(zoneName: "Tabs-1234", ownerName: CKCurrentUserDefaultName)
+        func record(_ id: String, in zone: CKRecordZone.ID) throws -> CKRecord {
+            let record = CKRecord(recordType: SyncedDevice.recordType, recordID: CKRecord.ID(recordName: id, zoneID: zone))
+            try device(id, modified: .now).write(to: record)
+            return record
+        }
+        var devices = SyncedDevices()
+        devices.apply(
+            fetched: [try record("me", in: zone), try record("air", in: zone), try record("test", in: testZone)],
+            deleted: [], in: zone, ownID: "me")
+        #expect(devices.byID.keys.sorted() == ["air"])
+
+        // A deletion in another zone with the same name is not this one's.
+        devices.apply(fetched: [], deleted: [CKRecord.ID(recordName: "air", zoneID: testZone)], in: zone, ownID: "me")
+        #expect(devices.byID.keys.sorted() == ["air"])
+        devices.apply(fetched: [], deleted: [CKRecord.ID(recordName: "air", zoneID: zone)], in: zone, ownID: "me")
+        #expect(devices.byID.isEmpty)
     }
 
     @Test func searchMatchesTitleOrHostEachAddressOnce() {

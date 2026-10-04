@@ -110,7 +110,8 @@ private struct SpacePage: View {
                     if space.allTabs.isEmpty && !browser.isPrivate {
                         EmptySpaceHint(space: space)
                     }
-                    if !browser.isPrivate {
+                    // The visible space only: every space's page is laid out side by side.
+                    if !browser.isPrivate && space === browser.space {
                         OtherDevicesSection()
                     }
                 }
