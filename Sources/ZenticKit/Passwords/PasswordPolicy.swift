@@ -1,7 +1,7 @@
 import Foundation
 
 /// What to ask after someone signs in.
-public enum PasswordOffer: Equatable, Sendable {
+public enum PasswordOffer: Hashable, Sendable {
     /// A new account: "Save password for example.com?"
     case save(LoginOrigin, username: String, password: String)
     /// A known account with a different password. Several candidates when the

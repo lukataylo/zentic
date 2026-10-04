@@ -26,6 +26,12 @@ final class TabPasswords {
         /// The moment after Save: a check mark, then gone.
         case saved(PasswordOffer)
         case failed(PasswordOffer, String)
+
+        var offer: PasswordOffer {
+            switch self {
+            case .offer(let offer), .saved(let offer), .failed(let offer, _): offer
+            }
+        }
     }
 
     private(set) var menu: Menu?
@@ -198,7 +204,9 @@ final class TabPasswords {
         let (origin, name, password): (LoginOrigin, String, String) =
             switch offer {
             case .save(let origin, let username, let password): (origin, username, password)
-            case .update(let origin, let usernames, let password): (origin, username ?? usernames[0], password)
+            // Only one of the offer's own accounts: never a name from elsewhere.
+            case .update(let origin, let usernames, let password):
+                (origin, username.flatMap { usernames.contains($0) ? $0 : nil } ?? usernames[0], password)
             }
         Task {
             do {

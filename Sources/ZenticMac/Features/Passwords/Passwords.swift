@@ -7,7 +7,8 @@ import ZenticKit
 /// for, and the AutoFill preference.
 ///
 /// Holds no secret. Passwords stay in the Keychain and are read only at the
-/// moment one is filled, revealed or copied — each behind `unlock`.
+/// moment one is filled, revealed or copied — each behind `unlock` — or to
+/// compare after a sign-in while an earlier `unlock` still covers it.
 @MainActor
 @Observable
 final class Passwords {
@@ -24,6 +25,9 @@ final class Passwords {
         didSet { DataDirectory.defaults.set(autoFill, forKey: "passwordAutoFill") }
     }
 
+    /// Why the account list could not be read, until a read succeeds.
+    private(set) var loadError: (any Error)?
+
     @ObservationIgnored private var loading: Task<Void, Never>?
     @ObservationIgnored private let neverSaveFile = JSONFile<[String]>(name: "password-never-save.json")
 
@@ -39,7 +43,8 @@ final class Passwords {
     /// nothing is asked of the Keychain until a sign-in field or the Settings
     /// pane needs it.
     func loadIfNeeded() async {
-        if loading == nil { reload() }
+        // After a failed read, every caller tries again.
+        if loading == nil || loadError != nil { reload() }
         await loading?.value
     }
 
@@ -48,8 +53,15 @@ final class Passwords {
         let previous = loading
         loading = Task {
             await previous?.value
-            if let logins = try? await Task.detached(priority: .userInitiated, operation: { try PasswordKeychain.logins() }).value {
+            do {
+                let logins = try await Task.detached(priority: .userInitiated) { try PasswordKeychain.logins() }.value
                 self.logins = logins.sorted(by: Self.order)
+                loadError = nil
+            } catch {
+                // A locked keychain (after wake, say) is not an empty one:
+                // keep what is known, say why, and let the next sign-in field
+                // try again rather than offering nothing all session.
+                loadError = error
             }
         }
     }
@@ -59,15 +71,21 @@ final class Passwords {
     }
 
     /// What to ask after a sign-in on `origin`. Reads stored passwords, off the
-    /// main thread, only for this origin's accounts and only to compare.
+    /// main thread, only for this origin's accounts, only to compare — and only
+    /// inside the grace period of an `unlock` the person already gave (a fill
+    /// just before signing in is one). Otherwise no secret is read: a sign-in
+    /// to a saved account is taken as the same password, so an ordinary sign-in
+    /// neither decrypts every account on the site nor raises a Keychain prompt
+    /// nobody asked for. A new account is offered either way.
     func offer(origin: LoginOrigin, username: String, password: String, isPrivate: Bool) async -> PasswordOffer? {
         guard !isPrivate else { return nil }
         await loadIfNeeded()
-        let (saved, never) = (logins.filter { $0.origin == origin }, Set(neverSave))
+        let (saved, never, unlocked) = (logins.filter { $0.origin == origin }, Set(neverSave), isUnlocked)
         return await Task.detached(priority: .userInitiated) {
             PasswordPolicy.offer(
                 origin: origin, username: username, password: password, saved: saved,
-                stored: { PasswordKeychain.password(for: $0) }, neverSave: never, isPrivate: false)
+                stored: { unlocked ? PasswordKeychain.password(for: $0) : password },
+                neverSave: never, isPrivate: false)
         }.value
     }
 
@@ -135,10 +153,15 @@ final class Passwords {
     @ObservationIgnored private var unlockedAt: ContinuousClock.Instant?
     @ObservationIgnored private var unlocking: Task<Bool, Never>?
 
+    /// Whether an `unlock` given within the grace period still covers a read.
+    private var isUnlocked: Bool {
+        unlockedAt.map { ContinuousClock.now - $0 < Self.unlockGrace } ?? false
+    }
+
     /// Ask for Touch ID or the login password, unless asked within the grace
     /// period. Concurrent requests share one prompt.
     func unlock(reason: String) async -> Bool {
-        if let unlockedAt, ContinuousClock.now - unlockedAt < Self.unlockGrace { return true }
+        if isUnlocked { return true }
         if let unlocking { return await unlocking.value }
         let task = Task { () -> Bool in
             let context = LAContext()

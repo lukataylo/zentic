@@ -126,6 +126,42 @@ export function submission(fields: LoginFields, remembered = ""): Submission | n
   return { username, password };
 }
 
+/**
+ * A field that holds a username: one `roleOf` names, or an email field. The
+ * first step of a two-step sign-in is often a bare email field, with no
+ * password beside it to say what it is.
+ */
+function holdsUsername(input: HTMLInputElement): boolean {
+  return usable(input) && (input.type === "email" || tokens(input).includes("email") || roleOf(input) === "username");
+}
+
+/** Words that name a control as sending a sign-in, when nothing else does. */
+const SIGN_IN_WORDS = /\b(log ?in|sign ?in|next|continue|submit)\b/;
+/** Controls beside a sign-in that do not send it, whatever their type. */
+const NOT_SIGN_IN_WORDS = /\b(show|hide|reveal|toggle|forgot|cancel|back|with)\b/;
+
+function labelOf(control: Element): string {
+  const value = control.tagName === "INPUT" ? (control as HTMLInputElement).value : "";
+  return (control.getAttribute("aria-label") ?? (control.textContent?.trim() || value)).toLowerCase();
+}
+
+/**
+ * Whether clicking `control` sends a sign-in: a form's submit button, or a
+ * form-less control whose words say so. Not "Forgot password?", "Cancel",
+ * "Sign in with Google" or the eye that shows the password — counting those
+ * would offer to save a half-typed password before the sign-in happens.
+ */
+export function sendsSignIn(control: Element): boolean {
+  const label = labelOf(control);
+  if (NOT_SIGN_IN_WORDS.test(label)) return false;
+  if (control.tagName === "INPUT") return (control as HTMLInputElement).type.toLowerCase() === "submit";
+  const button = control.tagName === "BUTTON" ? (control as HTMLButtonElement) : null;
+  if (button?.form && button.type === "submit") return true;
+  // A form-less button's type means nothing, a [role=button] has none, and a
+  // type=button in a form may still be what a script sends it with: words decide.
+  return SIGN_IN_WORDS.test(label);
+}
+
 /** The first visible sign-in field on the page — where ⇧⌘A goes. */
 export function firstLoginField(doc: Document): HTMLInputElement | null {
   const candidates: HTMLInputElement[] = [];
@@ -198,6 +234,9 @@ export function startPasswords(
   // A two-step sign-in asks for the username on one screen and the password
   // on the next, often without a navigation between.
   let remembered = "";
+  // The username field the person last typed into, for a form-less first
+  // step sent by a click: nothing else ties that click to the field.
+  let nameField: HTMLInputElement | null = null;
   // A sign-in reported once is not reported again when the same click also
   // sends the form.
   let reported = "";
@@ -222,15 +261,17 @@ export function startPasswords(
     post({ type: "login-dismiss" });
   };
 
-  const consider = (scope: Element | null, from?: HTMLInputElement) => {
+  const consider = (scope: Element | null, from?: HTMLInputElement | null) => {
     if (!save) return;
+    // The first step of a two-step sign-in: keep the username for the next.
+    const fromName = from?.isConnected && holdsUsername(from) ? from.value.trim() : "";
     if (!scope) {
-      if (from && roleOf(from) === "username" && from.value.trim()) remembered = from.value.trim();
+      if (fromName) remembered = fromName;
       return;
     }
     const fields = loginFields(scope);
     if (fields.passwords.length === 0) {
-      const name = fields.username?.value.trim();
+      const name = fields.username?.value.trim() || fromName;
       if (name) remembered = name;
       return;
     }
@@ -246,7 +287,14 @@ export function startPasswords(
   doc.addEventListener(
     "input",
     (event) => {
-      if (trusted(event) && isInput(event.target) && event.target.type === "password") typed.add(event.target);
+      if (!trusted(event) || !isInput(event.target)) return;
+      if (event.target.type === "password") typed.add(event.target);
+      // A username being typed anew: the one from an earlier step (or an
+      // earlier fill) no longer stands for whoever signs in next.
+      else if (holdsUsername(event.target)) {
+        remembered = "";
+        nameField = event.target;
+      }
     },
     true,
   );
@@ -277,11 +325,8 @@ export function startPasswords(
       // Many sign-ins are sent by a button's click handler, with no `submit`
       // to hear. When there is one as well, it reports nothing twice.
       const button = target.closest("button, input[type='submit' i], [role='button']");
-      if (!button) return;
-      // Not the eye that shows the password.
-      const label = (button.getAttribute("aria-label") ?? button.textContent ?? "").toLowerCase();
-      if (/\b(show|hide|reveal)\b/.test(label)) return;
-      consider(scopeOf(button));
+      if (!button || !sendsSignIn(button)) return;
+      consider(scopeOf(button), nameField?.isConnected ? nameField : field);
     },
     true,
   );
@@ -346,8 +391,17 @@ export function startPasswords(
     true,
   );
 
-  // The menu stands where the field was; anything that moves the field closes it.
-  doc.addEventListener("scroll", dismiss, { capture: true, passive: true });
+  // The menu stands where the field was; anything that moves the field closes
+  // it. Only a scroll of something that holds the field: a carousel or a chat
+  // log scrolling itself would otherwise close the menu as soon as it opened.
+  doc.addEventListener(
+    "scroll",
+    (event) => {
+      const target = event.target as Node | null;
+      if (target === doc || (field && target?.nodeType === 1 && (target as Element).contains(field))) dismiss();
+    },
+    { capture: true, passive: true },
+  );
   win.addEventListener("resize", dismiss, { passive: true });
   win.addEventListener("pagehide", dismiss);
 
