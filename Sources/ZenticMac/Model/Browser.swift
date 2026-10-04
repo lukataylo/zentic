@@ -30,6 +30,11 @@ final class Browser: Identifiable {
     /// The address being edited in place in the open toolbar.
     var editingAddress = false
     var findBar = FindBarState()
+
+    /// A field over the page has the keyboard — the address, the command bar
+    /// or Find. Return there is the field's: AppKit would otherwise also press
+    /// the window's default button, on a card under the field.
+    var isTypingOverPage: Bool { commandBar.isPresented || editingAddress || findBar.isPresented }
     var modePickerPresented = false
     /// The New Space or Edit Space sheet, while it is up.
     var spaceDraft: SpaceDraft?

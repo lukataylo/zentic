@@ -8,6 +8,7 @@ import ZenticKit
 /// the result in front of them.
 struct Composer: View {
     @Environment(AppModel.self) private var app
+    @Environment(Browser.self) private var browser
     let tab: Tab
     @Bindable var design: DesignSession
     @FocusState private var focused: Bool
@@ -139,7 +140,8 @@ struct Composer: View {
             Button("Keep This Version") { design.keep(on: tab) }
                 .controlSize(.regular)
                 .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return, modifiers: .command)
+                // Not while the command bar is up: its ⌘↩ opens in a new tab.
+                .keyboardShortcut(browser.isTypingOverPage ? nil : KeyboardShortcut(.return, modifiers: .command))
         }
     }
 

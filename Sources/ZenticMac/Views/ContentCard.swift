@@ -17,6 +17,10 @@ struct ContentCard: View {
         return dark ? .dark : .light
     }
 
+    /// Whether a button on the card may answer Return: not while something
+    /// over the page is being typed in (the address, the Composer).
+    private func takesReturn(_ tab: Tab) -> Bool { !browser.isTypingOverPage && !tab.design.isPresented }
+
     var body: some View {
         let tab = browser.selectedTab
         ZStack(alignment: .top) {
@@ -30,10 +34,10 @@ struct ContentCard: View {
                 SecurityWarningView(tab: tab, warning: warning)
                     .transition(.opacity)
             } else if let tab, let failure = tab.failure {
-                LoadFailureView(failure: failure) { tab.reload() }
+                LoadFailureView(failure: failure, takesReturn: takesReturn(tab)) { tab.reload() }
                     .transition(.opacity)
             } else if let tab, !tab.isRealized {
-                HeldTabView(tab: tab)
+                HeldTabView(tab: tab, takesReturn: takesReturn(tab))
             } else if tab == nil {
                 if browser.isPrivate { PrivateEmptyState() } else { EmptyStateView() }
             }
@@ -103,6 +107,7 @@ struct ContentCard: View {
 /// as WebKit's blank page.
 private struct LoadFailureView: View {
     let failure: LoadFailure
+    let takesReturn: Bool
     var retry: () -> Void
 
     var body: some View {
@@ -129,7 +134,7 @@ private struct LoadFailureView: View {
             Button("Try Again", action: retry)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(takesReturn ? .defaultAction : nil)
                 .padding(.top, 6)
         }
         .padding(40)
