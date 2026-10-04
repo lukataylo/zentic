@@ -87,7 +87,11 @@ final class Tab: Identifiable {
     var lastShown = Date()
     /// Back/forward list and scroll position, kept across a suspension.
     @ObservationIgnored private var savedState: Any?
-    var displayHost: String { URLGuess.displayHost(securityWarning?.url ?? url ?? pendingURL) }
+    var displayHost: String {
+        // A warning page stands in for whatever the tab showed before, extension page or not.
+        if securityWarning == nil, let name = Extensions.shared.name(ofPage: url) { return name }
+        return URLGuess.displayHost(securityWarning?.url ?? url ?? pendingURL)
+    }
     var siteKey: String? { SiteKey.for(url ?? pendingURL) }
 
     init(id: UUID = UUID(), url: URL?, title: String = "", pinnedURL: URL? = nil) {
@@ -293,6 +297,9 @@ final class Tab: Identifiable {
             }
         // Without a Safari token many sites serve a degraded page to WKWebView.
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
+        // One controller for every tab; WebKit keeps each extension to the
+        // windows it is allowed in (see `Extensions.controller`).
+        configuration.webExtensionController = Extensions.shared.controller
         return configuration
     }
 
@@ -713,7 +720,7 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             return (.cancel, preferences)
         }
         if let url, let scheme = url.scheme?.lowercased(),
-            !["http", "https", "about", "data", "blob", "file", "javascript"].contains(scheme)
+            !["http", "https", "about", "data", "blob", "file", "javascript", "webkit-extension"].contains(scheme)
         {
             // mailto:, facetime:, app links — hand to the system.
             NSWorkspace.shared.open(url)

@@ -18,6 +18,7 @@ struct FloatingToolbar: View {
             && !tab.design.isPresented && !browser.commandBar.isPresented && !browser.findBar.isPresented
             && tab.permissions.current == nil
             && Downloads.shared.presentedIn != browser.id
+            && !Extensions.shared.prompts.contains { $0.window == browser.id }
     }
 
     var body: some View {
@@ -60,6 +61,7 @@ struct FloatingToolbar: View {
                             .glassEffectID("downloads", in: glass)
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
+                    ExtensionToolbarItems(tab: tab)
                 }
                 .padding(.leading, 10)
                 .padding(.trailing, 10)

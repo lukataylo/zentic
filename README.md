@@ -207,6 +207,39 @@ The first launch shows a short welcome over the first window: what Zentic does, 
 version new sites open in, making it the default browser, and an optional OpenAI key
 for Custom. *Help › Welcome to Zentic* shows it again.
 
+## Extensions
+
+Zentic runs the Safari Web Extensions you already have. Any app you installed that
+carries one (Bitwarden, AdBlock, and so on) shows up in *Settings › Extensions*; turn it
+on there. Nothing runs until you do.
+
+**Websites.** A new extension runs nowhere. Where it would like to run, its button
+beside the address bar shows a small orange dot; click it and Zentic asks whether to
+allow that site for a day or for good, then does what the button does. Settings lists
+the sites you allowed, takes new ones, or opens it to every site it asks for. The API
+permissions an extension declares (storage, tabs, menus) are accepted when you turn it
+on, as in Safari; Settings spells out what each means.
+
+**The toolbar.** Each extension gets a small glass button with its badge. The badge is
+coloured until you open the popup, then grey. Past three, two stay and the rest fold
+into a puzzle-piece menu. Right-click a button for the extension's own menu items,
+this site's access, its options page, or to turn it off. Keyboard shortcuts work, but
+when one matches a Zentic shortcut, Zentic's wins. The shortcuts are listed in
+Settings.
+
+**Private windows** get no extensions unless you switch on *Allow in Private Windows*
+for one. Sites allowed from a private window last until you quit and are never saved.
+
+**Developers:** *Load Unpacked Extension…* in Settings runs an extension straight
+from its folder. Its details sheet has *Reload*, and pages, popups and background
+pages can all be inspected in Safari's Web Inspector. `Tests/Fixtures/Extensions/marker`
+is a minimal example.
+
+*Remove from Zentic* turns an extension off and deletes what it stored in Zentic. The
+app stays installed. Not supported yet: native messaging to an extension's own app
+(Bitwarden's Touch ID unlock, for one). Safari routes it through private plumbing, so
+features that depend on it don't work here.
+
 ## Keyboard
 
 | | |

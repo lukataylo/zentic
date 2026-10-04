@@ -481,6 +481,7 @@ private struct TabRow: View {
         }
         Button("Move to New Window") { browser.moveToNewWindow(tab) }
             .disabled(browser.allTabs.count == 1)
+        ExtensionTabMenuItems(tab: tab)
         Divider()
         if tab.isPinned {
             Button("Unload Pinned Tab") { browser.close(tab) }

@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OpenFromElsewhere.install()
         Blocking.warm()
         SafeBrowsing.shared.start()
+        Extensions.shared.start()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

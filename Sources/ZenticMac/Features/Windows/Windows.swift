@@ -109,6 +109,7 @@ final class Windows {
             browser = Browser()
         }
         open.append(browser)
+        Extensions.shared.events.windowOpened(browser)
         // Held back once, when first restored; a window reopened later loads.
         let holdsBack = launch == .recoveredRepeatedly && restoredIDs.remove(browser.id) != nil
         if !holdsBack { browser.selectedTab?.realize() }
@@ -160,6 +161,17 @@ final class Windows {
         scheduleSave()
     }
 
+    /// A new window for an extension's `windows.create`, returned before it
+    /// appears so the extension can be answered at once.
+    func openWindow(showing urls: [URL], private isPrivate: Bool) -> Browser {
+        let browser = Browser(isPrivate: isPrivate)
+        for url in urls.reversed() { browser.openTab(url, select: false) }
+        browser.space.selectedID = browser.tabs.first?.id
+        pending.append(browser)
+        show(browser)
+        return browser
+    }
+
     var canReopenWindow: Bool { recentlyClosed != nil }
 
     var hasPrivateWindow: Bool { open.contains(where: \.isPrivate) }
@@ -202,6 +214,7 @@ final class Windows {
         // still contain them.
         guard !terminating, let index = open.firstIndex(where: { $0 === browser }) else { return }
         open.remove(at: index)
+        Extensions.shared.windowClosed(browser)
         if browser.isPrivate {
             // Its pages, cookies and caches go with it.
             browser.closeAllTabs(forgettingState: false)

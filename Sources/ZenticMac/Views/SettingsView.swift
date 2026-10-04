@@ -10,6 +10,7 @@ struct SettingsView: View {
             SwiftUI.Tab("Passwords", systemImage: "key") { PasswordsSettings() }
             SwiftUI.Tab("Permissions", systemImage: "hand.raised") { PermissionsSettings() }
             SwiftUI.Tab("Security", systemImage: "checkmark.shield") { SafetySettings() }
+            SwiftUI.Tab("Extensions", systemImage: "puzzlepiece.extension") { ExtensionsSettings() }
         }
         .frame(width: 560)
     }
