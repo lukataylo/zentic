@@ -16,7 +16,7 @@ struct SpaceDraft: Identifiable {
         name = ""
         let usedIcons = Set(browser.spaces.map(\.icon))
         let usedTints = Set(browser.spaces.map(\.tint))
-        icon = SpaceEditor.symbols.first { !usedIcons.contains($0) } ?? "circle"
+        icon = SpaceEditor.symbols.first { !usedIcons.contains($0.key) }?.key ?? "circle"
         tint = SidebarTint.allCases.first { !usedTints.contains($0) } ?? .indigo
     }
 
@@ -52,11 +52,15 @@ struct SpaceEditor: View {
     @State private var emoji = ""
     @FocusState private var nameFocused: Bool
 
-    static let symbols = [
-        "person.crop.circle", "briefcase", "house", "book", "graduationcap", "hammer",
-        "paintpalette", "music.note", "gamecontroller", "cart", "airplane", "leaf",
-        "heart", "star", "bolt", "flame", "globe.europe.africa", "camera",
-        "film", "chart.line.uptrend.xyaxis", "terminal", "newspaper", "cup.and.saucer", "moon.stars",
+    /// The symbols offered, with the names VoiceOver and tooltips use.
+    static let symbols: KeyValuePairs = [
+        "person.crop.circle": "Person", "briefcase": "Briefcase", "house": "House", "book": "Book",
+        "graduationcap": "Graduation Cap", "hammer": "Hammer", "paintpalette": "Palette",
+        "music.note": "Music", "gamecontroller": "Game Controller", "cart": "Cart", "airplane": "Airplane",
+        "leaf": "Leaf", "heart": "Heart", "star": "Star", "bolt": "Bolt", "flame": "Flame",
+        "globe.europe.africa": "Globe", "camera": "Camera", "film": "Film",
+        "chart.line.uptrend.xyaxis": "Chart", "terminal": "Terminal", "newspaper": "Newspaper",
+        "cup.and.saucer": "Coffee", "moon.stars": "Night",
     ]
 
     var body: some View {
@@ -73,15 +77,15 @@ struct SpaceEditor: View {
 
                 section("Icon") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8), spacing: 6) {
-                        ForEach(Self.symbols, id: \.self) { symbol in
+                        ForEach(Self.symbols, id: \.key) { symbol, name in
                             IconChoice(selected: draft.icon == symbol, tint: draft.tint) {
                                 Image(systemName: symbol).font(.system(size: 13, weight: .medium))
                             } action: {
                                 draft.icon = symbol
                                 emoji = ""
                             }
-                            .help(symbol)
-                            .accessibilityLabel(symbol.replacingOccurrences(of: ".", with: " "))
+                            .help(name)
+                            .accessibilityLabel(name)
                         }
                     }
                     HStack(spacing: 8) {

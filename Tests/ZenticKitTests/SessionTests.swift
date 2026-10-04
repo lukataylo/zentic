@@ -110,23 +110,48 @@ private func temporaryDirectory() -> URL {
         let store = TabStateStore(directory: temporaryDirectory())
         let kept = UUID()
         let closed = UUID()
-        await store.write(Data([1, 2, 3]), for: kept)
-        await store.write(Data([4]), for: closed)
+        store.write(Data([1, 2, 3]), for: kept)
+        store.write(Data([4]), for: closed)
         #expect(await store.read(kept) == Data([1, 2, 3]))
 
-        await store.prune(keeping: [kept])
+        store.prune(keeping: [kept])
         #expect(await store.read(kept) == Data([1, 2, 3]))
         #expect(await store.read(closed) == nil)
 
-        await store.remove(kept)
+        store.remove(kept)
         #expect(await store.read(kept) == nil)
+    }
+
+    /// A page finishes loading and its tab is closed at once: the removal
+    /// must land after the write, or the stale file outlives the tab — and a
+    /// pinned tab reset with ⌘W would come back on the page it was reset from.
+    @Test func aRemovalRightAfterAWriteWins() async {
+        let store = TabStateStore(directory: temporaryDirectory())
+        let id = UUID()
+        for _ in 0..<50 {
+            store.write(Data(repeating: 7, count: 64 * 1024), for: id)
+            store.remove(id)
+            #expect(await store.read(id) == nil)
+        }
+    }
+
+    /// Quitting writes synchronously; an older state still queued must not
+    /// land on top of it.
+    @Test func theStateWrittenAtQuitIsTheOneKept() async {
+        let store = TabStateStore(directory: temporaryDirectory())
+        let id = UUID()
+        store.write(Data(repeating: 1, count: 256 * 1024), for: id)
+        store.writeNow(Data([2]), for: id)
+        #expect(await store.read(id) == Data([2]))
     }
 
     @Test func pruningLeavesOtherFilesAlone() async throws {
         let dir = temporaryDirectory()
         let other = dir.appendingPathComponent("notes.txt")
         try Data("keep".utf8).write(to: other)
-        await TabStateStore(directory: dir).prune(keeping: [])
+        let store = TabStateStore(directory: dir)
+        store.prune(keeping: [])
+        _ = await store.read(UUID())  // waits for the prune
         #expect(FileManager.default.fileExists(atPath: other.path))
     }
 }

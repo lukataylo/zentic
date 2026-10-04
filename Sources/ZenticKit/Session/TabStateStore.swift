@@ -4,51 +4,59 @@ import Foundation
 /// (`WKWebView.interactionState`), one small file per tab, so a relaunch puts
 /// pages back where they were rather than just at the right address.
 ///
-/// An actor so every read and write happens off the main thread. Files are
-/// named by tab id and removed when the tab closes; anything left over (a
-/// crash between a close and its removal) is pruned against the session at
-/// launch.
-public actor TabStateStore {
-    public nonisolated let directory: URL
+/// Every read and write runs off the main thread on one serial queue, so they
+/// happen in the order they were asked for: a tab closed right after a page
+/// finished loading has its file removed *after* that page's state was
+/// written, never before (which would leave the stale file behind). Files are
+/// named by tab id; anything left over by a crash is pruned at launch.
+public final class TabStateStore: Sendable {
+    public let directory: URL
+    private let queue = DispatchQueue(label: "Zentic.TabStateStore", qos: .utility)
 
     public init(directory: URL) {
         self.directory = directory
     }
 
     public func write(_ state: Data, for id: UUID) {
-        Self.write(state, to: url(for: id), directory: directory)
+        queue.async { [self] in store(state, for: id) }
     }
 
-    /// For app termination, when there is no later to defer to.
-    public nonisolated func writeNow(_ state: Data, for id: UUID) {
-        Self.write(state, to: url(for: id), directory: directory)
+    /// For app termination, when there is no later to defer to. Lands after
+    /// anything already queued.
+    public func writeNow(_ state: Data, for id: UUID) {
+        queue.sync { store(state, for: id) }
     }
 
-    public func read(_ id: UUID) -> Data? {
-        try? Data(contentsOf: url(for: id))
+    /// Reads after every write and removal asked for before it.
+    public func read(_ id: UUID) async -> Data? {
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in continuation.resume(returning: try? Data(contentsOf: url(for: id))) }
+        }
     }
 
     public func remove(_ id: UUID) {
-        try? FileManager.default.removeItem(at: url(for: id))
+        queue.async { [self] in try? FileManager.default.removeItem(at: url(for: id)) }
     }
 
     /// Delete the state of every tab not in `ids`.
     public func prune(keeping ids: Set<UUID>) {
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        for file in files where file.pathExtension == Self.fileExtension {
-            let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent)
-            if id == nil || !ids.contains(id!) { try? FileManager.default.removeItem(at: file) }
+        queue.async { [self] in
+            let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+            for file in files where file.pathExtension == Self.fileExtension {
+                let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent)
+                if id.map({ !ids.contains($0) }) ?? true { try? FileManager.default.removeItem(at: file) }
+            }
         }
     }
 
     private static let fileExtension = "state"
 
-    private nonisolated func url(for id: UUID) -> URL {
+    private func url(for id: UUID) -> URL {
         directory.appendingPathComponent(id.uuidString).appendingPathExtension(Self.fileExtension)
     }
 
-    private static func write(_ state: Data, to url: URL, directory: URL) {
+    private func store(_ state: Data, for id: UUID) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? state.write(to: url, options: .atomic)
+        try? state.write(to: url(for: id), options: .atomic)
     }
 }

@@ -44,7 +44,9 @@ edge slides it back in.
 
 **Windows.** `⌘N` opens another window with its own tabs; menus act on the window in
 front. Close the last one and Zentic keeps running; click the Dock icon or press `⌘N`
-and it comes back as you left it. Any tab can move to a new window from its menu.
+and it comes back as you left it. Close one of several by mistake and *File ›
+Reopen Closed Window* brings it back, spaces and all. Any tab can move to a new window
+from its menu.
 
 **Spaces.** Each window has spaces: a name, an icon (a symbol or an emoji) and a
 colour, each with its own pinned and open tabs. Switch with the icons at the bottom of

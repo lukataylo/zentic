@@ -23,12 +23,17 @@ struct BrowserCommands: Commands {
             Button("Reopen Closed Tab") { browser?.reopenClosed() }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
                 .disabled(browser?.canReopen != true)
+            Button("Reopen Closed Window") { Windows.shared.reopenClosedWindow() }
+                .disabled(!Windows.shared.canReopenWindow)
         }
 
         CommandGroup(replacing: .saveItem) {
-            Button(tab?.isPinned == true ? "Close Pinned Tab" : "Close Tab") { browser?.closeSelected() }
-                .keyboardShortcut("w")
-                .disabled(tab == nil)
+            Button(tab?.isPinned == true ? "Close Pinned Tab" : "Close Tab") {
+                // Nothing to close in an empty window, or with Settings in
+                // front: ⌘W closes the window instead, as everywhere on the Mac.
+                if let tab { browser?.close(tab) } else { NSApp.keyWindow?.performClose(nil) }
+            }
+            .keyboardShortcut("w")
             Button("Close Window") { NSApp.keyWindow?.performClose(nil) }
                 .keyboardShortcut("w", modifiers: [.command, .shift])
         }
@@ -153,7 +158,7 @@ struct BrowserCommands: Commands {
             .disabled(!SiteKey.isWeb(tab?.url))
             Divider()
             Button("Move Tab to New Window") { if let tab { browser?.moveToNewWindow(tab) } }
-                .disabled(tab == nil)
+                .disabled(tab == nil || browser?.allTabs.count == 1)
             if let browser, browser.spaces.count > 1, let tab {
                 Menu("Move Tab to Space") {
                     ForEach(browser.spaces.filter { $0 !== browser.space }) { space in
@@ -170,7 +175,7 @@ struct BrowserCommands: Commands {
         }
 
         CommandMenu("Spaces") {
-            Button("New Space…") { browser?.spaceDraft = SpaceDraft(newIn: browser!) }
+            Button("New Space…") { if let browser { browser.spaceDraft = SpaceDraft(newIn: browser) } }
                 .disabled(browser == nil || browser?.isPrivate == true)
             Button("Edit Space…") { if let browser { browser.spaceDraft = SpaceDraft(editing: browser.space) } }
                 .disabled(browser == nil || browser?.isPrivate == true)
@@ -187,10 +192,12 @@ struct BrowserCommands: Commands {
     }
 
     private func showCommandBar(newTab: Bool) {
-        guard let browser else {
+        // Settings in front: the browser window behind it.
+        guard let browser = browser ?? Windows.shared.frontmost else {
             // No window open: ⌘T opens one, as in Safari.
             return Windows.shared.newWindow(private: false)
         }
+        browser.window?.makeKeyAndOrderFront(nil)
         browser.showCommandBar(newTab: newTab)
     }
 

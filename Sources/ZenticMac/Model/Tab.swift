@@ -173,7 +173,7 @@ final class Tab: Identifiable {
     /// a private window.
     func persistState() {
         guard !isPrivate, let state = webView?.interactionState as? Data else { return }
-        Task { [id] in await Windows.tabStates.write(state, for: id) }
+        Windows.tabStates.write(state, for: id)
     }
 
     /// Synchronous, for app termination.
@@ -185,7 +185,7 @@ final class Tab: Identifiable {
     func forgetSavedState() {
         hasStateOnDisk = false
         guard !isPrivate else { return }
-        Task { [id] in await Windows.tabStates.remove(id) }
+        Windows.tabStates.remove(id)
     }
 
     /// Another tab took the window: remember where this one was scrolled to.
@@ -198,7 +198,7 @@ final class Tab: Identifiable {
     func resetToPin() {
         guard let pinnedURL else { return }
         design.reset()
-        suspend()
+        suspend(persisting: false)
         savedState = nil
         forgetSavedState()
         failure = nil
@@ -214,10 +214,15 @@ final class Tab: Identifiable {
 
     /// Drop the web view, keeping the URL and title. Used when a tab is closed
     /// (closing keeps the record for Reopen Closed Tab).
-    func suspend() {
+    ///
+    /// `persisting` also writes where the page was to disk — the suspended
+    /// tab's freshest state, which a crash would otherwise lose. Not for a tab
+    /// whose state is about to be deleted.
+    func suspend(persisting: Bool = true) {
         guard let webView else { return }
         pendingURL = webView.url ?? url
         savedState = webView.interactionState
+        if persisting, !isPrivate, let state = savedState as? Data { Windows.tabStates.write(state, for: id) }
         webView.stopLoading()
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
         observations.removeAll()

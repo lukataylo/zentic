@@ -199,8 +199,8 @@ final class Browser: Identifiable {
     func move(_ tab: Tab, to target: Space) {
         guard let owner = owner(of: tab), owner !== target else { return }
         detach(tab, from: owner)
-        tab.pinnedURL = nil
-        target.tabs.insert(tab, at: 0)
+        // A pinned tab stays pinned: it is a place, now in another space.
+        if tab.isPinned { target.pinned.append(tab) } else { target.tabs.insert(tab, at: 0) }
         scheduleSave()
     }
 
@@ -289,7 +289,7 @@ final class Browser: Identifiable {
     /// Release a tab for good: its page, its in-flight work, its saved state.
     private func discard(_ tab: Tab) {
         tab.design.reset()  // and cancel any model call in flight
-        tab.suspend()
+        tab.suspend(persisting: false)
         tab.forgetSavedState()
     }
 
@@ -382,7 +382,7 @@ final class Browser: Identifiable {
     func closeAllTabs(forgettingState: Bool) {
         for tab in allTabs {
             tab.design.reset()
-            tab.suspend()
+            tab.suspend(persisting: !forgettingState)
             if forgettingState { tab.forgetSavedState() }
         }
     }

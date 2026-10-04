@@ -8,6 +8,7 @@ import ZenticKit
 /// SwiftUI owns the windows; this owns what is in them. A window is opened
 /// with its browser's id, and its root view claims the browser by that id.
 @MainActor
+@Observable
 final class Windows {
     static let shared = Windows()
 
@@ -22,6 +23,10 @@ final class Windows {
     /// The last ordinary window, kept after it was closed so that reopening
     /// from the Dock, or ⌘N, brings the same spaces and tabs back.
     private var parked: Browser?
+    /// The ordinary window closed most recently while others stayed open —
+    /// its spaces and pinned tabs belong to it alone, so closing it by
+    /// mistake must not lose them. Kept asleep, in memory only.
+    private var recentlyClosed: Browser?
     /// Restored from the session; their selected tab is held back after
     /// repeated crashes on launch.
     private var restoredIDs: Set<UUID> = []
@@ -31,6 +36,10 @@ final class Windows {
 
     private let sessionFile = JSONFile<SessionSnapshot>(name: "session.json")
     private let launchGuard = LaunchGuard(directory: JSONFile<Int>.defaultDirectory)
+    /// Session and marker writes, in order, off the main thread. Quitting
+    /// writes through it synchronously, so an older session still queued can
+    /// never land on top of the final one.
+    @ObservationIgnored private let io = DispatchQueue(label: "Zentic.session", qos: .utility)
     let launch: LaunchGuard.Outcome
 
     private init() {
@@ -49,13 +58,19 @@ final class Windows {
 
         // Only against a session that was actually read: if it was unreadable
         // and set aside, its tabs' states are what would make it recoverable.
-        if let ids = session?.tabIDs {
-            Task.detached(priority: .utility) { await Self.tabStates.prune(keeping: ids) }
-        }
+        if let ids = session?.tabIDs { Self.tabStates.prune(keeping: ids) }
         let launchGuard = self.launchGuard
-        Task.detached(priority: .utility) {
-            try? await Task.sleep(for: LaunchGuard.startupWindow)
+        io.asyncAfter(deadline: .now() + .seconds(Int(LaunchGuard.startupWindow.components.seconds))) {
             launchGuard.markStartupSurvived()
+        }
+        // Leaving the app is the moment to keep each page's scroll position:
+        // the page on screen is otherwise only saved when it loads or is hidden.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                for browser in self?.open ?? [] { browser.selectedTab?.persistState() }
+            }
         }
 
         AppModel.shared.onSitesChanged.append { [weak self] old, new in
@@ -65,6 +80,12 @@ final class Windows {
     }
 
     private var everyBrowser: [Browser] { open + pending + (parked.map { [$0] } ?? []) }
+
+    /// The browser window in front, for commands given while another window
+    /// (Settings, say) is key.
+    var frontmost: Browser? {
+        NSApp.orderedWindows.lazy.compactMap { window in self.open.first { $0.window === window } }.first
+    }
 
     // MARK: - Opening and closing
 
@@ -79,6 +100,10 @@ final class Windows {
         } else if let parked, id == nil || parked.id == id {
             browser = parked
             self.parked = nil
+        } else if let recentlyClosed, recentlyClosed.id == id {
+            browser = recentlyClosed
+            self.recentlyClosed = nil
+            scheduleSave()
         } else {
             browser = Browser()
         }
@@ -117,6 +142,12 @@ final class Windows {
         scheduleSave()
     }
 
+    var canReopenWindow: Bool { recentlyClosed != nil }
+
+    func reopenClosedWindow() {
+        if let recentlyClosed { show(recentlyClosed) }
+    }
+
     private func show(_ browser: Browser) {
         openWindowAction?(value: browser.id)
     }
@@ -130,7 +161,10 @@ final class Windows {
             // Its pages, cookies and caches go with it.
             browser.closeAllTabs(forgettingState: false)
         } else if open.contains(where: { !$0.isPrivate }) {
+            // Out of the session, and its tabs' files go; their state stays
+            // in memory for Reopen Closed Window.
             browser.closeAllTabs(forgettingState: true)
+            recentlyClosed = browser
         } else {
             // Keep the last one, asleep: no live pages, everything restorable.
             browser.closeAllTabs(forgettingState: false)
@@ -141,8 +175,7 @@ final class Windows {
 
     // MARK: - Session
 
-    private var saveTask: Task<Void, Never>?
-    private var writeTask: Task<Void, Never>?
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
 
     private var snapshot: SessionSnapshot {
         SessionSnapshot(windows: everyBrowser.filter { !$0.isPrivate }.map(\.snapshot))
@@ -154,15 +187,10 @@ final class Windows {
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled, let self else { return }
-            // Encoded and written off the main thread, one write at a time so
-            // an older session can never land after a newer one.
+            // Encoded and written off the main thread, in order.
             let snapshot = self.snapshot
             let file = self.sessionFile
-            let previous = self.writeTask
-            self.writeTask = Task.detached(priority: .utility) {
-                await previous?.value
-                file.save(snapshot)
-            }
+            self.io.async { file.save(snapshot) }
         }
     }
 
@@ -170,9 +198,13 @@ final class Windows {
     func saveForTermination() {
         terminating = true
         saveTask?.cancel()
-        sessionFile.save(snapshot)
+        let snapshot = self.snapshot
+        let (file, launchGuard) = (sessionFile, self.launchGuard)
         for tab in everyBrowser.flatMap(\.allTabs) where tab.isRealized { tab.persistStateNow() }
-        launchGuard.end()
+        io.sync {
+            file.save(snapshot)
+            launchGuard.end()
+        }
     }
 
     // MARK: - Memory
