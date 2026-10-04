@@ -23,7 +23,6 @@ public struct LaunchGuard: Sendable {
     public static let startupWindow: Duration = .seconds(30)
 
     struct Record: Codable, Equatable {
-        var launchedAt: Date
         /// Set once the run outlives `startupWindow`.
         var survivedStartup: Bool
         /// Consecutive runs, up to and including the previous one, that ended
@@ -39,7 +38,7 @@ public struct LaunchGuard: Sendable {
 
     /// Call once, first thing at launch. Synchronous on purpose: the marker
     /// must be on disk before anything that could crash runs.
-    public func begin(now: Date = .now) -> Outcome {
+    public func begin() -> Outcome {
         let previous = file.load()
         var crashes = 0
         let outcome: Outcome
@@ -49,7 +48,7 @@ public struct LaunchGuard: Sendable {
         } else {
             outcome = .clean
         }
-        file.save(Record(launchedAt: now, survivedStartup: false, startupCrashes: crashes))
+        file.save(Record(survivedStartup: false, startupCrashes: crashes))
         return outcome
     }
 
