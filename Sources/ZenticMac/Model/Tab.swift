@@ -686,7 +686,7 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         }
         if navigationAction.shouldPerformDownload {
             let allowed = await tab?.permissions.allowsDownload(
-                named: SiteKey.isWeb(url) ? url?.lastPathComponent ?? "" : "", site: Self.page(of: webView, else: url))
+                named: Self.fileName(url), site: Self.page(of: webView, else: url))
             return (allowed == true ? .download : .cancel, preferences)
         }
         if navigationAction.targetFrame?.isMainFrame == true, let tab, let url,
@@ -721,6 +721,13 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             }
         }
         return .allow
+    }
+
+    /// What a link's file is called, if its URL says; not "/" for a site's root,
+    /// nor a blob's UUID.
+    private static func fileName(_ url: URL?) -> String {
+        guard let url, SiteKey.isWeb(url), url.path != "/" else { return "" }
+        return url.lastPathComponent
     }
 
     /// The site of the page on screen — not the URL being navigated to, which

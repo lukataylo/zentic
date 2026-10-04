@@ -32,7 +32,7 @@ final class SitePermissionStore {
     @ObservationIgnored private let writer = DispatchQueue(label: "zentic.permissions", qos: .utility)
 
     private init() {
-        // A few hundred bytes, read once, on the first permission question.
+        // A few hundred bytes, read once, when the first tab is made.
         book = file.load() ?? PermissionBook()
     }
 }

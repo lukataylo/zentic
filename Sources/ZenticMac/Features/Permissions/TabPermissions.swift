@@ -50,6 +50,9 @@ final class TabPermissions {
     @ObservationIgnored weak var tab: Tab?
     @ObservationIgnored private weak var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+    /// When the current document began. Input before it was aimed at the
+    /// page before: ⌘R, or Return on a link, is not the new page's gesture.
+    @ObservationIgnored private var documentStart: TimeInterval = 0
 
     private var scope: PermissionScope { tab?.browser?.permissions ?? .shared }
 
@@ -81,7 +84,10 @@ final class TabPermissions {
 
     /// A new document replaced the one whose questions are queued. A "yes"
     /// meant for the old page must never reach the new one.
-    func documentChanged() { dismissAll() }
+    func documentChanged() {
+        documentStart = ProcessInfo.processInfo.systemUptime
+        dismissAll()
+    }
 
     private func dismissAll() {
         let pending = queue
@@ -128,8 +134,12 @@ final class TabPermissions {
     /// can still open it, in a tab of its own.
     func allowsPopup(to url: URL?, from page: URL?) -> Bool {
         let site = SiteKey.for(page)
-        switch scope.book.outcome(.popups, for: site, userInitiated: LastInput.wasRecent(in: webView)) {
-        case .grant: return true
+        let userInitiated = LastInput.wasRecent(in: webView, since: documentStart)
+        switch scope.book.outcome(.popups, for: site, userInitiated: userInitiated) {
+        case .grant:
+            // One click, one pop-up: a handler that opens a dozen gets one.
+            if userInitiated { LastInput.consume() }
+            return true
         case .deny: return false
         case .prompt:
             guard let site else { return false }
@@ -146,13 +156,18 @@ final class TabPermissions {
     }
 
     private func ask(_ kind: PermissionRequest.Kind, site: String, embeddedHost: String?) async -> Bool {
-        let outcomes = kind.permissions.map { scope.book.outcome($0, for: site) }
-        if outcomes.contains(.deny) { return false }
-        if outcomes.allSatisfy({ $0 == .grant }) { return true }
+        let book = scope.book
+        let undecided = kind.permissions.filter { book.outcome($0, for: site) == .prompt }
+        if kind.permissions.contains(where: { book.outcome($0, for: site) == .deny }) { return false }
+        if undecided.isEmpty { return true }
+        // Ask only about what is undecided: a site allowed the camera that
+        // now wants the microphone too is asked about the microphone.
+        let kind = if case .capture = kind { PermissionRequest.Kind.capture(undecided) } else { kind }
         return await withCheckedContinuation { continuation in
             // The same question again (a page retrying, or both of its frames
-            // asking) waits on the one already on screen.
-            if let index = queue.firstIndex(where: { $0.kind == kind && $0.site == site }) {
+            // asking) waits on the one already on screen. Downloads join by
+            // site whatever the file, so a page can't stack up a prompt per file.
+            if let index = queue.firstIndex(where: { $0.kind.permissions == kind.permissions && $0.site == site }) {
                 queue[index].waiters.append { continuation.resume(returning: $0) }
                 return
             }
@@ -215,6 +230,7 @@ final class TabPermissions {
 @MainActor
 private enum LastInput {
     private static var monitor: Any?
+    // The clock is `systemUptime`, which is what `NSEvent.timestamp` counts.
     private static var time: TimeInterval = -.infinity
     private static weak var view: NSView?
 
@@ -222,8 +238,12 @@ private enum LastInput {
         guard monitor == nil else { return }
         // A local monitor sees each event once, before it is dispatched;
         // recording a time and a view costs nothing per key press.
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .otherMouseUp, .keyDown]) { event in
+        // Mouse down as well as up: some pages open on mousedown.
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseUp, .otherMouseUp, .keyDown]
+        monitor = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
             MainActor.assumeIsolated {
+                // A menu shortcut is aimed at Zentic, not the page.
+                if event.type == .keyDown, event.modifierFlags.contains(.command) { return }
                 time = event.timestamp
                 if event.type == .keyDown {
                     view = event.window?.firstResponder as? NSView
@@ -237,8 +257,11 @@ private enum LastInput {
         }
     }
 
-    static func wasRecent(in webView: WKWebView?) -> Bool {
+    static func wasRecent(in webView: WKWebView?, since documentStart: TimeInterval) -> Bool {
         guard let webView, let view, view.isDescendant(of: webView) else { return false }
-        return UserGesture.isRecent(secondsSinceInput: ProcessInfo.processInfo.systemUptime - time)
+        return UserGesture.counts(inputAt: time, now: ProcessInfo.processInfo.systemUptime, documentStart: documentStart)
     }
+
+    /// A gesture opens one pop-up; the next needs another click.
+    static func consume() { time = -.infinity }
 }

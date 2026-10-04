@@ -22,7 +22,7 @@ struct CaptureIndicator: View {
         .buttonStyle(.plain)
         .chromeGlass(in: Capsule())
         .help("This page is using your \(permissions.inUseDescription)")
-        .accessibilityLabel("\(permissions.inUseDescription.capitalized) in use")
+        .accessibilityLabel("\(permissions.inUseTitle) in use")
         .accessibilityHint("Shows controls to pause or stop")
         .popover(isPresented: $showsControls, arrowEdge: .bottom) {
             CaptureControls(permissions: permissions) { showsControls = false }
@@ -136,6 +136,15 @@ extension TabPermissions {
         case (true, true): "camera and microphone"
         case (true, false): "camera"
         default: "microphone"
+        }
+    }
+
+    /// The same, for a menu item: "Camera and Microphone".
+    var inUseTitle: String {
+        switch (camera != .none, microphone != .none) {
+        case (true, true): "Camera and Microphone"
+        case (true, false): "Camera"
+        default: "Microphone"
         }
     }
 }

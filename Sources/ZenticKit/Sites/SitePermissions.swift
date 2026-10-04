@@ -144,14 +144,17 @@ public struct PermissionBook: Codable, Sendable, Hashable {
 /// Whether a pop-up was opened by the person rather than by the page.
 ///
 /// WebKit does not tell its client whether `window.open` came from a user
-/// gesture, so Zentic asks the window server how long ago the last click or
-/// key press was. One second is the window a page gets to act on a click:
+/// gesture, so Zentic notes when the last click or key press aimed at the
+/// page arrived. One second is the window a page gets to act on a click:
 /// long enough for a handler that awaits a little work, short enough that a
 /// timer-driven pop-up does not ride on a click from a minute ago.
 public enum UserGesture {
     public static let window: TimeInterval = 1
 
-    public static func isRecent(secondsSinceInput: TimeInterval) -> Bool {
-        secondsSinceInput >= 0 && secondsSinceInput <= window
+    /// Whether input at `input` lets the page open a pop-up at `now`. Input
+    /// from before the current document began was aimed at the one before:
+    /// a pop-up fired at load must not ride on the ⌘R or click that loaded it.
+    public static func counts(inputAt input: TimeInterval, now: TimeInterval, documentStart: TimeInterval) -> Bool {
+        input > documentStart && now >= input && now - input <= window
     }
 }

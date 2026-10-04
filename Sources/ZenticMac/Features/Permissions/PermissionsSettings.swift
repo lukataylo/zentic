@@ -73,7 +73,10 @@ private struct PermissionDetail: View {
                         }
                         .tag(entry.site)
                         .contextMenu {
-                            Button("Remove", role: .destructive) { remove([entry.site]) }
+                            // The whole selection when the row is part of it, as in Finder.
+                            Button("Remove", role: .destructive) {
+                                remove(selection.contains(entry.site) ? selection : [entry.site])
+                            }
                         }
                     }
                 }

@@ -72,7 +72,12 @@ struct PagePermissionsSection: View {
                         if scope.hasOwnDecisions(for: site) {
                             HStack {
                                 Spacer()
-                                Button("Reset to Defaults") { scope.forget(site) }
+                                Button("Reset to Defaults") {
+                                    let autoplayChanges =
+                                        book.decision(.autoplay, for: site) != book.defaultDecision(for: .autoplay)
+                                    scope.forget(site)
+                                    if autoplayChanges { tab.reload() }
+                                }
                                     .buttonStyle(.borderless)
                                     .font(.system(size: 12))
                             }

@@ -89,8 +89,8 @@ unanswered, and a tab waiting on one shows a raised hand in the sidebar.
   where WebKit lets the browser answer.
 - **Pop-ups.** One opened by a click always opens. Ones a page opens by itself are
   *blocked and notified* by default. The card says where it was going and opens it
-  in a tab if you want it. Only a click or key press that went to the page counts.
-  Return in the address bar doesn't.
+  in a tab if you want it. Only a click or key press that went to the page, after it
+  loaded, counts, and it opens one pop-up. Return in the address bar or ⌘R doesn't.
 - **Auto-play**, as in Safari: *Allow All*, *Stop Media with Sound* (the default) or
   *Never*. WebKit fixes it when a tab's web view is made, so going to a site set
   differently re-makes the web view, back/forward list and all. Going *back* to such a

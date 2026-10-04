@@ -134,7 +134,7 @@ struct BrowserCommands: Commands {
             }
             .disabled(!SiteKey.isWeb(tab?.url))
             if let permissions = tab?.permissions, permissions.isCapturing {
-                Button("Stop Using \(permissions.inUseDescription.capitalized)") { permissions.stopCapture() }
+                Button("Stop Using \(permissions.inUseTitle)") { permissions.stopCapture() }
             }
         }
 

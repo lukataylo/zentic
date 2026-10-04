@@ -50,6 +50,18 @@ import Testing
         #expect(book.outcome(.camera, for: "news.com", userInitiated: true) == .deny)
     }
 
+    @Test func onlyAFreshClickOnThisDocumentOpensAPopup() {
+        // Clicked half a second ago, on this page: a "Sign in with…" pop-up.
+        #expect(UserGesture.counts(inputAt: 10, now: 10.5, documentStart: 5))
+        // The click that loaded the page is not the new page's gesture, or a
+        // pop-up fired at load would ride on it.
+        #expect(!UserGesture.counts(inputAt: 10, now: 10.5, documentStart: 10.2))
+        // A timer firing long after the last click.
+        #expect(!UserGesture.counts(inputAt: 10, now: 12, documentStart: 5))
+        // No input yet at all.
+        #expect(!UserGesture.counts(inputAt: -.infinity, now: 10, documentStart: 0))
+    }
+
     @Test func aPrivateWindowsAnswersWinWithoutTouchingTheBook() {
         var shared = PermissionBook()
         shared.set(.allow, .camera, for: "meet.com")

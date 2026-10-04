@@ -122,7 +122,9 @@ private struct PermissionPrompt: View {
                     .keyboardShortcut(.cancelAction)
                 Button(allowTitle) { answer(true, remember) }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!armed)
+                    // A blank pop-up can't be opened on its own; "Open" would
+                    // do nothing unless it is remembered for the next one.
+                    .disabled(!armed || (!canOpen && !remember))
             }
             .controlSize(.regular)
             .buttonBorderShape(.capsule)
@@ -161,8 +163,12 @@ private struct PermissionPrompt: View {
         return nil
     }
 
+    private var canOpen: Bool {
+        if case .popup(let url, _) = request.kind { url.map(SiteKey.isWeb) ?? false } else { true }
+    }
+
     private var allowTitle: String {
-        if case .popup = request.kind { "Open" } else { "Allow" }
+        if case .popup = request.kind, canOpen { "Open" } else { "Allow" }
     }
 
     private var denyTitle: String {
