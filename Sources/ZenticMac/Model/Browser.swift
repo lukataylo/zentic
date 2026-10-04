@@ -272,10 +272,6 @@ final class Browser: Identifiable {
         scheduleSave()
     }
 
-    func closeSelected() {
-        if let tab = selectedTab { close(tab) }
-    }
-
     func closeOthers(than keep: Tab) {
         for tab in space.tabs where tab !== keep { close(tab) }
     }

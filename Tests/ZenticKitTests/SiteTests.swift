@@ -50,6 +50,15 @@ import Testing
         #expect(SiteKey.for(URL(string: "https://news.ycombinator.com")) == "news.ycombinator.com")
         #expect(SiteKey.for(URL(string: "about:blank")) == nil)
     }
+
+    /// "Never Save for This Site" and the address bar name a site the way its
+    /// mode does, or the same tab would be two sites in two places.
+    @Test func everyHostNamedSiteUsesTheSameKey() throws {
+        let url = try #require(URL(string: "https://WWW.Apple.com:8443/uk/"))
+        #expect(LoginOrigin(url: url)?.siteKey == SiteKey.for(url))
+        #expect(URLGuess.displayHost(url) == SiteKey.for(url))
+        #expect(SitePattern.forSite("WWW.Apple.com") == "*://*.apple.com/*")
+    }
 }
 
 /// The bootstrap decides each document's mode in the page itself. Run it in a

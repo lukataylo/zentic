@@ -71,8 +71,7 @@ public enum BookmarkImport {
                 let (text, end) = content(of: "a", in: html, from: cursor)
                 cursor = end
                 guard let href = attribute("href", in: tag).map(decodeEntities),
-                    let url = URL(string: href.trimmingCharacters(in: .whitespaces)),
-                    let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https", url.host() != nil
+                    let url = URL(string: href.trimmingCharacters(in: .whitespaces)), SiteKey.isWebPage(url)
                 else { continue }
                 var title = decodeEntities(text).trimmingCharacters(in: .whitespacesAndNewlines)
                 if title.isEmpty { title = URLGuess.displayHost(url) }

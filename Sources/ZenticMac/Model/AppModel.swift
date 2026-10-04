@@ -66,16 +66,6 @@ final class AppModel {
 
     func removeFavorite(_ id: UUID) { favorites.removeAll { $0.id == id } }
 
-    func moveFavorite(_ id: UUID, before target: UUID?) {
-        guard let from = favorites.firstIndex(where: { $0.id == id }) else { return }
-        let item = favorites.remove(at: from)
-        if let target, let to = favorites.firstIndex(where: { $0.id == target }) {
-            favorites.insert(item, at: to)
-        } else {
-            favorites.append(item)
-        }
-    }
-
     // MARK: History
 
     @ObservationIgnored private var history: [String: HistoryEntry]
@@ -305,8 +295,6 @@ enum SidebarTint: String, CaseIterable, Identifiable {
         case (.ember, false): [Color(red: 0.99, green: 0.88, blue: 0.80), Color(red: 0.98, green: 0.92, blue: 0.86)]
         }
     }
-
-    var swatch: Color { colors(dark: true)[0] }
 }
 
 enum AppAppearance: String, CaseIterable, Identifiable {

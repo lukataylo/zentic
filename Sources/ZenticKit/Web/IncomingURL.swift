@@ -8,7 +8,7 @@ public enum IncomingURL {
     ///
     /// Reads the file for a saved link, so call it off the main thread.
     public static func resolve(_ url: URL) -> URL? {
-        if isWeb(url) { return url }
+        if SiteKey.isWebPage(url) { return url }
         guard url.isFileURL else { return nil }
         switch url.pathExtension.lowercased() {
         case "webloc":
@@ -53,11 +53,6 @@ public enum IncomingURL {
     /// `file:` or `javascript:` URL would turn a double-click on a downloaded
     /// file into something else entirely.
     private static func webAddress(_ string: String) -> URL? {
-        URL(string: string.trimmingCharacters(in: .whitespaces)).flatMap { isWeb($0) ? $0 : nil }
-    }
-
-    private static func isWeb(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return false }
-        return url.host?.isEmpty == false
+        URL(string: string.trimmingCharacters(in: .whitespaces)).flatMap { SiteKey.isWebPage($0) ? $0 : nil }
     }
 }
