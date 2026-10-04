@@ -35,15 +35,18 @@ final class Windows {
     @ObservationIgnored private var openedRestoredWindows = false
     @ObservationIgnored private var terminating = false
 
-    private let sessionFile = JSONFile<SessionSnapshot>(name: "session.json")
-    private let launchGuard = LaunchGuard(directory: JSONFile<Int>.defaultDirectory)
+    private let sessionFile: JSONFile<SessionSnapshot>
+    private let launchGuard: LaunchGuard
     /// Session and marker writes, in order, off the main thread. Quitting
     /// writes through it synchronously, so an older session still queued can
     /// never land on top of the final one.
     private let io = DispatchQueue(label: "Zentic.session", qos: .utility)
     let launch: LaunchGuard.Outcome
 
-    private init() {
+    /// `directory` is for tests, which play several launches in one process.
+    init(directory: URL = JSONFile<Int>.defaultDirectory) {
+        sessionFile = JSONFile(name: "session.json", directory: directory)
+        launchGuard = LaunchGuard(directory: directory)
         launch = launchGuard.begin()
         let session = sessionFile.load()
         pending = session?.windows.map(Browser.init(restoring:)) ?? []
@@ -52,7 +55,8 @@ final class Windows {
             // First run. Built directly: `openTab` would reach back into
             // `Windows.shared`, which is what is being made.
             let first = Browser()
-            first.adopt(Tab(url: URL(string: "https://en.wikipedia.org/wiki/Special:Random")))
+            // A test run opens on the address bar, not on a page from the internet.
+            if !TestRun.isActive { first.adopt(Tab(url: URL(string: "https://en.wikipedia.org/wiki/Special:Random"))) }
             pending = [first]
         }
         if launch != .clean { pending.first?.recoveryNotice = launch }

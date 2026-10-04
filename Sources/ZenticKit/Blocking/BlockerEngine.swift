@@ -544,7 +544,8 @@ extension BlockerEngine where Compiler == WebKitRuleListCompiler {
     /// two cannot be wiped independently and then disagree about what is compiled.
     public init(
         directory: URL? = nil,
-        fetcher: any FilterListFetching = URLSessionFilterListFetcher()
+        fetcher: any FilterListFetching = URLSessionFilterListFetcher(),
+        refreshesInBackground: Bool = true
     ) {
         let resolved = directory ?? BlockerStorage.applicationSupport()
         let storage = BlockerStorage(directory: resolved)
@@ -552,7 +553,8 @@ extension BlockerEngine where Compiler == WebKitRuleListCompiler {
         self.init(
             compiler: WebKitRuleListCompiler(storeURL: storage.ruleListStoreURL),
             fetcher: fetcher,
-            directory: resolved
+            directory: resolved,
+            refreshesInBackground: refreshesInBackground
         )
     }
 }

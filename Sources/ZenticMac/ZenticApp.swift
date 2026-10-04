@@ -58,7 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Now, so a link that launched Zentic is caught too.
         OpenFromElsewhere.install()
         Blocking.warm()
-        SafeBrowsing.shared.start()
+        // Its first download is the one fetch a test run could not avoid.
+        if !TestRun.isActive { SafeBrowsing.shared.start() }
         Extensions.shared.start()
     }
 

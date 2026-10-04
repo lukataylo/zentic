@@ -13,8 +13,9 @@ enum Blocking {
     /// Compiled lists live in the engine's own store under `DataDirectory`, not
     /// WebKit's default one: the default store is shared by every copy of the app,
     /// so an isolated test run would garbage-collect the lists of the copy someone
-    /// is browsing with.
-    static let engine = WebKitContentBlocker()
+    /// is browsing with. A test run keeps to the bundled seed and never
+    /// downloads the full set.
+    static let engine = WebKitContentBlocker(refreshesInBackground: !TestRun.isActive)
 
     /// Warm the lists at launch, off the critical path.
     ///
