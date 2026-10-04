@@ -87,6 +87,9 @@ final class Windows {
 
     private var everyBrowser: [Browser] { open + pending + (parked.map { [$0] } ?? []) }
 
+    /// Windows made but not on screen yet — one a tab was just moved to, say.
+    var waitingToOpen: [Browser] { pending }
+
     /// The browser window in front, for commands given while another window
     /// (Settings, say) is key.
     var frontmost: Browser? {
@@ -293,20 +296,33 @@ final class Windows {
     static let idleLimit: Duration = .seconds(20 * 60)
 
     @ObservationIgnored private var trimming = false
+    /// The tightest limit asked for while a trim was running, run when it ends:
+    /// memory pressure fires once per level change, so a call dropped during
+    /// an ordinary trim would not come again.
+    @ObservationIgnored private var pendingTrim: Int?
     @ObservationIgnored private var memorySource: DispatchSourceMemoryPressure?
     @ObservationIgnored private var idleTimer: Timer?
 
     /// Suspend background tabs over the limit, or idle too long, least
     /// recently shown first — skipping any that are playing or recording.
     func trimLiveTabs(keeping limit: Int = Windows.maxLiveTabs) {
-        guard !trimming else { return }
+        guard !trimming else {
+            pendingTrim = min(pendingTrim ?? limit, limit)
+            return
+        }
         trimming = true
         let visible = Set(open.compactMap { $0.selectedTab.map(ObjectIdentifier.init) })
         let candidates = open.flatMap(\.allTabs)
             .filter { $0.isRealized && !visible.contains(ObjectIdentifier($0)) }
             .sorted { $0.lastShown > $1.lastShown }
         Task {
-            defer { trimming = false }
+            defer {
+                trimming = false
+                if let next = pendingTrim {
+                    pendingTrim = nil
+                    trimLiveTabs(keeping: next)
+                }
+            }
             var kept = 0
             for tab in candidates {
                 let idle = Date.now.timeIntervalSince(tab.lastShown) > Double(Self.idleLimit.components.seconds)

@@ -272,13 +272,20 @@ final class Browser: Identifiable {
         scheduleSave()
     }
 
+    // The survivor is selected first: closing the selected tab selects the
+    // next, which would wake a web view (and load its page) for every tab in
+    // turn, only to close it a moment later.
+
     func closeOthers(than keep: Tab) {
+        if space.selectedID != keep.id { select(keep) }
         for tab in space.tabs where tab !== keep { close(tab) }
     }
 
     func closeBelow(_ anchor: Tab) {
         guard let index = space.tabs.firstIndex(where: { $0 === anchor }) else { return }
-        for tab in space.tabs[(index + 1)...] { close(tab) }
+        let below = Array(space.tabs[(index + 1)...])
+        if below.contains(where: { $0.id == space.selectedID }) { select(anchor) }
+        for tab in below { close(tab) }
     }
 
     func reopenClosed() {
