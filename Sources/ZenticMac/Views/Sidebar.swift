@@ -440,6 +440,7 @@ private struct TabRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tab.isPinned ? "\(title), pinned" : title)
+        .accessibilityIdentifier("sidebar.tab")
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
         .accessibilityAction(named: tab.isPinned ? "Unload" : "Close") { browser.close(tab) }
     }
@@ -538,6 +539,7 @@ private struct SidebarFooter: View {
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
             .help("Settings (⌘,)")
+            .accessibilityLabel("Settings")
 
             if browser.isPrivate {
                 Spacer()
@@ -556,6 +558,7 @@ private struct SidebarFooter: View {
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
             .help("New Tab (⌘T)")
+            .accessibilityLabel("New Tab")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

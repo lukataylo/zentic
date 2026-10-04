@@ -30,7 +30,7 @@ struct FloatingToolbar: View {
                     .frame(maxWidth: .infinity)
             } else {
                 HStack(spacing: 8) {
-                    ToolbarCircleButton(symbol: "sidebar.left", help: "Show or hide the sidebar (⌃⌘S)") {
+                    ToolbarCircleButton(symbol: "sidebar.left", label: "Sidebar", help: "Show or hide the sidebar (⌃⌘S)") {
                         withAnimation(.smooth(duration: 0.32)) {
                             browser.sidebarVisible.toggle()
                             browser.sidebarPeeking = false
@@ -38,12 +38,12 @@ struct FloatingToolbar: View {
                     }
                     .glassEffectID("sidebar", in: glass)
 
-                    ToolbarCircleButton(symbol: "chevron.left", help: "Back (⌘[)") { tab?.goBack() }
+                    ToolbarCircleButton(symbol: "chevron.left", label: "Back", help: "Back (⌘[)") { tab?.goBack() }
                         .disabled(tab?.canGoBack != true)
                         .glassEffectID("back", in: glass)
 
                     if tab?.canGoForward == true {
-                        ToolbarCircleButton(symbol: "chevron.right", help: "Forward (⌘])") { tab?.goForward() }
+                        ToolbarCircleButton(symbol: "chevron.right", label: "Forward", help: "Forward (⌘])") { tab?.goForward() }
                             .glassEffectID("forward", in: glass)
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
@@ -78,6 +78,9 @@ struct FloatingToolbar: View {
 
 struct ToolbarCircleButton: View {
     let symbol: String
+    /// What VoiceOver says; the symbol's own name ("Split View Horizontally
+    /// Left") describes the picture, not the button.
+    let label: String
     let help: String
     var action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
@@ -93,6 +96,7 @@ struct ToolbarCircleButton: View {
         .foregroundStyle(isEnabled ? Color.primary : Color.secondary.opacity(0.5))
         .chromeGlass(in: Circle(), interactive: isEnabled)
         .help(help)
+        .accessibilityLabel(label)
     }
 }
 
@@ -228,6 +232,9 @@ private struct CompactPill: View {
         .buttonStyle(.plain)
         .chromeGlass(in: Capsule())
         .help(tab?.url?.absoluteString ?? "")
+        .accessibilityLabel(tab?.displayHost ?? "")
+        .accessibilityHint("Shows the toolbar")
+        .accessibilityIdentifier("toolbar.compact")
     }
 }
 

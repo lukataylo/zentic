@@ -159,6 +159,7 @@ private struct EmptyStateView: View {
             Image(systemName: "circle.lefthalf.filled")
                 .font(.system(size: 34, weight: .light))
                 .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
             Button("Open a Page…") { browser.showCommandBar(newTab: true) }
             .buttonStyle(.link)
             Text("⌘T").font(.caption).foregroundStyle(.tertiary)

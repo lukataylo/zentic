@@ -169,8 +169,10 @@ private struct ModeRow: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
         .animation(.smooth(duration: 0.2), value: selected)
+        // The title alone: the subtitle and shortcut read as noise after it.
+        .accessibilityLabel(mode.title)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint(drift?.reasons.joined(separator: ". ") ?? "")
+        .accessibilityHint(drift?.reasons.joined(separator: ". ") ?? detail ?? mode.subtitle)
     }
 }
 
