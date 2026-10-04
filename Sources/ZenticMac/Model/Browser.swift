@@ -96,7 +96,10 @@ final class Browser: Identifiable {
     }
 
     var snapshot: SessionSnapshot.Window {
-        SessionSnapshot.Window(
+        // The live frame if there is a window: one never moved or resized has
+        // sent no notification to remember it by.
+        let frame = window.flatMap { $0.styleMask.contains(.fullScreen) ? nil : $0.frame } ?? self.frame
+        return SessionSnapshot.Window(
             id: id,
             frame: frame.map { .init(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height) },
             sidebarWidth: sidebarWidth, sidebarVisible: sidebarVisible,
@@ -112,7 +115,7 @@ final class Browser: Identifiable {
     // MARK: - Selection
 
     func select(_ tab: Tab) {
-        if let owner = owner(of: tab), owner.id != spaceID { switchTo(owner) }
+        if let owner = owner(of: tab), owner.id != spaceID { switchTo(owner, realizingSelection: false) }
         guard space.selectedID != tab.id else {
             // Already selected but held back after a crash: the click loads it.
             tab.realize()
@@ -143,12 +146,14 @@ final class Browser: Identifiable {
 
     // MARK: - Spaces
 
-    func switchTo(_ target: Space) {
+    /// `realizingSelection: false` when a particular tab is about to be
+    /// selected there, so the space's previous one is not loaded for nothing.
+    func switchTo(_ target: Space, realizingSelection: Bool = true) {
         guard target.id != spaceID, spaces.contains(where: { $0 === target }) else { return }
         findBar.isPresented = false
         selectedTab?.didHide()
         spaceID = target.id
-        if let tab = target.selected {
+        if realizingSelection, let tab = target.selected {
             tab.lastShown = .now
             tab.realize()
         }
@@ -232,7 +237,9 @@ final class Browser: Identifiable {
         if tab.isPinned {
             tab.resetToPin()
             if owner.selectedID == tab.id {
-                let recent = owner.allTabs.filter { $0 !== tab }.max { $0.lastShown < $1.lastShown }
+                // The ordinary tab shown most recently; another pinned tab
+                // would wake for no reason.
+                let recent = owner.tabs.max { $0.lastShown < $1.lastShown }
                 owner.selectedID = nil
                 if let recent { owner === space ? select(recent) : (owner.selectedID = recent.id) }
             }
@@ -245,8 +252,9 @@ final class Browser: Identifiable {
         discard(tab)
         owner.tabs.remove(at: index)
         if owner.selectedID == tab.id {
-            // The tab below, as in every Mac app with a list; else the one above.
-            let next = owner.tabs.indices.contains(index) ? owner.tabs[index] : owner.tabs.last ?? owner.pinned.last
+            // The tab below, as in every Mac app with a list; else the one
+            // above. Never a pinned tab: those wake only when asked.
+            let next = owner.tabs.indices.contains(index) ? owner.tabs[index] : owner.tabs.last
             owner.selectedID = nil
             if let next { owner === space ? select(next) : (owner.selectedID = next.id) }
         }
@@ -293,7 +301,7 @@ final class Browser: Identifiable {
         owner.tabs.removeAll { $0 === tab }
         if wasSelected {
             owner.selectedID = nil
-            if let next = owner.tabs.first ?? owner.pinned.first {
+            if let next = owner.tabs.first {
                 owner === space ? select(next) : (owner.selectedID = next.id)
             }
         }

@@ -75,6 +75,8 @@ extension Browser {
             center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self else { return }
+                    // Kept for a parked window, which comes back where it was.
+                    if let window = self.window, !window.styleMask.contains(.fullScreen) { self.frame = window.frame }
                     self.windowObservers.forEach(NotificationCenter.default.removeObserver)
                     self.windowObservers = []
                     self.window = nil
