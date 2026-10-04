@@ -16,6 +16,7 @@ struct FloatingToolbar: View {
         guard let tab else { return false }
         return tab.chromeCollapsed && !hoverReveal && !browser.modePickerPresented
             && !tab.design.isPresented && !browser.commandBar.isPresented && !browser.findBar.isPresented
+            && !Extensions.shared.prompts.contains { $0.window == browser.id }
     }
 
     var body: some View {
@@ -47,6 +48,8 @@ struct FloatingToolbar: View {
 
                     AddressPill(tab: tab)
                         .glassEffectID("address", in: glass)
+
+                    ExtensionToolbarItems(tab: tab)
                 }
                 .padding(.leading, 10)
                 .padding(.trailing, 10)

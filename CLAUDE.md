@@ -16,7 +16,8 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings) |
+| `Sources/ZenticKit/Extensions/` | `ExtensionRecord` (what the user allowed, persisted), `SiteAccess`, `SitePattern`, `ExtensionDiscovery`, `KeyChord` |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -86,4 +87,13 @@ Each one has a test.
   `DataDirectory.defaults`, never `UserDefaults.standard`, web views use
   `WKWebsiteDataStore.zentic`, and stores that live elsewhere (Keychain) are keyed
   by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
+- One `WKWebExtensionController` (`Extensions.shared.controller`) is set on every tab's
+  configuration, private tabs included. WebKit keeps an extension out of any web view
+  with a non-persistent data store unless its context has `hasAccessToPrivateData`, so
+  a private tab must keep `WKWebsiteDataStore.nonPersistent()` (tested in
+  `WebExtensionTests`). Extensions learn about tabs from `ExtensionEvents`, which
+  watches the observable model: don't add per-call hooks for tab changes.
+- WebKit forgets an extension's grants and storage identity on quit. `ExtensionRecord`
+  holds both, and a record's `storageID` must never change, because the extension's
+  data is filed under it.
 - Tests are written against real failure modes. If a test can't fail, delete it.

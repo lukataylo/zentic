@@ -7,6 +7,7 @@ struct SettingsView: View {
             SwiftUI.Tab("General", systemImage: "gearshape") { GeneralSettings() }
             SwiftUI.Tab("Intelligence", systemImage: "wand.and.sparkles") { IntelligenceSettings() }
             SwiftUI.Tab("Sites", systemImage: "globe") { SitesSettings() }
+            SwiftUI.Tab("Extensions", systemImage: "puzzlepiece.extension") { ExtensionsSettings() }
         }
         .frame(width: 560)
     }
