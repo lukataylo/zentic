@@ -49,7 +49,7 @@ final class Passwords {
         loading = Task {
             await previous?.value
             if let logins = try? await Task.detached(priority: .userInitiated, operation: { try PasswordKeychain.logins() }).value {
-                self.logins = logins.sorted { ($0.origin, $0.username) < ($1.origin, $1.username) }
+                self.logins = logins.sorted(by: Self.order)
             }
         }
     }
@@ -73,17 +73,23 @@ final class Passwords {
 
     func save(_ password: String, for login: SavedLogin) async throws {
         try await Task.detached { try PasswordKeychain.save(password, for: login) }.value
-        if !logins.contains(login) {
-            logins.append(login)
-            logins.sort { ($0.origin, $0.username) < ($1.origin, $1.username) }
-        }
+        insert(login)
     }
 
     func edit(_ login: SavedLogin, username: String, password: String) async throws {
         try await Task.detached { try PasswordKeychain.edit(login, username: username, password: password) }.value
-        if let index = logins.firstIndex(of: login) {
-            logins[index] = SavedLogin(origin: login.origin, username: username)
-        }
+        logins.removeAll { $0 == login }
+        insert(SavedLogin(origin: login.origin, username: username))
+    }
+
+    private func insert(_ login: SavedLogin) {
+        guard !logins.contains(login) else { return }
+        logins.append(login)
+        logins.sort(by: Self.order)
+    }
+
+    private static func order(_ a: SavedLogin, _ b: SavedLogin) -> Bool {
+        (a.origin, a.username) < (b.origin, b.username)
     }
 
     func delete(_ login: SavedLogin) async throws {

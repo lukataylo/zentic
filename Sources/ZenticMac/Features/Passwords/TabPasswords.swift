@@ -99,8 +99,13 @@ final class TabPasswords {
         let anchor = CGRect(
             x: field.minX * scale, y: field.minY * scale + webView.obscuredContentInsets.top,
             width: field.width * scale, height: field.height * scale)
-        let next = Menu(origin: origin, logins: logins, anchor: anchor, highlighted: menu?.origin == origin ? menu?.highlighted : nil)
-        if menu == nil { tellPage(menu: next.logins.isEmpty ? "closed" : "open") }
+        // Keep the highlight across a re-report of the same field, but only
+        // while it still points at an account.
+        let kept = menu?.origin == origin ? menu?.highlighted.flatMap { logins.indices.contains($0) ? $0 : nil } : nil
+        let next = Menu(origin: origin, logins: logins, anchor: anchor, highlighted: kept)
+        // The page keeps arrow keys and Return only while there is something to pick.
+        let state = next.logins.isEmpty ? "closed" : kept == nil ? "open" : "highlighted"
+        if menu == nil || menu?.highlighted != kept { tellPage(menu: state) }
         menu = next
     }
 
