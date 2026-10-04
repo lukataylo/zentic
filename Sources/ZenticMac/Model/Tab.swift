@@ -757,8 +757,18 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         if let url, let scheme = url.scheme?.lowercased(),
             !["http", "https", "about", "data", "blob", "file", "javascript", "webkit-extension"].contains(scheme)
         {
-            // mailto:, facetime:, app links — hand to the system.
-            NSWorkspace.shared.open(url)
+            // mailto:, facetime:, app links — another app's, through
+            // TabPermissions like any gate. Never from a frame (an ad), never
+            // without a click, never for a scheme nothing on this Mac opens.
+            if navigationAction.sourceFrame.isMainFrame, navigationAction.targetFrame?.isMainFrame != false,
+                let tab, let app = NSWorkspace.shared.urlForApplication(toOpen: url)
+            {
+                let name = FileManager.default.displayName(atPath: app.path)
+                let page = webView.url
+                Task {
+                    if await tab.permissions.allowsOpeningApp(named: name, from: page) { NSWorkspace.shared.open(url) }
+                }
+            }
             return (.cancel, preferences)
         }
         // Downloads too: a file from a malware host is the very thing to stop.

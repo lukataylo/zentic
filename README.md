@@ -130,7 +130,8 @@ the clipboard again after a minute), edit and delete, and the sites never saved 
 
 ## Site permissions
 
-Camera, microphone, location, pop-ups, auto-play and downloads are decided per site:
+Camera, microphone, location, pop-ups, auto-play, downloads and opening other apps are
+decided per site:
 **Ask**, **Allow** or **Deny**. When a page asks, a small glass card hangs from the
 site control at the left of the address bar. It names the site and what it wants,
 and offers *Allow* / *Don't Allow* with *Remember for this site* ticked. *Allow* wakes
@@ -153,6 +154,9 @@ unanswered, and a tab waiting on one shows a raised hand in the sidebar.
   differently re-makes the web view, back/forward list and all. Going *back* to such a
   site keeps the web view it has.
 - **Downloads** ask the site of the page you're on, not the server the file comes from.
+- **Opening other apps** (`mailto:`, FaceTime, a meeting app, a file server) asks
+  "wants to open “Zoom”" — and only right after a click or key press in the page itself,
+  never from an embedded frame. A page can't launch an app at load or on a timer.
 
 Change a site from the version picker (`⌥⌘0` › *Permissions*, or *Page › Site
 Permissions…*). See every decision in **Settings › Permissions**, with search, removal

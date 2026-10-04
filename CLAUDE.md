@@ -89,7 +89,8 @@ Each one has a test.
    a newer `SessionSnapshot.version` refuses to decode, and tab-state files are pruned
    only against a session that was actually read.
 10. **A page never gets a permission it was not given.** Every WebKit permission
-    request and every Zentic-side gate (pop-ups, downloads) goes through
+    request and every Zentic-side gate (pop-ups, downloads, links that open another app)
+    goes through
     `TabPermissions`, which answers from `PermissionBook` or asks. Queued questions are
     answered "no" when their document goes (`documentChanged`, `detach`), so a "yes"
     meant for one page never reaches the next. The prompt's Allow button arms only
