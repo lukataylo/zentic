@@ -89,6 +89,8 @@ Each one has a test.
 - Links and files from other apps arrive as Apple Events taken by `OpenFromElsewhere`
   before SwiftUI sees them. Don't add `onOpenURL` or `application(_:open:)`: SwiftUI
   answers those by opening another window onto the same browser.
+  Launched to open a link, AppKit opens no window, so `OpenFromElsewhere.didFinishLaunching`
+  asks for one.
 - Load addresses with `WKWebView.load(address:)`, which gives a file URL read access to
   its folder, so a saved page from Finder finds the images beside it.
 - Tests are written against real failure modes. If a test can't fail, delete it.

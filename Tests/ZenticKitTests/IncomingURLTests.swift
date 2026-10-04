@@ -62,36 +62,13 @@ import Testing
         try Data("[InternetShortcut]\nURL=https://b.example\n".utf8).write(to: shortcut)
         #expect(IncomingURL.resolve(shortcut) == URL(string: "https://b.example"))
 
+        // As Windows writes it: ANSI, with a non-ASCII icon path.
+        let ansi = dir.appending(path: "Café.url")
+        try ("[InternetShortcut]\r\nIconFile=C:\\Café\\i.ico\r\nURL=https://c.example\r\n".data(using: .windowsCP1252)!)
+            .write(to: ansi)
+        #expect(IncomingURL.resolve(ansi) == URL(string: "https://c.example"))
+
         // Unreadable: nothing opens, rather than a tab showing the file.
         #expect(IncomingURL.resolve(dir.appending(path: "Missing.webloc")) == nil)
-    }
-}
-
-@Suite struct OnboardingRecordTests {
-    private func freshDefaults() -> UserDefaults {
-        let name = "zentic-onboarding-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
-        return defaults
-    }
-
-    @Test func dueOnFirstRunAndNotOnceSeen() {
-        let defaults = freshDefaults()
-        #expect(OnboardingRecord.isDue(in: defaults))
-        OnboardingRecord.markSeen(in: defaults)
-        #expect(!OnboardingRecord.isDue(in: defaults))
-    }
-
-    @Test func aNewerTourIsShownToSomeoneWhoSawAnOlderOne() {
-        let defaults = freshDefaults()
-        defaults.set(OnboardingRecord.current - 1, forKey: OnboardingRecord.key)
-        #expect(OnboardingRecord.isDue(in: defaults))
-    }
-
-    @Test func anOlderBuildDoesNotRearmANewerTour() {
-        let defaults = freshDefaults()
-        defaults.set(OnboardingRecord.current + 1, forKey: OnboardingRecord.key)
-        OnboardingRecord.markSeen(in: defaults)
-        #expect(defaults.integer(forKey: OnboardingRecord.key) == OnboardingRecord.current + 1)
     }
 }

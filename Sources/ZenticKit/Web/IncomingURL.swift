@@ -14,7 +14,11 @@ public enum IncomingURL {
         case "webloc":
             return (try? Data(contentsOf: url)).flatMap(webloc)
         case "url":
-            return (try? String(contentsOf: url, encoding: .utf8)).flatMap(internetShortcut)
+            // Windows writes these in the system's ANSI code page, so a
+            // non-ASCII icon path would fail as UTF-8; the link itself is ASCII.
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return (String(data: data, encoding: .utf8) ?? String(data: data, encoding: .windowsCP1252))
+                .flatMap(internetShortcut)
         default:
             // An HTML page or web archive, loaded from where it sits.
             return url

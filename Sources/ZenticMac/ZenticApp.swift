@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate()
+        OpenFromElsewhere.didFinishLaunching(notification)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

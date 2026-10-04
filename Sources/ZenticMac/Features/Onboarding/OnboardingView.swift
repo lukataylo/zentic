@@ -6,6 +6,7 @@ import ZenticKit
 /// making it the default browser, and (optionally) a key for Custom.
 struct OnboardingView: View {
     var done: () -> Void
+    @Environment(AppModel.self) private var app
 
     enum Page: CaseIterable {
         case welcome, modes, defaultBrowser, custom
@@ -85,7 +86,9 @@ struct OnboardingView: View {
             Button(isLast ? "Start Browsing" : "Continue") {
                 isLast ? done() : go(by: 1)
             }
-            .keyboardShortcut(.defaultAction)
+            // Not while the key field is on screen: Return there saves the
+            // key, and must not close the tour with the key unsaved.
+            .keyboardShortcut(page == .custom && !app.hasAPIKey ? nil : .defaultAction)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         }
@@ -401,8 +404,9 @@ private struct DefaultBrowserPage: View {
                         .frame(maxWidth: 380)
                 }
             }
-            .animation(reduceMotion ? .default : .spring(response: 0.45, dampingFraction: 0.7), value: isDefault)
         }
+        // On the whole page, so the hero's symbol swap animates with the rest.
+        .animation(reduceMotion ? .default : .spring(response: 0.45, dampingFraction: 0.7), value: isDefault)
         .onAppear { model.refresh() }
     }
 }
