@@ -23,6 +23,8 @@ private struct GeneralSettings: View {
     var body: some View {
         @Bindable var app = app
         Form {
+            DefaultBrowserSection()
+
             Section {
                 Picker("New sites open in", selection: Binding(get: { app.defaultMode }, set: { app.defaultMode = $0 })) {
                     ForEach([SiteMode.original, .clean, .minimal]) { mode in
@@ -83,7 +85,7 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(height: 520)
+        .frame(height: 580)
     }
 
     private func refresh() {

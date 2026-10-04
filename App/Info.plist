@@ -6,6 +6,56 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Zentic</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- What makes Zentic a browser in macOS's eyes: it can be chosen as the
+		     default in System Settings and asked to by DefaultBrowser.swift. -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Web site URL</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>http</string>
+				<string>https</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<!-- Alternate, not Default: listed under Open With, never taking HTML
+		     files from the user's editor without being asked. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Web page</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.html</string>
+				<string>public.xhtml</string>
+				<string>com.apple.webarchive</string>
+			</array>
+		</dict>
+		<!-- Saved links. Files are never `public.url` itself (that is a URL on
+		     the pasteboard); a .webloc and a .url are these two. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Web location</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.web-internet-location</string>
+				<string>com.microsoft.internet-shortcut</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

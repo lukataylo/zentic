@@ -11,7 +11,7 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | Path | What |
 |---|---|
 | `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `PermissionBook` (per-site permissions), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
-| `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
+| `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess`, `IncomingURL` (links and files from other apps) |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Passwords/` | `LoginOrigin`, `PasswordPolicy` (what to offer, where to fill), `PasswordKeychain`, the sign-in script |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
@@ -19,7 +19,7 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Library/` | `HistoryEntry`, `HistoryRange` (Clear History spans), `HistoryDay` (grouping), `Bookmark`/`BookmarkList`, `BookmarkImport` (Netscape HTML), `DownloadName` (safe, unique file names) |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries) |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -116,4 +116,11 @@ Each one has a test.
   by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
 - Bookmarks are hidden by default. Nothing may touch `BookmarkStore.shared` while
   `AppModel.showsBookmarks` is off — touching it reads the file.
+- Links and files from other apps arrive as Apple Events taken by `OpenFromElsewhere`
+  before SwiftUI sees them. Don't add `onOpenURL` or `application(_:open:)`: SwiftUI
+  answers those by opening another window onto the same browser.
+  Launched to open a link, AppKit opens no window, so `OpenFromElsewhere.didFinishLaunching`
+  asks for one.
+- Load addresses with `WKWebView.load(address:)`, which gives a file URL read access to
+  its folder, so a saved page from Finder finds the images beside it.
 - Tests are written against real failure modes. If a test can't fail, delete it.

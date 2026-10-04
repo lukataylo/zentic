@@ -134,6 +134,23 @@ final class Windows {
         show(browser)
     }
 
+    /// Where links from other apps go: the frontmost ordinary window; at
+    /// launch, the first one about to appear; otherwise the last one closed,
+    /// brought back, or a new one.
+    func windowForLinks() -> Browser {
+        let ordinary = open.filter { !$0.isPrivate }
+        if let front = NSApp.orderedWindows.lazy.compactMap({ window in ordinary.first { $0.window === window } }).first {
+            return front
+        }
+        // Minimised windows are not among the ordered ones.
+        if let any = ordinary.last { return any }
+        if let waiting = pending.first(where: { !$0.isPrivate }) { return waiting }
+        let browser = parked ?? Browser()
+        if parked == nil { pending.append(browser) }
+        show(browser)
+        return browser
+    }
+
     func openWindow(adopting tab: Tab, from source: Browser) {
         let space = Space(name: source.space.name, icon: source.space.icon, tint: source.space.tint)
         let browser = Browser(isPrivate: source.isPrivate, dataStore: source.dataStore, space: space)

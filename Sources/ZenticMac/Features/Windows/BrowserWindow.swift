@@ -19,6 +19,7 @@ struct BrowserWindow: View {
             .navigationTitle(browser.windowTitle)
             .frame(minWidth: 720, minHeight: 480)
             .containerBackground(.clear, for: .window)
+            .onboarding(for: browser)
             .onAppear {
                 if windowID != browser.id { windowID = browser.id }
                 Windows.shared.windowAppeared(openWindow)

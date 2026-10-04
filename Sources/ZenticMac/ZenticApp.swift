@@ -55,12 +55,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppModel.shared.appearance.apply()
         // Before anything else can crash: notes the launch, reads the session.
         _ = Windows.shared
+        // Now, so a link that launched Zentic is caught too.
+        OpenFromElsewhere.install()
         Blocking.warm()
         SafeBrowsing.shared.start()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate()
+        OpenFromElsewhere.didFinishLaunching(notification)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

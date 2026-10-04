@@ -185,7 +185,7 @@ final class Tab: Identifiable {
         if let state {
             webView.interactionState = state
         } else {
-            webView.load(URLRequest(url: url))
+            webView.load(address: url)
         }
     }
 
@@ -363,7 +363,7 @@ final class Tab: Identifiable {
         securityWarning = nil
         chromeCollapsed = false
         if let webView {
-            prepareBlocking(for: url) { webView.load(URLRequest(url: url)) }
+            prepareBlocking(for: url) { webView.load(address: url) }
         } else {
             pendingURL = url
             self.url = url
@@ -390,7 +390,7 @@ final class Tab: Identifiable {
             realize()
             return
         }
-        if webView.url == nil, let url { webView.load(URLRequest(url: url)) } else { webView.reload() }
+        if webView.url == nil, let url { webView.load(address: url) } else { webView.reload() }
     }
 
     func stop() { webView?.stopLoading() }
@@ -703,7 +703,11 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         // ⌘-click and middle-click open in a new tab, as everywhere on the Mac.
         if navigationAction.navigationType == .linkActivated,
             navigationAction.modifierFlags.contains(.command) || navigationAction.buttonNumber == 2,
-            let url
+            let url,
+            // A web page may not reach the disk by being ⌘-clicked: a new tab
+            // would load the file with its folder readable. WebKit refuses
+            // the plain click below.
+            !url.isFileURL || webView.url?.isFileURL == true
         {
             tab?.browser?.openTab(url, after: tab, select: navigationAction.modifierFlags.contains(.shift))
             return (.cancel, preferences)

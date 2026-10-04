@@ -194,6 +194,19 @@ contents land at the top, and importing the same file twice adds nothing new.
 Typing *history*, *downloads* or *bookmarks* in the address bar (`⌘T`, `⌘L`) offers
 to show each.
 
+## Your default browser
+
+*Settings › General* says whether Zentic is your default browser, with a *Make Default*
+button when it isn't; macOS asks you to confirm. Links clicked in other apps then open
+as new tabs in the ordinary window in front (never a private one), or bring a window
+back if none is open. Zentic also opens HTML files, web archives and saved links
+(`.webloc`, `.url`) from Finder — *Open With › Zentic*, or drop them on the Dock icon.
+A saved link may only point at a web address, never at a file or script.
+
+The first launch shows a short welcome over the first window: what Zentic does, which
+version new sites open in, making it the default browser, and an optional OpenAI key
+for Custom. *Help › Welcome to Zentic* shows it again.
+
 ## Keyboard
 
 | | |
