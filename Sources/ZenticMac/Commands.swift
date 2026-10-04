@@ -238,7 +238,7 @@ struct BrowserCommands: Commands {
             return Windows.shared.newWindow(private: false)
         }
         browser.window?.makeKeyAndOrderFront(nil)
-        browser.showCommandBar(newTab: newTab)
+        if newTab { browser.showCommandBar(newTab: true) } else { browser.editAddress() }
     }
 
     /// ⌥⌘L, as in Safari: the downloads list, from the toolbar of the
