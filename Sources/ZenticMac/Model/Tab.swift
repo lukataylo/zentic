@@ -32,6 +32,11 @@ final class Tab: Identifiable {
     }
     /// A load that failed before anything committed, shown as a native page.
     private(set) var failure: LoadFailure?
+    /// A page stopped before it loaded: a listed host, or a certificate that
+    /// could not be verified. See `Features/Safety`.
+    var securityWarning: SecurityWarning?
+    /// An `http:` page asking for a password or card number.
+    var hasInsecureForm = false
 
     /// The mode the document on screen is in — what the toolbar should show.
     private(set) var mode: SiteMode = .clean
@@ -76,7 +81,7 @@ final class Tab: Identifiable {
     var lastShown = Date()
     /// Back/forward list and scroll position, kept across a suspension.
     @ObservationIgnored private var savedState: Any?
-    var displayHost: String { URLGuess.displayHost(url ?? pendingURL) }
+    var displayHost: String { URLGuess.displayHost(securityWarning?.url ?? url ?? pendingURL) }
     var siteKey: String? { SiteKey.for(url ?? pendingURL) }
 
     init(id: UUID = UUID(), url: URL?, title: String = "", pinnedURL: URL? = nil) {
@@ -325,6 +330,7 @@ final class Tab: Identifiable {
 
     func load(_ url: URL) {
         failure = nil
+        securityWarning = nil
         chromeCollapsed = false
         if let webView {
             prepareBlocking(for: url) { webView.load(URLRequest(url: url)) }
@@ -459,11 +465,13 @@ final class Tab: Identifiable {
 
     fileprivate func didStartNavigation() {
         failure = nil
+        securityWarning = nil
         chromeCollapsed = false
     }
 
     fileprivate func didCommit() {
         failure = nil
+        hasInsecureForm = false
         mode = siteMode(for: webView?.url)
         if previewing != nil {
             // A new document: the preview lived on the old one.
@@ -484,6 +492,7 @@ final class Tab: Identifiable {
         }
         if !isPrivate { AppModel.shared.recordVisit(url: url, title: title) }
         persistState()
+        checkForInsecureForm()
         if icon == nil || declaredIcon == nil { refreshIcon() }
         browser?.tabDidChange(self)
     }
@@ -509,9 +518,17 @@ final class Tab: Identifiable {
         // interrupted" (a download, or a policy change) are not failures.
         if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
         if ns.domain == "WebKitErrorDomain" && (ns.code == 102 || ns.code == 204) { return }
-        failure = LoadFailure(
+        let failure = LoadFailure(
             url: url ?? (ns.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? self.url,
             message: ns.localizedDescription, code: ns.code)
+        guard CertificateTrust.isCertificateError(ns) else { return self.failure = failure }
+        Task {
+            // A certificate failure gets its own page; diagnosing it takes a
+            // trust evaluation off the main thread first.
+            let warning = await CertificateTrust.warning(for: ns)
+            guard webView?.isLoading != true else { return }
+            if let warning { securityWarning = .certificate(warning) } else { self.failure = failure }
+        }
     }
 
     fileprivate func receive(_ message: [String: Any]) {
@@ -619,6 +636,10 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             return (.cancel, preferences)
         }
         if navigationAction.shouldPerformDownload { return (.download, preferences) }
+        if navigationAction.targetFrame?.isMainFrame == true, let tab, let threat = await SafeBrowsing.shared.warning(for: url) {
+            tab.securityWarning = .dangerous(threat)
+            return (.cancel, preferences)
+        }
         if navigationAction.targetFrame?.isMainFrame == true, let tab {
             await withCheckedContinuation { continuation in
                 tab.prepareBlocking(for: url) { continuation.resume() }
@@ -630,6 +651,11 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     func webView(
         _ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse
     ) async -> WKNavigationResponsePolicy {
+        if navigationResponse.isForMainFrame, let tab, let threat = await SafeBrowsing.shared.warning(for: navigationResponse.response.url) {
+            // Redirected onto a listed host.
+            tab.securityWarning = .dangerous(threat)
+            return .cancel
+        }
         if !navigationResponse.canShowMIMEType { return .download }
         if navigationResponse.isForMainFrame, let tab {
             // A redirect may have landed us on a host with a different mode.
@@ -653,6 +679,12 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         tab?.didFail(error, url: webView.url)
+    }
+
+    func webView(
+        _ webView: WKWebView, respondTo challenge: URLAuthenticationChallenge
+    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        await CertificateTrust.shared.respond(to: challenge)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {

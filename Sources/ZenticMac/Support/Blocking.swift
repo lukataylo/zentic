@@ -76,6 +76,9 @@ enum Blocking {
         for list in lists {
             controller.add(list)
         }
+        // Whatever the site's mode: protection from malware hosts is not a
+        // matter of taste, so Original keeps it.
+        if let threats = SafeBrowsing.shared.ruleList { controller.add(threats) }
     }
 
     // MARK: - Re-attaching when the full set lands
@@ -115,13 +118,23 @@ enum Blocking {
         isWatching = true
         Task {
             for await _ in await engine.updates() {
-                attached.removeAll { $0.controller == nil }
-                trace("blocking", "installed set changed · re-attaching \(attached.count) tabs")
-                for entry in attached {
-                    guard let controller = entry.controller else { continue }
-                    await apply(entry.shield, to: controller, removingFirst: true)
-                }
+                trace("blocking", "installed set changed · re-attaching tabs")
+                await reapply()
             }
+        }
+    }
+
+    /// Re-attach every live tab's lists — when Safe Browsing's list changes or
+    /// is switched off, which must reach open pages without waiting for a load.
+    static func reattachAll() {
+        Task { await reapply() }
+    }
+
+    private static func reapply() async {
+        attached.removeAll { $0.controller == nil }
+        for entry in attached {
+            guard let controller = entry.controller else { continue }
+            await apply(entry.shield, to: controller, removingFirst: true)
         }
     }
 }

@@ -102,6 +102,10 @@ private struct AddressPill: View {
                 if let tab { ModePicker(tab: tab) }
             }
 
+            // Beside the address rather than inside its button: a button
+            // within a button gives the click to whichever AppKit picks.
+            if let tab { ConnectionBadge(tab: tab) }
+
             Button {
                 browser.showCommandBar(newTab: false)
             } label: {
@@ -112,12 +116,6 @@ private struct AddressPill: View {
                             .foregroundStyle(Color(red: 0.55, green: 0.5, blue: 1))
                             .help("Private window")
                             .accessibilityLabel("Private")
-                    }
-                    if let tab, tab.url?.scheme == "http" {
-                        Image(systemName: "lock.slash")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.orange)
-                            .help("This connection is not secure")
                     }
                     Text(tab?.displayHost.isEmpty == false ? tab!.displayHost : "Search or enter address")
                         .font(.system(size: 13, weight: .medium))

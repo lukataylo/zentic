@@ -71,6 +71,40 @@ says so, once, and restores everything; if it crashes twice in a row within 30 s
 of launching, it restores the tabs without loading the selected one until you click
 it. A session file it cannot read is set aside, never overwritten.
 
+## Safe Browsing and certificate warnings
+
+**Dangerous sites.** Zentic keeps two public lists of phishing and malware hosts on
+your Mac and checks every page you open against them before it loads. Nothing is
+looked up online: the lists are downloaded whole, once a day (with `If-None-Match`, so
+an unchanged list costs a few hundred bytes), and matching is a handful of binary
+searches over hashed hosts. A listed host gets a full red warning page in place of the
+site; *Show Details* says which list and entry matched, and holds *Visit This Site
+Anyway*, which lasts until you quit. Other pages also can't load scripts, frames or
+downloads from listed hosts: the lists are compiled into a WebKit content blocker for
+third-party loads, whatever the site's version.
+
+The lists come from [malware-filter](https://gitlab.com/malware-filter): the
+[URLhaus filter](https://gitlab.com/malware-filter/urlhaus-filter) (abuse.ch URLhaus,
+CC0; hosts currently serving malware) and the
+[phishing filter](https://gitlab.com/malware-filter/phishing-filter) (OpenPhish,
+PhishTank and IPThreat; CC BY-SA 4.0). Both drop hosts on the Tranco and Umbrella
+popularity lists, so one bad page on a big shared host can't flag the whole host.
+Phishing Army was ruled out by its non-commercial licence, OpenPhish's own feed by its
+terms, and Google Safe Browsing because it is a lookup service. Turn it off, see when
+the lists were last checked, or update now in *Settings › Security*.
+
+**Certificate errors** get their own page saying what is actually wrong, in plain
+words — expired, not valid yet (usually the Mac's clock), issued for a different site,
+self-signed, or from an authority your Mac doesn't trust — with *Show Certificate*
+(the system's certificate sheet) and, behind *Show Details*, *Visit This Site Anyway*.
+That trusts exactly that certificate on that host until you quit; a different
+certificate is asked about again, and a revoked one can't be bypassed. *Page › Show
+Certificate…* works on any HTTPS page.
+
+**Not secure.** A plain `http:` page shows an open lock in the address bar; one with a
+password or card field says *Not Secure*. Either explains itself when clicked and
+offers to try HTTPS.
+
 ## Keyboard
 
 | | |
@@ -147,5 +181,7 @@ exception is AppKit's own window position, which goes to the app's normal prefer
   the page before it's applied. Anything that could fetch a URL (`url()`, `@import`,
   `@font-face`, `image-set()`, CSS escapes) is removed, and a sheet that still could is
   rejected whole. A stored version can never become a tracking beacon.
+- Safe Browsing downloads whole threat lists and checks addresses on the Mac; no
+  address you visit is sent anywhere to be checked.
 - Content blocking: EasyList, EasyPrivacy, cookie and annoyance lists compiled to
   Safari's `WKContentRuleList`. Cookie walls are answered by DuckDuckGo's autoconsent.
