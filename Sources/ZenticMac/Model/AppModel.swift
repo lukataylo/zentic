@@ -1,0 +1,283 @@
+import AppKit
+import Foundation
+import Observation
+import SwiftUI
+import ZenticKit
+
+/// State that outlives any one window: what the user chose for each site,
+/// favourites, history and preferences. Saved as it changes.
+@MainActor
+@Observable
+final class AppModel {
+    static let shared = AppModel()
+
+    // MARK: Sites
+
+    private(set) var book: SiteBook {
+        didSet {
+            guard book != oldValue else { return }
+            bookFile.save(book)
+            siteRevision &+= 1
+            onSitesChanged.forEach { $0(oldValue, book) }
+        }
+    }
+    /// Bumped whenever ``book`` changes, for views that only need to redraw.
+    private(set) var siteRevision = 0
+    @ObservationIgnored var onSitesChanged: [(SiteBook, SiteBook) -> Void] = []
+
+    func mode(for url: URL?) -> SiteMode {
+        SiteKey.isWeb(url) ? book.mode(for: SiteKey.for(url)) : .original
+    }
+
+    func custom(for url: URL?) -> CustomVersion? { book.custom(for: SiteKey.for(url)) }
+
+    func setMode(_ mode: SiteMode, for url: URL?) {
+        guard let key = SiteKey.for(url) else { return }
+        book.setMode(mode, for: key)
+    }
+
+    func saveCustom(_ version: CustomVersion, for url: URL?) {
+        guard let key = SiteKey.for(url) else { return }
+        book.saveCustom(version, for: key)
+    }
+
+    func removeCustom(forKey key: String) { book.removeCustom(for: key) }
+    func forgetSite(_ key: String) { book.forget(key) }
+
+    var defaultMode: SiteMode {
+        get { book.defaultMode }
+        set { book.defaultMode = newValue == .custom ? .clean : newValue }
+    }
+
+    var sites: [(key: String, settings: SiteSettings)] {
+        book.sites.map { ($0.key, $0.value) }.sorted { $0.key < $1.key }
+    }
+
+    // MARK: Favourites
+
+    private(set) var favorites: [Favorite] { didSet { favoritesFile.save(favorites) } }
+
+    func isFavorite(_ url: URL?) -> Bool {
+        guard let key = SiteKey.for(url) else { return false }
+        return favorites.contains { SiteKey.for($0.url) == key }
+    }
+
+    func addFavorite(url: URL, title: String) {
+        guard !isFavorite(url) else { return }
+        favorites.append(Favorite(id: UUID(), url: url, title: title))
+    }
+
+    func removeFavorite(_ id: UUID) { favorites.removeAll { $0.id == id } }
+
+    func moveFavorite(_ id: UUID, before target: UUID?) {
+        guard let from = favorites.firstIndex(where: { $0.id == id }) else { return }
+        let item = favorites.remove(at: from)
+        if let target, let to = favorites.firstIndex(where: { $0.id == target }) {
+            favorites.insert(item, at: to)
+        } else {
+            favorites.append(item)
+        }
+    }
+
+    // MARK: History
+
+    @ObservationIgnored private var history: [String: HistoryEntry]
+    @ObservationIgnored private var historySaveTask: Task<Void, Never>?
+
+    func recordVisit(url: URL, title: String) {
+        guard SiteKey.isWeb(url) else { return }
+        let key = url.absoluteString
+        var entry = history[key] ?? HistoryEntry(url: url, title: title, lastVisit: .now, visits: 0)
+        entry.visits += 1
+        entry.lastVisit = .now
+        if !title.isEmpty { entry.title = title }
+        history[key] = entry
+        scheduleHistorySave()
+    }
+
+    func searchHistory(_ query: String, limit: Int = 6) -> [HistoryEntry] {
+        let q = query.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return [] }
+        return history.values
+            .compactMap { entry -> (HistoryEntry, Double)? in
+                let url = entry.url.absoluteString.lowercased()
+                let host = URLGuess.displayHost(entry.url).lowercased()
+                let title = entry.title.lowercased()
+                var score = 0.0
+                if host.hasPrefix(q) { score += 6 }
+                else if url.contains(q) { score += 2 }
+                if title.hasPrefix(q) { score += 4 }
+                else if title.contains(q) { score += 2 }
+                guard score > 0 else { return nil }
+                let age = Date.now.timeIntervalSince(entry.lastVisit) / 86_400
+                score += log2(Double(entry.visits) + 1) - min(age / 14, 3)
+                // Shorter URLs first among equals: the site, not a deep page on it.
+                score -= Double(url.count) / 400
+                return (entry, score)
+            }
+            .sorted { $0.1 > $1.1 }
+            .prefix(limit)
+            .map(\.0)
+    }
+
+    func clearHistory() {
+        history = [:]
+        historyFile.save([])
+    }
+
+    private func scheduleHistorySave() {
+        historySaveTask?.cancel()
+        historySaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.saveHistoryNow()
+        }
+    }
+
+    func saveHistoryNow() {
+        let entries = history.values.sorted { $0.lastVisit > $1.lastVisit }.prefix(5000)
+        historyFile.save(Array(entries))
+    }
+
+    // MARK: Preferences
+
+    var searchEngine: URLGuess.SearchEngine {
+        didSet { defaults.set(searchEngine.rawValue, forKey: "searchEngine") }
+    }
+    var tint: SidebarTint {
+        didSet { defaults.set(tint.rawValue, forKey: "sidebarTint") }
+    }
+    var model: String {
+        didSet { defaults.set(model, forKey: "openAIModel") }
+    }
+    /// How much of the desktop shows through the window frame, 0…1.
+    var translucency: Double {
+        didSet { defaults.set(translucency, forKey: "translucency") }
+    }
+    var appearance: AppAppearance {
+        didSet {
+            defaults.set(appearance.rawValue, forKey: "appearance")
+            appearance.apply()
+        }
+    }
+    /// Whether a key is stored, kept here so views never ask the Keychain on
+    /// every redraw.
+    private(set) var hasAPIKey: Bool
+
+    func saveAPIKey(_ key: String) throws {
+        try APIKeyStore.save(key, for: .openAI)
+        hasAPIKey = APIKeyStore.has(.openAI)
+        translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
+        appearance = defaults.string(forKey: "appearance").flatMap(AppAppearance.init) ?? .system
+        appearance.apply()
+    }
+
+    func removeAPIKey() {
+        APIKeyStore.remove(.openAI)
+        hasAPIKey = false
+    }
+
+    func designer() throws -> OpenAIDesigner {
+        guard let key = APIKeyStore.load(.openAI) else { throw DesignError.noKey }
+        return OpenAIDesigner(apiKey: key, model: model)
+    }
+
+    // MARK: Session
+
+    let sessionFile = JSONFile<SavedSession>(name: "session.json")
+
+    // MARK: -
+
+    @ObservationIgnored private let defaults = UserDefaults.standard
+    @ObservationIgnored private let bookFile = JSONFile<SiteBook>(name: "sites.json")
+    @ObservationIgnored private let favoritesFile = JSONFile<[Favorite]>(name: "favorites.json")
+    @ObservationIgnored private let historyFile = JSONFile<[HistoryEntry]>(name: "history.json")
+
+    private init() {
+        book = bookFile.load() ?? SiteBook()
+        favorites =
+            favoritesFile.load() ?? [
+                Favorite(id: UUID(), url: URL(string: "https://en.wikipedia.org")!, title: "Wikipedia"),
+                Favorite(id: UUID(), url: URL(string: "https://news.ycombinator.com")!, title: "Hacker News"),
+                Favorite(id: UUID(), url: URL(string: "https://www.theguardian.com")!, title: "The Guardian"),
+                Favorite(id: UUID(), url: URL(string: "https://github.com")!, title: "GitHub"),
+            ]
+        history = Dictionary(
+            (historyFile.load() ?? []).map { ($0.url.absoluteString, $0) }, uniquingKeysWith: { a, _ in a })
+        searchEngine = defaults.string(forKey: "searchEngine").flatMap(URLGuess.SearchEngine.init) ?? .duckDuckGo
+        tint = defaults.string(forKey: "sidebarTint").flatMap(SidebarTint.init) ?? .indigo
+        model = defaults.string(forKey: "openAIModel") ?? OpenAIDesigner.defaultModel
+        hasAPIKey = APIKeyStore.has(.openAI)
+        translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
+        appearance = defaults.string(forKey: "appearance").flatMap(AppAppearance.init) ?? .system
+        appearance.apply()
+    }
+}
+
+struct Favorite: Codable, Identifiable, Hashable {
+    var id: UUID
+    var url: URL
+    var title: String
+}
+
+struct HistoryEntry: Codable, Hashable {
+    var url: URL
+    var title: String
+    var lastVisit: Date
+    var visits: Int
+}
+
+struct SavedSession: Codable {
+    struct SavedTab: Codable {
+        var id: UUID
+        var url: URL?
+        var title: String
+    }
+    var tabs: [SavedTab]
+    var selected: UUID?
+    var sidebarWidth: Double?
+    var sidebarVisible: Bool?
+}
+
+/// The colour the window frame and sidebar are washed with.
+enum SidebarTint: String, CaseIterable, Identifiable {
+    case indigo, graphite, rose, forest, ocean, ember
+    var id: String { rawValue }
+
+    var title: String { rawValue.capitalized }
+
+    /// Top-leading → bottom-trailing gradient, per appearance.
+    func colors(dark: Bool) -> [Color] {
+        switch (self, dark) {
+        case (.indigo, true): [Color(red: 0.20, green: 0.13, blue: 0.48), Color(red: 0.11, green: 0.10, blue: 0.36)]
+        case (.indigo, false): [Color(red: 0.80, green: 0.79, blue: 0.97), Color(red: 0.89, green: 0.84, blue: 0.98)]
+        case (.graphite, true): [Color(white: 0.17), Color(white: 0.11)]
+        case (.graphite, false): [Color(white: 0.90), Color(white: 0.86)]
+        case (.rose, true): [Color(red: 0.36, green: 0.12, blue: 0.24), Color(red: 0.22, green: 0.09, blue: 0.20)]
+        case (.rose, false): [Color(red: 0.98, green: 0.85, blue: 0.89), Color(red: 0.96, green: 0.88, blue: 0.94)]
+        case (.forest, true): [Color(red: 0.08, green: 0.24, blue: 0.19), Color(red: 0.06, green: 0.15, blue: 0.14)]
+        case (.forest, false): [Color(red: 0.82, green: 0.93, blue: 0.87), Color(red: 0.88, green: 0.94, blue: 0.90)]
+        case (.ocean, true): [Color(red: 0.06, green: 0.20, blue: 0.36), Color(red: 0.05, green: 0.12, blue: 0.26)]
+        case (.ocean, false): [Color(red: 0.80, green: 0.90, blue: 0.98), Color(red: 0.86, green: 0.92, blue: 0.98)]
+        case (.ember, true): [Color(red: 0.36, green: 0.16, blue: 0.08), Color(red: 0.22, green: 0.10, blue: 0.08)]
+        case (.ember, false): [Color(red: 0.99, green: 0.88, blue: 0.80), Color(red: 0.98, green: 0.92, blue: 0.86)]
+        }
+    }
+
+    var swatch: Color { colors(dark: true)[0] }
+}
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    @MainActor func apply() {
+        NSApp?.appearance =
+            switch self {
+            case .system: nil
+            case .light: NSAppearance(named: .aqua)
+            case .dark: NSAppearance(named: .darkAqua)
+            }
+    }
+}

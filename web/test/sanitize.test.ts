@@ -1,0 +1,31 @@
+import { describe, expect, it } from "vitest";
+import { sanitizeCSS } from "../src/sanitize";
+
+describe("sanitizeCSS", () => {
+  it("removes anything that can fetch", () => {
+    const out = sanitizeCSS(`
+      @import url("https://evil.test/a.css");
+      @import "https://evil.test/b.css";
+      @font-face { font-family: X; src: url(https://evil.test/f.woff2) format("woff2"); }
+      body { background: url(https://evil.test/p.gif); }
+      .a { background-image: url( 'https://evil.test/q.png' ) }
+      .b { background-image: image-set("https://evil.test/r.png" 1x, "s.png" 2x); }
+      .c { background: u\\72l(https://evil.test/t.png); }
+      @\\69mport "https://evil.test/u.css";
+      .d { width: expression(alert(1)); }
+      .e { color: red; }
+    `);
+    expect(out).not.toMatch(/evil\.test/);
+    expect(out).not.toMatch(/@import|@font-face|expression\(/i);
+    expect(out).toContain(".e { color: red; }");
+  });
+
+  it("keeps data: URIs", () => {
+    const out = sanitizeCSS(`.x { background: url("data:image/svg+xml;utf8,<svg/>"); }`);
+    expect(out).toContain("url(\"data:image/svg+xml;utf8,<svg/>\")");
+  });
+
+  it("cannot be smuggled through comments", () => {
+    expect(sanitizeCSS(`@im/**/port "https://evil.test/x.css";`)).not.toMatch(/evil/);
+  });
+});
