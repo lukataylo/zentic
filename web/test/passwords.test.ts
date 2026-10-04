@@ -120,6 +120,9 @@ describe("the page side of AutoFill", () => {
   // the first test keeps the real check.
   const trusted = <E extends Event>(event: E): E => event;
   const start = (save: boolean, doc: Document) => startPasswords(save, doc, () => true);
+  /** The person typing into a field (its value is already set). */
+  const typeInto = (doc: Document, id: string) =>
+    doc.getElementById(id)!.dispatchEvent(trusted(new Event("input", { bubbles: true })));
 
   it("ignores events the page made up", () => {
     const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"></form>`);
@@ -132,14 +135,24 @@ describe("the page side of AutoFill", () => {
   it("reports a trusted submission once, however many events announce it", () => {
     const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"><button id="go">Sign in</button></form>`);
     start(true, doc);
+    typeInto(doc, "p");
     doc.getElementById("go")!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
     doc.querySelector("form")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
     expect(posted).toEqual([{ type: "login-submit", username: "ada", password: "pw" }]);
   });
 
+  it("ignores a sign-in the page filled in and sent itself", () => {
+    // `requestSubmit()` fires a submit WebKit marks trusted; nobody typed the password.
+    const doc = freshDocument(`<form><input id="u" value="attacker"><input id="p" type="password" value="chosen"></form>`);
+    start(true, doc);
+    doc.querySelector("form")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
+    expect(posted).toEqual([]);
+  });
+
   it("does not take the show-password button for a sign-in", () => {
     const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"><button type="button" aria-label="Show password">👁</button></form>`);
     start(true, doc);
+    typeInto(doc, "p");
     doc.querySelector("button")!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
     expect(posted).toEqual([]);
   });
@@ -147,6 +160,7 @@ describe("the page side of AutoFill", () => {
   it("never reports a sign-in when saving is off (a private window)", () => {
     const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"></form>`);
     start(false, doc);
+    typeInto(doc, "p");
     doc.querySelector("form")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
     expect(posted).toEqual([]);
   });
@@ -156,6 +170,7 @@ describe("the page side of AutoFill", () => {
     start(true, doc);
     doc.getElementById("one")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
     doc.body.innerHTML = `<form id="two"><input id="p" type="password" value="pw"></form>`;
+    typeInto(doc, "p");
     doc.getElementById("two")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
     expect(posted).toEqual([{ type: "login-submit", username: "ada", password: "pw" }]);
   });
@@ -220,6 +235,59 @@ describe("the page side of AutoFill", () => {
     field.dispatchEvent(choose);
     expect(choose.defaultPrevented).toBe(true);
     expect(posted.at(-1)).toEqual({ type: "login-key", key: "enter" });
+  });
+
+  it("closes a menu Swift is still preparing when the person moves on", () => {
+    // The account list loads asynchronously; leaving the field before it
+    // arrives must still reach Swift, or the menu opens under a field left behind.
+    const doc = freshDocument(`<form><input id="u"><input id="p" type="password"></form><input id="search" type="search">`);
+    start(true, doc);
+    doc.getElementById("u")!.dispatchEvent(trusted(new FocusEvent("focusin", { bubbles: true })));
+    doc.getElementById("search")!.dispatchEvent(trusted(new FocusEvent("focusin", { bubbles: true })));
+    expect(posted.at(-1)).toEqual({ type: "login-dismiss" });
+  });
+
+  it("lets the person close a menu with nothing to pick, keeping the keys for the page", () => {
+    // The http warning: shown, but arrows still belong to the field.
+    const doc = freshDocument(`<form><input id="u"><input id="p" type="password"></form>`);
+    const passwords = start(true, doc);
+    const field = doc.getElementById("u")!;
+    field.dispatchEvent(trusted(new FocusEvent("focusin", { bubbles: true })));
+    passwords.menu("shown");
+    posted = [];
+
+    const down = trusted(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    field.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(false);
+    expect(posted).toEqual([]);
+
+    field.dispatchEvent(trusted(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true })));
+    expect(posted).toEqual([{ type: "login-dismiss" }]);
+  });
+
+  it("closes the menu when focus leaves for nowhere, but not when the web view loses focus", () => {
+    vi.useFakeTimers();
+    try {
+      const doc = freshDocument(`<form><input id="u"><input id="p" type="password"></form>`);
+      start(true, doc);
+      const field = doc.getElementById("u")!;
+      field.dispatchEvent(trusted(new FocusEvent("focusin", { bubbles: true })));
+      posted = [];
+
+      // A click on the menu itself: the whole document loses focus.
+      const hasFocus = vi.spyOn(doc, "hasFocus").mockReturnValue(false);
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      vi.runAllTimers();
+      expect(posted).toEqual([]);
+
+      // A click on the page's background: the document keeps focus, the field doesn't.
+      hasFocus.mockReturnValue(true);
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      vi.runAllTimers();
+      expect(posted).toEqual([{ type: "login-dismiss" }]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("locates the first sign-in on the page for the menu command", () => {

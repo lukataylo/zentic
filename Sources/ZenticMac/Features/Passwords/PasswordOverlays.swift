@@ -6,6 +6,7 @@ import ZenticKit
 struct PasswordOverlays: View {
     let passwords: TabPasswords
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var menuHeight: CGFloat = 0
 
     var body: some View {
         GeometryReader { proxy in
@@ -14,11 +15,15 @@ struct PasswordOverlays: View {
                     SuggestionMenu(menu: menu, passwords: passwords)
                         .frame(width: Self.menuWidth(for: menu.anchor, in: proxy.size))
                         .fixedSize(horizontal: false, vertical: true)
-                        .offset(x: Self.menuX(for: menu.anchor, in: proxy.size), y: menu.anchor.maxY + 6)
+                        .onGeometryChange(for: CGFloat.self, of: \.size.height) { menuHeight = $0 }
+                        .offset(
+                            x: Self.menuX(for: menu.anchor, in: proxy.size),
+                            y: Self.menuY(for: menu.anchor, height: menuHeight, in: proxy.size))
                         .transition(
                             reduceMotion
                                 ? .opacity
-                                : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+                                : .scale(scale: 0.96, anchor: Self.opensUpward(menu.anchor, height: menuHeight, in: proxy.size) ? .bottom : .top)
+                                    .combined(with: .opacity))
                 }
 
                 if let prompt = passwords.prompt {
@@ -43,6 +48,16 @@ struct PasswordOverlays: View {
     /// As wide as the field it belongs to, within reason.
     private static func menuWidth(for anchor: CGRect, in size: CGSize) -> CGFloat {
         min(max(anchor.width, 260), 420, size.width - 24)
+    }
+
+    /// Under the field, or over it when a field near the bottom of the window
+    /// leaves no room below and there is room above.
+    private static func menuY(for anchor: CGRect, height: CGFloat, in size: CGSize) -> CGFloat {
+        opensUpward(anchor, height: height, in: size) ? anchor.minY - 6 - height : anchor.maxY + 6
+    }
+
+    private static func opensUpward(_ anchor: CGRect, height: CGFloat, in size: CGSize) -> Bool {
+        anchor.maxY + 6 + height > size.height - 8 && anchor.minY - 6 - height >= Metrics.toolbarInset
     }
 
     /// Under the field's leading edge, kept inside the card.
@@ -82,6 +97,9 @@ private struct SuggestionMenu: View {
                 }
             }
         }
+        // As wide as the menu's frame, so a notice is not a narrower card
+        // centred under the field.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(5)
         .panelGlass(in: .rect(cornerRadius: 14, style: .continuous))
         .accessibilityElement(children: .contain)

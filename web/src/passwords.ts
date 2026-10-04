@@ -5,8 +5,9 @@ import { post } from "./post";
 // only, so the page can neither see these listeners nor call `fill`.
 //
 // Everything here reacts to the person: listeners do nothing until a login
-// field is focused or a form is sent, and only trusted events count — a page
-// dispatching a fake `submit` cannot make Zentic report anything.
+// field is focused or a form is sent, and only trusted events count. A sign-in
+// is reported only if the person typed into its password field, so a page
+// that fills and sends a form itself cannot make Zentic offer anything.
 
 export type Role = "username" | "password";
 
@@ -23,6 +24,8 @@ export interface Submission {
 /** Longer than any real credential; past this, the form has been misread. */
 const MAX_LENGTH = 1024;
 const TEXTUAL = new Set(["text", "email", "tel"]);
+/** Keys that close the menu: the person is typing it themselves, or said no. */
+const CLOSING_KEYS = new Set(["Backspace", "Delete", "Enter", "Escape"]);
 
 function isInput(node: unknown): node is HTMLInputElement {
   return !!node && (node as Element).nodeType === 1 && (node as Element).tagName === "INPUT";
@@ -150,8 +153,13 @@ function setValue(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-/** Where Swift's suggestion menu stands, as far as the page needs to know. */
-export type MenuState = "closed" | "open" | "highlighted";
+/**
+ * Where Swift's suggestion menu stands, as far as the page needs to know.
+ * `shown` is anything on screen without accounts to pick (the http warning,
+ * or a field just reported that Swift has not answered yet): it closes like
+ * the menu but leaves the keys to the page.
+ */
+export type MenuState = "closed" | "shown" | "open" | "highlighted";
 
 export interface Passwords {
   /** Fill one account into the sign-in last focused. Refuses unless the page is still `origin`. */
@@ -193,9 +201,18 @@ export function startPasswords(
   // A sign-in reported once is not reported again when the same click also
   // sends the form.
   let reported = "";
+  // Password fields the person typed or pasted into. A page can set a value
+  // and call `requestSubmit()`, whose `submit` WebKit marks trusted, so a
+  // trusted submit alone would let a page put its own credentials in front
+  // of the person — even as an "update" over their real password. Only
+  // trusted `input` proves a person entered it.
+  const typed = new WeakSet<HTMLInputElement>();
 
   const showFor = (input: HTMLInputElement, role: Role) => {
     field = input;
+    // Until Swift answers, a dismissal must still reach it, or a menu it
+    // is about to show would open under a field the person already left.
+    if (menu === "closed") menu = "shown";
     post({ type: "login-field", role, rect: rectOf(input) });
   };
 
@@ -217,6 +234,7 @@ export function startPasswords(
       if (name) remembered = name;
       return;
     }
+    if (!fields.passwords.some((input) => typed.has(input))) return;
     const sent = submission(fields, remembered);
     if (!sent) return;
     const key = sent.username + "\n" + sent.password;
@@ -224,6 +242,14 @@ export function startPasswords(
     reported = key;
     post({ type: "login-submit", username: sent.username, password: sent.password });
   };
+
+  doc.addEventListener(
+    "input",
+    (event) => {
+      if (trusted(event) && isInput(event.target) && event.target.type === "password") typed.add(event.target);
+    },
+    true,
+  );
 
   doc.addEventListener(
     "focusin",
@@ -275,7 +301,8 @@ export function startPasswords(
     (event) => {
       if (!trusted(event)) return;
       const target = event.target;
-      if (menu !== "closed" && target === field) {
+      const picking = menu === "open" || menu === "highlighted";
+      if (picking && target === field) {
         const key =
           event.key === "ArrowDown" ? "down"
           : event.key === "ArrowUp" ? "up"
@@ -291,13 +318,30 @@ export function startPasswords(
           post({ type: "login-key", key });
           return;
         }
-        // Typing: the person is entering it themselves.
-        if (!["Shift", "Control", "Alt", "Meta", "Tab", "CapsLock"].includes(event.key)) dismiss();
       }
+      // Not arrows, Tab or a shortcut (⇧⌘A itself comes through here first).
+      const typing = !event.metaKey && !event.ctrlKey && (event.key.length === 1 || CLOSING_KEYS.has(event.key));
+      if (target === field && typing) dismiss();
       if (event.key === "Enter" && !event.isComposing && isInput(target)) {
         // A form's Enter also fires `submit`; this catches form-less ones.
         if (!target.form) consider(scopeOf(target), target);
       }
+    },
+    true,
+  );
+
+  // Clicking elsewhere on the page moves focus to nothing, so no `focusin`
+  // follows. Checked a turn later, when focus has settled: if it went to
+  // another sign-in field, that field's report already replaced the menu;
+  // if the whole web view lost focus (a click on the menu itself), the
+  // document no longer has it and the menu stays.
+  doc.addEventListener(
+    "focusout",
+    (event) => {
+      if (event.target !== field || menu === "closed") return;
+      win.setTimeout(() => {
+        if (doc.hasFocus() && doc.activeElement !== field) dismiss();
+      }, 0);
     },
     true,
   );

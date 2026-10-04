@@ -78,8 +78,8 @@ from the toolbar: **Save**, **Not Now**, or **Never for This Site**. Change a pa
 and it offers to update the saved one instead. Private windows never offer.
 
 Passwords live in your **login Keychain**, as ordinary web-form passwords, so Keychain
-Access shows them too. Nothing else is written anywhere: no file, no preferences, no
-copy in memory. The list of sites you said never to save for is a plain file of host
+Access shows them too. Nothing else is written anywhere: no file, no preferences. A
+password is held in memory only while it is being offered, filled or shown. The list of sites you said never to save for is a plain file of host
 names.
 
 **AutoFill** (on by default, Settings › Passwords) shows your saved accounts under a

@@ -79,8 +79,9 @@ Each one has a test.
     saved for.** Never silently, never into a frame, never over plain `http`.
     `PasswordPolicy.canFill` is checked before and after Touch ID, and the page's
     `fill` refuses unless `location.origin` still matches. Origins come from WebKit's
-    `frameInfo.securityOrigin`, never from the page. Only trusted events count as a
-    sign-in, and passwords live only in the Keychain (`PasswordKeychain`), read
+    `frameInfo.securityOrigin`, never from the page. A sign-in counts only if the person
+    typed into its password field (trusted `input`; a page's `requestSubmit()` fires a
+    trusted `submit`), and passwords live only in the Keychain (`PasswordKeychain`), read
     behind `Passwords.unlock`.
 
 ## Conventions

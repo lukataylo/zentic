@@ -32,6 +32,12 @@ final class TabPasswords {
     private(set) var prompt: Prompt?
 
     @ObservationIgnored private weak var tab: Tab?
+    /// Bumped by every request to show or close the menu. Showing waits on the
+    /// Keychain, so a request answered after a newer one is dropped, not shown.
+    @ObservationIgnored private var menuRequest = 0
+    /// When the offer was made. It outlives the sign-in's own redirects, not
+    /// the next page the person goes to.
+    @ObservationIgnored private var offeredAt: ContinuousClock.Instant?
     private var webView: WKWebView? { tab?.webView }
     private var isPrivate: Bool { tab?.browser?.isPrivate == true }
 
@@ -60,6 +66,7 @@ final class TabPasswords {
                     origin: origin, username: username, password: password, isPrivate: isPrivate)
                 else { return }
                 prompt = .offer(offer)
+                offeredAt = .now
                 AccessibilityNotification.Announcement(Self.title(for: offer)).post()
             }
         default:
@@ -68,8 +75,14 @@ final class TabPasswords {
     }
 
     /// A new document: a menu under the old one's field means nothing now.
-    /// An offer stays — signing in usually navigates.
-    func pageChanged() { closeMenu(tellingPage: false) }
+    /// An offer stays through the redirects that follow a sign-in, then goes,
+    /// rather than hang over unrelated pages holding the password.
+    func pageChanged() {
+        closeMenu(tellingPage: false)
+        if case .offer = prompt, let offeredAt, ContinuousClock.now - offeredAt > Self.offerLifetime { prompt = nil }
+    }
+
+    static let offerLifetime: Duration = .seconds(30)
 
     // MARK: Menu
 
@@ -89,11 +102,16 @@ final class TabPasswords {
     }
 
     private func showMenu(on origin: LoginOrigin, field: CGRect, evenIfEmpty: Bool = false) async {
+        menuRequest += 1
+        let request = menuRequest
         await Passwords.shared.loadIfNeeded()
-        guard let webView else { return }
+        guard request == menuRequest, let webView else { return }
         let logins = Passwords.shared.suggestions(for: origin)
         // A plain-http sign-in is warned about whether or not anything is saved.
-        guard !logins.isEmpty || !origin.isSecure || evenIfEmpty else { return closeMenu(tellingPage: true) }
+        guard !logins.isEmpty || !origin.isSecure || evenIfEmpty else {
+            menu = nil
+            return tellPage(menu: "closed")
+        }
         // CSS pixels to the web view's points.
         let scale = webView.pageZoom * webView.magnification
         let anchor = CGRect(
@@ -104,21 +122,30 @@ final class TabPasswords {
         let kept = menu?.origin == origin ? menu?.highlighted.flatMap { logins.indices.contains($0) ? $0 : nil } : nil
         let next = Menu(origin: origin, logins: logins, anchor: anchor, highlighted: kept)
         // The page keeps arrow keys and Return only while there is something to pick.
-        let state = next.logins.isEmpty ? "closed" : kept == nil ? "open" : "highlighted"
-        if menu == nil || menu?.highlighted != kept { tellPage(menu: state) }
+        tellPage(menu: next.logins.isEmpty ? "shown" : kept == nil ? "open" : "highlighted")
+        if menu == nil, !logins.isEmpty {
+            // Focus stays in the page, so say there is something to pick.
+            AccessibilityNotification.Announcement(
+                logins.count == 1 ? "1 saved password. Press Down Arrow to choose it."
+                    : "\(logins.count) saved passwords. Press Down Arrow to choose one."
+            ).post()
+        }
         menu = next
     }
 
     func closeMenu() { closeMenu(tellingPage: true) }
 
     private func closeMenu(tellingPage: Bool) {
+        // Also drops a menu still waiting on the Keychain.
+        menuRequest += 1
         guard menu != nil else { return }
         menu = nil
         if tellingPage { tellPage(menu: "closed") }
     }
 
     private func key(_ key: String?) {
-        guard var menu, !menu.logins.isEmpty else { return }
+        // A key the page held for a menu that is gone: give the keys back.
+        guard var menu, !menu.logins.isEmpty else { return tellPage(menu: "closed") }
         let count = menu.logins.count
         switch key {
         case "down": menu.highlighted = ((menu.highlighted ?? -1) + 1) % count
@@ -148,6 +175,9 @@ final class TabPasswords {
                     for: login, reason: "fill your password for \(login.origin.displayName)"),
                 let webView, PasswordPolicy.canFill(login, into: LoginOrigin(url: webView.url))
             else { return }
+            // A click on the menu, or the Touch ID sheet, took focus from the
+            // page; the person goes on typing in the form just filled.
+            webView.window?.makeFirstResponder(webView)
             _ = try? await webView.callAsyncJavaScript(
                 "const p = window.zenticPasswords; return p ? p.fill(origin, username, password) : false;",
                 arguments: ["origin": login.origin.serialized, "username": login.username, "password": password],

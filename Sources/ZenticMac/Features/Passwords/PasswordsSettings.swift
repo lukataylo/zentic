@@ -99,7 +99,7 @@ struct PasswordsSettings: View {
         } message: {
             Text("It’s removed from your Keychain. This can’t be undone.")
         }
-        .alert("Couldn’t Change the Password", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert("Couldn’t Delete the Password", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
         } message: {
             Text(failure ?? "")
         }
@@ -185,12 +185,6 @@ private struct SiteHeader: View {
         HStack(spacing: 7) {
             SiteIcon(image: Favicons.shared.cached(for: URL(string: origin.serialized)), size: 14)
             Text(origin.displayName)
-            if !origin.isSecure {
-                Image(systemName: "lock.slash")
-                    .foregroundStyle(.orange)
-                    .help("Saved on an unencrypted page. Zentic won’t fill it.")
-                    .accessibilityLabel("Not secure")
-            }
         }
     }
 }
@@ -392,7 +386,7 @@ private struct EditSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Save") { commit() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(password.isEmpty || saving || (username == draft.login.username && password == draft.password))
+                    .disabled(password.isEmpty || saving || !changed)
             }
             .padding([.horizontal, .bottom], 20)
         }
@@ -403,12 +397,15 @@ private struct EditSheet: View {
         }
     }
 
+    private var trimmedUsername: String { username.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var changed: Bool { trimmedUsername != draft.login.username || password != draft.password }
+
     private func commit() {
         saving = true
         Task {
             defer { saving = false }
             do {
-                try await save(username.trimmingCharacters(in: .whitespacesAndNewlines), password)
+                try await save(trimmedUsername, password)
                 dismiss()
             } catch {
                 withAnimation { failure = error.localizedDescription }
