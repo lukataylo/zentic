@@ -26,6 +26,7 @@ struct CommandBar: View {
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 22)
+                        .accessibilityHidden(true)
                     TextField(
                         browser.commandBar.opensNewTab ? "Search or enter address" : "Go to address or search",
                         text: $browser.commandBar.text
@@ -33,6 +34,7 @@ struct CommandBar: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 19, weight: .regular))
                     .focused($focused)
+                    .accessibilityIdentifier("address")
                     .onSubmit { open(results[safe: highlighted], forceNewTab: false) }
                     .onKeyPress(.downArrow) {
                         highlighted = min(highlighted + 1, max(results.count - 1, 0))
@@ -70,7 +72,9 @@ struct CommandBar: View {
             .padding(.horizontal, 24)
         }
         .onAppear {
-            focused = true
+            // A turn later, as in `FindBar`: asked for now, the keyboard
+            // goes to the page's web view.
+            Task { focused = true }
             highlighted = 0
             results = suggestions
         }
@@ -173,7 +177,8 @@ struct CommandBar: View {
 
     private func open(_ result: Result?, forceNewTab: Bool) {
         guard let result else { return }
-        let newTab = browser.commandBar.opensNewTab || forceNewTab
+        // ⌘L in a window with no tab has no tab to load into.
+        let newTab = browser.commandBar.opensNewTab || forceNewTab || browser.selectedTab == nil
         switch result.kind {
         case .go(let url), .search(let url):
             newTab ? _ = browser.openTab(url, after: browser.selectedTab) : browser.selectedTab?.load(url)
