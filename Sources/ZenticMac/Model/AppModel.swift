@@ -203,7 +203,7 @@ final class AppModel {
 
     // MARK: -
 
-    @ObservationIgnored private let defaults = UserDefaults.standard
+    @ObservationIgnored private let defaults = DataDirectory.defaults
     @ObservationIgnored private let bookFile = JSONFile<SiteBook>(name: "sites.json")
     @ObservationIgnored private let favoritesFile = JSONFile<[Favorite]>(name: "favorites.json")
     @ObservationIgnored private let historyFile = JSONFile<[HistoryEntry]>(name: "history.json")

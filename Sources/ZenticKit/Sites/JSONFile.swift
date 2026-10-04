@@ -1,6 +1,6 @@
 import Foundation
 
-/// A Codable value persisted as one JSON file in Application Support.
+/// A Codable value persisted as one JSON file in the ``DataDirectory``.
 ///
 /// Writes are atomic (`.atomic` writes to a temporary file and renames), so a
 /// crash mid-save leaves the previous file intact rather than half of a new one.
@@ -12,8 +12,7 @@ public struct JSONFile<Value: Codable & Sendable>: Sendable {
     }
 
     public static var defaultDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("Zentic", isDirectory: true)
+        let dir = DataDirectory.root
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

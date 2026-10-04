@@ -14,10 +14,7 @@ struct BlockerStorage: Sendable {
     /// Default location. `nil` from the caller means "the real one"; tests pass a
     /// temporary directory so runs cannot see each other's caches.
     static func applicationSupport() -> URL {
-        let base =
-            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL.temporaryDirectory
-        return base.appending(path: "Zentic/Blocking", directoryHint: .isDirectory)
+        DataDirectory.root.appending(path: "Blocking", directoryHint: .isDirectory)
     }
 
     var manifestURL: URL { directory.appending(path: "manifest.json") }
