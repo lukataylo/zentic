@@ -88,7 +88,7 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(height: 580)
+        .frame(height: 690)
     }
 
     private func refresh() {
