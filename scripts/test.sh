@@ -72,6 +72,11 @@ if (( ui )); then
       -project Zentic.xcodeproj -scheme Zentic -configuration Debug \
       -destination 'platform=macOS' -derivedDataPath build/DerivedData \
       -allowProvisioningUpdates -resultBundlePath "$results/UI.xcresult"
+    if grep -q "enabling automation mode" "$results/ui.log"; then
+      print "macOS wants your password to let the tests drive the app (Automation Mode)."
+      print "Run once, as an admin, to stop it asking:"
+      print "  sudo automationmodetool enable-automationmode-without-authentication"
+    fi
     # Each journey's own line, so a pass says what passed.
     grep -E "Test Case .*(passed|failed)" "$results/ui.log" | sed -E "s/.*\[ZenticUITests\.([A-Za-z]+) ([A-Za-z]+)\]' (passed|failed) \(([0-9.]+) seconds\)./  \3  \1.\2  \4s/"
   fi
