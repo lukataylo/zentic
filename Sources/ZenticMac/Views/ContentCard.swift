@@ -59,10 +59,6 @@ struct ContentCard: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            DownloadToast()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(14)
-
             if browser.commandBar.isPresented {
                 CommandBar()
                     .transition(.opacity)
@@ -152,44 +148,6 @@ private struct EmptyStateView: View {
             Text("⌘T").font(.caption).foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private struct DownloadToast: View {
-    @State private var downloads = Downloads.shared
-
-    var body: some View {
-        if let item = downloads.latest {
-            HStack(spacing: 10) {
-                Image(systemName: item.failed != nil ? "exclamationmark.circle" : item.finished ? "checkmark.circle.fill" : "arrow.down.circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(item.failed != nil ? Color.red : item.finished ? Color.green : Color.accentColor)
-                    .symbolEffect(.pulse, isActive: !item.finished && item.failed == nil)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.name).font(.callout.weight(.medium)).lineLimit(1).truncationMode(.middle)
-                    Text(item.failed ?? (item.finished ? "Downloaded" : "Downloading…"))
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                if item.finished {
-                    Button("Show in Finder") { downloads.reveal(item) }
-                        .buttonStyle(.borderless)
-                        .font(.callout)
-                }
-                Button {
-                    downloads.dismiss()
-                } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Dismiss")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: 360)
-            .panelGlass(in: .rect(cornerRadius: 20))
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
     }
 }
 

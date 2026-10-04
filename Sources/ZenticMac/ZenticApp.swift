@@ -16,7 +16,27 @@ struct ZenticApp: App {
         // Zentic restores its own windows from the session, spaces and all;
         // SwiftUI restoring them as well would open each one twice.
         .restorationBehavior(.disabled)
-        .commands { BrowserCommands() }
+        .commands {
+            BrowserCommands()
+            BookmarkCommands()
+        }
+
+        // Each is reached from its own menu item; `commandsRemoved` keeps
+        // SwiftUI from also listing them in the Window menu — which would
+        // show Bookmarks even while bookmarks are turned off.
+        Window("History", id: HistoryWindow.id) {
+            HistoryWindow().environment(AppModel.shared)
+        }
+        .defaultSize(width: 760, height: 600)
+        .restorationBehavior(.disabled)
+        .commandsRemoved()
+
+        Window("Bookmarks", id: BookmarksWindow.id) {
+            BookmarksWindow().environment(AppModel.shared)
+        }
+        .defaultSize(width: 560, height: 560)
+        .restorationBehavior(.disabled)
+        .commandsRemoved()
 
         Settings {
             SettingsView()

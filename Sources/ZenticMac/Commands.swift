@@ -6,6 +6,8 @@ import ZenticKit
 /// focused window.
 struct BrowserCommands: Commands {
     @FocusedValue(Browser.self) private var browser
+    @FocusedValue(\.historySearch) private var historySearch
+    @Environment(\.openWindow) private var openWindow
 
     private var tab: Tab? { browser?.selectedTab }
 
@@ -53,11 +55,12 @@ struct BrowserCommands: Commands {
 
         CommandGroup(replacing: .textEditing) {
             Button("Find…") {
+                if let historySearch { return historySearch.focus() }
                 browser?.findBar.isPresented = true
                 browser?.findBar.notFound = false
             }
             .keyboardShortcut("f")
-            .disabled(tab == nil)
+            .disabled(tab == nil && historySearch == nil)
             Button("Find Next") { find(backwards: false) }
                 .keyboardShortcut("g")
                 .disabled(browser?.findBar.text.isEmpty != false)
@@ -72,6 +75,8 @@ struct BrowserCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: [.command, .control])
             .disabled(browser == nil)
+            Button("Show Downloads") { showDownloads() }
+                .keyboardShortcut("l", modifiers: [.command, .option])
             Divider()
             Button("Reload Page") { tab?.reload() }
                 .keyboardShortcut("r")
@@ -133,7 +138,12 @@ struct BrowserCommands: Commands {
                 .keyboardShortcut("]")
                 .disabled(tab?.canGoForward != true)
             Divider()
-            Button("Clear History…") { AppModel.shared.clearHistory() }
+            Button("Show All History") { openWindow(id: HistoryWindow.id) }
+                .keyboardShortcut("y")
+            RecentlyClosedMenu(browser: browser ?? Windows.shared.frontmost)
+            Divider()
+            Button("Clear History…") { ClearHistoryAlert.run() }
+                .disabled(!AppModel.shared.historyLoaded)
         }
 
         CommandMenu("Tabs") {
@@ -199,6 +209,22 @@ struct BrowserCommands: Commands {
         }
         browser.window?.makeKeyAndOrderFront(nil)
         browser.showCommandBar(newTab: newTab)
+    }
+
+    /// ⌥⌘L, as in Safari: the downloads list, from the toolbar of the
+    /// window in front — even before anything has been downloaded.
+    private func showDownloads() {
+        guard let target = browser ?? Windows.shared.frontmost else { return }
+        let downloads = Downloads.shared
+        if downloads.presentedIn == target.id { return downloads.presentedIn = nil }
+        target.window?.makeKeyAndOrderFront(nil)
+        // A popover opened while the menu is still tracking is dismissed by
+        // the menu closing. Present on the next turn.
+        Task {
+            try? await Task.sleep(for: .milliseconds(60))
+            target.selectedTab?.chromeCollapsed = false
+            downloads.presentedIn = target.id
+        }
     }
 
     private func find(backwards: Bool) {

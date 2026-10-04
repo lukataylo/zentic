@@ -5,6 +5,7 @@ import ZenticKit
 struct CommandBar: View {
     @Environment(Browser.self) private var browser
     @Environment(AppModel.self) private var app
+    @Environment(\.openWindow) private var openWindow
     @FocusState private var focused: Bool
     @State private var highlighted = 0
     /// Computed when the text changes, not on every redraw — hovering a row
@@ -83,7 +84,10 @@ struct CommandBar: View {
     // MARK: - Results
 
     struct Result: Identifiable {
-        enum Kind { case go(URL), search(URL), tab(Tab), favorite(Favorite), history(HistoryEntry) }
+        enum Kind {
+            case go(URL), search(URL), tab(Tab), favorite(Favorite), history(HistoryEntry), bookmark(Bookmark)
+            case panel(LibraryPanel)
+        }
         let id: String
         let kind: Kind
         let title: String
@@ -137,8 +141,11 @@ struct CommandBar: View {
             if results.count >= 4 { break }
         }
 
+        results += Self.bookmarkResults(for: text, app: app, limit: 6 - results.count)
+
         let seen = Set(results.compactMap { r -> String? in
             if case .tab(let t) = r.kind { return t.url?.absoluteString }
+            if case .bookmark(let b) = r.kind { return b.url?.absoluteString }
             return nil
         })
         for entry in app.searchHistory(text, limit: 8) where !seen.contains(entry.url.absoluteString) {
@@ -150,7 +157,7 @@ struct CommandBar: View {
                     icon: Favicons.shared.cached(for: entry.url), symbol: "clock", trailing: nil))
             if results.count >= 8 { break }
         }
-        return results
+        return results + Self.panelResults(for: text, app: app)
     }
 
     private func open(_ result: Result?, forceNewTab: Bool) {
@@ -165,6 +172,11 @@ struct CommandBar: View {
             browser.open(favorite)
         case .history(let entry):
             newTab ? _ = browser.openTab(entry.url, after: browser.selectedTab) : browser.selectedTab?.load(entry.url)
+        case .bookmark(let bookmark):
+            guard let url = bookmark.url else { break }
+            newTab ? _ = browser.openTab(url, after: browser.selectedTab) : browser.selectedTab?.load(url)
+        case .panel(let panel):
+            panel.show(in: browser, openWindow: openWindow)
         }
         dismiss()
     }

@@ -71,6 +71,36 @@ says so, once, and restores everything; if it crashes twice in a row within 30 s
 of launching, it restores the tabs without loading the selected one until you click
 it. A session file it cannot read is set aside, never overwritten.
 
+## History, downloads and bookmarks
+
+**History** (`⌘Y`) is a window of every page you visited, by day, with search (`⌘F`).
+Double-click or Return opens a page in the window in front, `⌘Return` in new tabs;
+`⌫` deletes, and hovering a day offers to delete all of it. *History › Clear History…*
+clears the last hour, today, today and yesterday, or everything, and the change is on
+disk at once. *History › Recently Closed* reopens any of the window's last fifteen
+closed tabs, or the last closed window. Private windows are never recorded.
+
+**Downloads** land in `~/Downloads`. While one is running, or once one has finished
+this session, a button appears at the end of the toolbar with a progress ring (a small
+ring also sits on the folded toolbar's pill). It, or `⌥⌘L`, opens the list: progress,
+size and time left, pause and resume (WebKit's resume data, so a paused download
+carries on where it stopped), cancel (which removes the partial file), try again,
+show in Finder, double-click to open, and drag a finished file out. The list is kept
+across launches; a download interrupted by quitting can be tried again. A private
+window's downloads are listed only in private windows and never saved.
+
+**Bookmarks** are off until you turn on *Settings › General › Show Bookmarks*; until
+then there is no bookmark menu, window or suggestion anywhere, and the file is never
+read. On, there is a Bookmarks menu (`⇧⌘D` adds the page, `⌥⌘B` shows the list),
+bookmarks in the address bar's suggestions, and a window with folders one level deep:
+drag to reorder, Return or *Rename* to rename, *Move To* between folders, `⌫` to
+delete. *Import Bookmarks…* reads the HTML file Safari, Chrome, Firefox and Edge
+export; deeper folders are flattened into their top-level one, the bookmarks bar's
+contents land at the top, and importing the same file twice adds nothing new.
+
+Typing *history*, *downloads* or *bookmarks* in the address bar (`⌘T`, `⌘L`) offers
+to show each.
+
 ## Keyboard
 
 | | |
@@ -86,6 +116,8 @@ it. A session file it cannot read is set aside, never overwritten.
 | `⇧⌘[` `⇧⌘]`, `⌘1`–`⌘9` | switch tabs |
 | `⌘F` `⌘G` | find |
 | `⌘D` | add to favourites |
+| `⌘Y` / `⌥⌘L` | history / downloads |
+| `⇧⌘D` / `⌥⌘B` | add bookmark / show bookmarks (when turned on) |
 | `⌃⌘S` | sidebar |
 
 ## Build
