@@ -16,6 +16,7 @@ struct FloatingToolbar: View {
         guard let tab else { return false }
         return tab.chromeCollapsed && !hoverReveal && !browser.modePickerPresented
             && !tab.design.isPresented && !browser.commandBar.isPresented && !browser.findBar.isPresented
+            && tab.permissions.current == nil
     }
 
     var body: some View {
@@ -47,6 +48,12 @@ struct FloatingToolbar: View {
 
                     AddressPill(tab: tab)
                         .glassEffectID("address", in: glass)
+
+                    if let tab, tab.permissions.isCapturing {
+                        CaptureIndicator(permissions: tab.permissions)
+                            .glassEffectID("capture", in: glass)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
                 }
                 .padding(.leading, 10)
                 .padding(.trailing, 10)
@@ -55,6 +62,7 @@ struct FloatingToolbar: View {
         }
         .animation(.smooth(duration: 0.38, extraBounce: 0.04), value: collapsed)
         .animation(.smooth(duration: 0.25), value: tab?.canGoForward)
+        .animation(.smooth(duration: 0.3), value: tab?.permissions.isCapturing)
         .frame(maxWidth: .infinity, alignment: .top)
     }
 }
@@ -98,6 +106,7 @@ private struct AddressPill: View {
             .buttonStyle(.plain)
             .help("Choose how this site looks (⌥⌘0)")
             .disabled(!SiteKey.isWeb(tab?.url))
+            .anchorPreference(key: SiteControlAnchor.self, value: .bounds) { $0 }
             .popover(isPresented: $browser.modePickerPresented, arrowEdge: .bottom) {
                 if let tab { ModePicker(tab: tab) }
             }
@@ -188,6 +197,7 @@ private struct CompactPill: View {
                 Text(tab?.displayHost ?? "")
                     .font(.system(size: 11.5, weight: .semibold))
                     .lineLimit(1)
+                if let tab, tab.permissions.isCapturing { CaptureGlyphs(permissions: tab.permissions, size: 10) }
             }
             .padding(.horizontal, 12)
             .frame(height: 26)

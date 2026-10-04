@@ -10,13 +10,13 @@ their own key; previewed, verified, kept, replayed with no further calls).
 
 | Path | What |
 |---|---|
-| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
+| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `PermissionBook` (per-site permissions), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -67,12 +67,22 @@ Each one has a test.
 7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists and
    (on request) OpenAI.
 8. **A private window writes nothing to disk.** No session, history, favicon cache or
-   tab state; its site choices are an in-memory overlay (`SiteBook.overlaying`) and its
+   tab state; its site choices and permission answers are in-memory overlays
+   (`SiteBook.overlaying`, `PermissionScope`) and its
    cookies live in its own `WKWebsiteDataStore.nonPersistent()`. Every write path
    checks `isPrivate`; add the check to any new one.
 9. **A session that can't be read is never overwritten.** `JSONFile` moves it aside,
    a newer `SessionSnapshot.version` refuses to decode, and tab-state files are pruned
    only against a session that was actually read.
+10. **A page never gets a permission it was not given.** Every WebKit permission
+    request and every Zentic-side gate (pop-ups, downloads) goes through
+    `TabPermissions`, which answers from `PermissionBook` or asks. Queued questions are
+    answered "no" when their document goes (`documentChanged`, `detach`), so a "yes"
+    meant for one page never reaches the next. The prompt's Allow button arms only
+    after 500 ms, and there is no Return shortcut for it, because a click or key press
+    aimed at the page must never grant anything. A site's explicit decision is kept
+    even when it equals the default (`PermissionBook` never prunes), so a later change
+    of default can't turn on a camera the user said to ask about.
 
 ## Conventions
 

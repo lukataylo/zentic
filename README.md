@@ -71,6 +71,38 @@ says so, once, and restores everything; if it crashes twice in a row within 30 s
 of launching, it restores the tabs without loading the selected one until you click
 it. A session file it cannot read is set aside, never overwritten.
 
+## Site permissions
+
+Camera, microphone, location, pop-ups, auto-play and downloads are decided per site:
+**Ask**, **Allow** or **Deny**. When a page asks, a small glass card hangs from the
+site control at the left of the address bar. It names the site and what it wants,
+and offers *Allow* / *Don't Allow* with *Remember for this site* ticked. *Allow* wakes
+half a second after the card appears, so a click aimed at the page can't land on it.
+Questions queue one at a time. A page that navigates away takes its questions with it,
+unanswered, and a tab waiting on one shows a raised hand in the sidebar.
+
+- **Camera and microphone.** While either is in use, a red camera or orange microphone
+  sits next to the address bar, and on the folded pill and the tab's row too. Click it
+  to pause, resume or stop. It follows WebKit's capture state as it changes; nothing
+  polls.
+- **Location** asks through the same card on macOS 27 and later, the first release
+  where WebKit lets the browser answer.
+- **Pop-ups.** One opened by a click always opens. Ones a page opens by itself are
+  *blocked and notified* by default. The card says where it was going and opens it
+  in a tab if you want it. Only a click or key press that went to the page counts.
+  Return in the address bar doesn't.
+- **Auto-play**, as in Safari: *Allow All*, *Stop Media with Sound* (the default) or
+  *Never*. WebKit fixes it when a tab's web view is made, so going to a site set
+  differently re-makes the web view, back/forward list and all. Going *back* to such a
+  site keeps the web view it has.
+- **Downloads** ask the site of the page you're on, not the server the file comes from.
+
+Change a site from the version picker (`⌥⌘0` › *Permissions*, or *Page › Site
+Permissions…*). See every decision in **Settings › Permissions**, with search, removal
+and a default for other websites. Decisions are saved in `permissions.json`. A private
+window starts from them, but keeps its own answers in memory and forgets them with the
+window. Nothing about any of this leaves the Mac.
+
 ## Keyboard
 
 | | |

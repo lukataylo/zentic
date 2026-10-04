@@ -123,6 +123,19 @@ struct BrowserCommands: Commands {
                 // Not ⌥⌘D, which shows and hides the Dock system-wide.
                 .keyboardShortcut("0", modifiers: [.command, .option])
                 .disabled(!SiteKey.isWeb(tab?.url))
+            Button("Site Permissions…") {
+                DataDirectory.defaults.set(true, forKey: "pagePermissionsExpanded")
+                let browser = browser
+                Task {
+                    try? await Task.sleep(for: .milliseconds(60))
+                    browser?.selectedTab?.chromeCollapsed = false
+                    browser?.modePickerPresented = true
+                }
+            }
+            .disabled(!SiteKey.isWeb(tab?.url))
+            if let permissions = tab?.permissions, permissions.isCapturing {
+                Button("Stop Using \(permissions.inUseDescription.capitalized)") { permissions.stopCapture() }
+            }
         }
 
         CommandMenu("History") {

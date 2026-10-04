@@ -375,6 +375,8 @@ private struct TabRow: View {
 
             Spacer(minLength: 4)
 
+            TabPermissionBadge(permissions: tab.permissions)
+
             if tab.mode == .custom || tab.mode == .minimal, !hovering {
                 Image(systemName: tab.mode.symbol)
                     .font(.system(size: 9.5, weight: .semibold))
