@@ -9,28 +9,39 @@ export const MAX_CSS_LENGTH = 60_000;
 
 export function sanitizeCSS(input: string): string {
   let css = input.slice(0, MAX_CSS_LENGTH);
-  // Comments can hide tokens from the patterns below (`@im/**/port`).
-  css = css.replace(/\/\*[\s\S]*?(\*\/|$)/g, "");
-  // HTML-ish breakouts are harmless via textContent, but strip them anyway.
-  css = css.replace(/<\/?\s*style/gi, "");
-  // At-rules spelled with escapes (`@\69mport`) — drop the whole statement.
-  css = css.replace(/@[\w-]*\\[^;{]*(;|\{[^}]*\})/g, "");
-  css = css.replace(/@import[^;]*;?/gi, "");
-  css = removeBlocks(css, /@font-face\s*\{/gi);
-  // Functions whose *name* is escaped (`u\72l(`) — neutralise the name.
-  css = css.replace(/[\w-]*\\[\w\\-]*\s*\(([^()]|\([^()]*\))*\)/g, "none");
-  // url(...) unless it is data:
-  css = css.replace(/url\(\s*(['"]?)([\s\S]*?)\1\s*\)/gi, (_match, _quote: string, body: string) =>
-    /^\s*data:/i.test(body) ? `url("${body.replace(/"/g, "%22")}")` : "none",
-  );
-  // Fetching functions that do not need url(): image-set("a.png" 1x), src("…").
-  css = css.replace(/(-webkit-)?image-set\s*\(([^()]|\([^()]*\))*\)/gi, "none");
-  css = css.replace(/\bsrc\s*\(([^()]|\([^()]*\))*\)/gi, "none");
-  css = css.replace(/expression\s*\(([^()]|\([^()]*\))*\)/gi, "none");
-  css = css.replace(/javascript\s*:/gi, "");
-  css = css.replace(/-moz-binding\s*:[^;}]*/gi, "");
-  css = css.replace(/behavio(u)?r\s*:[^;}]*/gi, "");
-  return css.trim();
+  // Repeat to a fixed point, replacing with a space rather than nothing: a
+  // single pass that *deletes* a token can splice the text around it into a
+  // new one (`urjavascript:l(` → `url(`).
+  for (let pass = 0; pass < 8; pass++) {
+    const before = css;
+    css = css.replace(/\/\*[\s\S]*?(\*\/|$)/g, " ");
+    // No escapes at all: they are how every filter below would be spelled around.
+    css = css.replace(/\\/g, " ");
+    css = css.replace(/<\/?\s*style/gi, " ");
+    css = removeBlocks(css, /@font-face\s*\{/gi);
+    css = css.replace(/@import[^;]*;?/gi, " ");
+    css = css.replace(/@namespace[^;]*;?/gi, " ");
+    css = css.replace(/url\(\s*(['"]?)([\s\S]*?)\1\s*\)/gi, (_m, _q: string, body: string) =>
+      /^\s*data:/i.test(body) ? `url("${body.replace(/"/g, "%22")}")` : "none",
+    );
+    css = css.replace(/(-webkit-)?image-set\s*\(([^()]|\([^()]*\))*\)/gi, "none");
+    css = css.replace(/\bsrc\s*\(([^()]|\([^()]*\))*\)/gi, "none");
+    css = css.replace(/expression\s*\(/gi, " (");
+    css = css.replace(/javascript\s*:/gi, " ");
+    css = css.replace(/-moz-binding|behavio(u)?r\s*:/gi, " ");
+    if (css === before) break;
+  }
+  // Belt and braces: if anything that can fetch is still there, the whole
+  // sheet goes. A missing restyle is a small loss; a beacon is not.
+  return fetchesRemotely(css) ? "" : css.trim();
+}
+
+/** Whether CSS still contains anything that can reach the network. */
+export function fetchesRemotely(css: string): boolean {
+  const lower = css.toLowerCase();
+  if (/@import|image-set\s*\(|\bsrc\s*\(|\\/.test(lower)) return true;
+  const urls = lower.match(/url\s*\(\s*['"]?\s*[^'"\s)]{0,8}/g) ?? [];
+  return urls.some((u) => !/url\s*\(\s*['"]?\s*data:/.test(u));
 }
 
 /** Remove `@rule { ... }` blocks with balanced braces. */
@@ -53,7 +64,11 @@ function removeBlocks(css: string, opener: RegExp): string {
   }
 }
 
-/** A hide selector must be a selector, nothing that could close the rule it sits in. */
+/**
+ * A hide selector must be a selector, nothing that could close the rule it
+ * sits in. Backslash escapes are allowed — Tailwind class names need them
+ * (`.md\\:hidden`) and a selector cannot fetch anything.
+ */
 export function isSafeSelectorText(selector: string): boolean {
-  return selector.length > 0 && selector.length <= 400 && !/[{};<@\\]/.test(selector);
+  return selector.length > 0 && selector.length <= 400 && !/[{};<@]/.test(selector) && !/url\s*\(/i.test(selector);
 }

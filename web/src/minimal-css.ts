@@ -5,25 +5,9 @@
 // driven by custom properties on :root so a custom version on base "minimal"
 // can restyle the whole page by overriding a handful of variables.
 
-export const MINIMAL_VARIABLES = [
-  "--z-bg",
-  "--z-fg",
-  "--z-muted",
-  "--z-accent",
-  "--z-surface",
-  "--z-border",
-  "--z-font",
-  "--z-font-display",
-  "--z-mono",
-  "--z-measure",
-  "--z-radius",
-  "--z-size",
-] as const;
-
-/** Handed to the model that writes custom versions. Keep it short and true. */
-export const MINIMAL_DESCRIPTION = `Base "minimal": every site stylesheet and inline style is switched off and Zentic's own calm design is applied to the page's real HTML. Content sits in one centred column (max-width var(--z-measure)); the site's top header/nav bars become compact horizontal rows, other navs (tables of contents, side menus) quiet vertical lists; nested menus, overlays, fixed widgets and visually-hidden helpers are hidden; images, video, tables, code and forms are styled consistently; light and dark follow the system.
-Elements the site had hidden carry [data-zentic-hidden] and stay hidden. Restyle it by overriding these custom properties on :root: --z-bg (page background), --z-fg (text), --z-muted (secondary text), --z-accent (links, focus, primary buttons), --z-surface (cards, code, inputs), --z-border (hairlines), --z-font (body font stack), --z-font-display (headings), --z-mono (code), --z-measure (column width, e.g. 46rem), --z-radius (corner radius), --z-size (base font size, e.g. 17px).
-Plain element selectors (h1, nav, article, img, table…) are reliable here; site class names still exist in the DOM but nothing styles them.`;
+// The variables and what this sheet does are described to the model that
+// writes custom versions in `OpenAIDesigner.minimalDescription` (Swift). Keep
+// the two in step when a variable is added or renamed.
 
 const GRID = [
   'ul:has(> li:nth-child(3)):has(> li > a img, > li > img, > li > figure, > li > article, > li > div img):not(nav ul, footer ul, [role="banner"] ul, table ul)',

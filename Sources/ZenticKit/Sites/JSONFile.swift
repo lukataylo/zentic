@@ -22,7 +22,15 @@ public struct JSONFile<Value: Codable & Sendable>: Sendable {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(Value.self, from: data)
+        do {
+            return try decoder.decode(Value.self, from: data)
+        } catch {
+            // Unreadable — corrupt, or written by a newer version. Set it aside
+            // rather than letting the next save overwrite every site's choices.
+            let aside = url.appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970))")
+            try? FileManager.default.moveItem(at: url, to: aside)
+            return nil
+        }
     }
 
     public func save(_ value: Value) {

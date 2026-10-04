@@ -46,7 +46,7 @@ public enum InPageScript {
               const custom = mode === "custom" && entry && entry.custom
                 ? { base: entry.custom.base, css: entry.custom.css, hide: entry.custom.hide }
                 : null;
-              window.__zenticConfig = { mode: custom || mode !== "custom" ? mode : "clean", custom };
+              window.__zenticConfig = { mode, custom };
             })();
             """
     }

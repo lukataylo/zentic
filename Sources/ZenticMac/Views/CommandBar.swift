@@ -61,7 +61,7 @@ struct CommandBar: View {
                 }
             }
             .frame(maxWidth: 660)
-            .panelGlass(in: .rect(cornerRadius: 20))
+            .panelGlass(in: .rect(cornerRadius: 26))
             .shadow(color: .black.opacity(0.25), radius: 40, x: 0, y: 18)
             .padding(.top, 70)
             .padding(.horizontal, 24)
@@ -199,7 +199,7 @@ private struct SuggestionRow: View {
         .padding(.horizontal, 12)
         .frame(height: 44)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(highlighted ? AnyShapeStyle(Color.accentColor.gradient) : AnyShapeStyle(Color.clear))
         }
         .contentShape(Rectangle())

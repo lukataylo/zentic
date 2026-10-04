@@ -21,7 +21,6 @@ struct BlockerStorage: Sendable {
     }
 
     var manifestURL: URL { directory.appending(path: "manifest.json") }
-    var shieldsURL: URL { directory.appending(path: "shields.json") }
     var snapshotsDirectory: URL {
         directory.appending(path: "snapshots", directoryHint: .isDirectory)
     }
@@ -78,22 +77,6 @@ struct BlockerStorage: Sendable {
         try writeAtomically(Data(text.utf8), to: snapshotURL(for: listID))
     }
 
-    // MARK: - Shields
-
-    func readShields() -> [String: ShieldState] {
-        guard let data = try? Data(contentsOf: shieldsURL),
-            let shields = try? JSONDecoder.zenticBlocking.decode(
-                [String: ShieldState].self,
-                from: data
-            )
-        else { return [:] }
-        return shields
-    }
-
-    func write(shields: [String: ShieldState]) throws {
-        try createDirectories()
-        try writeAtomically(try JSONEncoder.zenticBlocking.encode(shields), to: shieldsURL)
-    }
 
     /// Write to a sibling then rename, so a crash mid-write cannot leave a
     /// half-written manifest that reads as "no cache" on the next launch.

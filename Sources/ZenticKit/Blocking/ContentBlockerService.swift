@@ -1,7 +1,7 @@
 import Foundation
 import WebKit
 
-/// Compiles filter lists into `WKContentRuleList`s and tracks per-origin shields.
+/// Compiles filter lists into `WKContentRuleList`s.
 ///
 /// WebKit's content-blocking API is *declarative*: rules are compiled ahead of
 /// time and enforced inside the network process. That has two consequences the
@@ -25,12 +25,10 @@ public protocol ContentBlockerService: Sendable {
     /// - Parameter force: Recompile even when the upstream content is unchanged.
     func refresh(force: Bool) async throws -> BlockerRefreshReport
 
-    func setShield(_ state: ShieldState, for origin: String) async
-    func shield(for origin: String) async -> ShieldState
 }
 
-/// Per-origin blocking level. Users need an escape hatch for the sites that
-/// break, and the escape hatch has to be one click from the toolbar.
+/// How much of the compiled set a tab gets. Which sites block at all is the
+/// app's `SiteMode` (Original turns blocking off); this only says which lists.
 public enum ShieldState: String, Codable, Sendable, CaseIterable {
     /// Ads, trackers and cookie walls all handled.
     case standard

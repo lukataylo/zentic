@@ -178,3 +178,24 @@ describe("reveal failsafe", () => {
     expect(document.querySelector("style[data-zentic='minimal']")).toBeNull();
   });
 });
+
+describe("custom hides never become the site's own", () => {
+  beforeEach(() => reset(PAGE));
+  afterEach(() => restoreReadyState());
+
+  // Found in review: Minimal read "what the site hides" with the custom hide
+  // sheet still on, so a version's hides were baked in as the site's.
+  it("custom(minimal) → minimal brings back what the version hid", () => {
+    apply({ mode: "custom", custom: { base: "minimal", css: "", hide: ["#hero"] } });
+    apply({ mode: "minimal", custom: null });
+    expect(document.getElementById("hero")!.hasAttribute("data-zentic-hidden")).toBe(false);
+    // While the site's own hidden menu stays hidden.
+    expect(document.getElementById("gone")!.hasAttribute("data-zentic-hidden")).toBe(true);
+  });
+
+  it("a clean-base preview followed by a minimal-base one does not inherit its hides", () => {
+    apply({ mode: "custom", custom: { base: "clean", css: "", hide: ["#hero"] } });
+    apply({ mode: "custom", custom: { base: "minimal", css: "", hide: [] } });
+    expect(document.getElementById("hero")!.hasAttribute("data-zentic-hidden")).toBe(false);
+  });
+});

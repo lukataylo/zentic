@@ -33,23 +33,6 @@ enum Blocking {
         }
     }
 
-    /// Attach the compiled lists to a tab's content controller.
-    ///
-    /// Called after the web view exists rather than during configuration, because
-    /// the lists are async and blocking a tab's creation on list compilation would
-    /// stall the first paint. Rule lists can join a live `WKUserContentController`
-    /// at any time; the cost of attaching a moment late is that the very first
-    /// requests of the very first page load may slip through, which is worth it
-    /// against a stalled window.
-    static func attach(to controller: WKUserContentController, shield: ShieldState) {
-        // Registered synchronously, before the attach is even scheduled: a refresh
-        // that lands in the gap would otherwise re-attach every tab except the one
-        // still being set up, which is precisely the tab most likely to be holding
-        // seed-only rules.
-        register(controller, shield: shield)
-        Task { await apply(shield, to: controller) }
-    }
-
     /// Swap a live controller onto a different shield.
     ///
     /// Removes first: rule lists are additive, so re-adding a narrower set over a

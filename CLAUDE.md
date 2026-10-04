@@ -1,126 +1,59 @@
 # Zentic
 
-A browser where the clean version of a page *is* the page you land on. macOS + iOS,
-Swift, WKWebView. Four layers: **strip** (block ads/trackers/cookie walls),
-**restructure** (extract and re-render in our own design system — deterministic, no
-AI), **rewrite** (optionally re-voice the prose — on demand, AI), and **remodel**
-(persistent per-site *lenses* that hide, move, restyle and filter the site's own
-live DOM — authored once with AI, replayed deterministically with none).
-
-Full design: `~/.claude/plans/hazy-swimming-flame.md`.
+A macOS browser (Swift, SwiftUI, WKWebView) where each site has one of four versions,
+remembered per site: **Original**, **Clean** (content blocking + cookie walls),
+**Minimal** (site CSS off, Zentic's stylesheet over the live DOM, every element kept),
+**Custom** (a stylesheet + hide list an OpenAI model writes from the user's words with
+their own key; previewed, verified, kept, replayed with no further calls).
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `Sources/ZenticKit/` | Shared core. Contracts, models, policy. No UI. |
-| `Sources/ZenticKit/Level/` | `PageLevel` and its resolution. The one control's model. |
-| `Sources/ZenticMac/` | macOS shell. Arc-style sidebar, spaces, ⌘K palette, tab suspension. |
-| `Sources/ZenticKit/Lens/` | Lenses: model, validation, per-origin store, drift accounting. |
-| `web/` | TypeScript injected into every page. Builds to `Sources/ZenticKit/Resources/zentic.js`. |
-| `web/src/lens/` | The lens engine: segmentation, op runner, feed observer, editor overlay. |
-| `Tests/Fixtures/wire/` | Golden files. The bridge contract, shared by both languages. |
-| `search/` | **Loam** — a separate sub-project. A local search engine over ~1000 hand-seeded sites, reusing `web/src/extract` so the index holds exactly what the browser renders. No ads, nothing leaves the machine. |
+| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile` |
+| `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
+| `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
+| `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
+| `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (tabs), `Tab` (one web view), `DesignSession` |
+| `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
+| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `scroll.ts` |
 
 ## Build
 
 ```sh
-swift build && swift test          # Swift
-cd web && npm run check            # typecheck + fast tests + corpus + bundle
-cd web && npm test                 # fast tests only, for the edit loop
-cd web && npm run corpus           # print the extraction table across all 76 pages
+swift build && swift test
+cd web && npm run check     # typecheck + tests + build into Sources/ZenticKit/Resources/zentic.js
 ```
 
-The golden corpus (`npm run test:corpus`) takes ~90s because jsdom matches selectors
-in JavaScript, so it is split out of `npm test` and gated by `npm run check`. After an
-intentional extraction change: `npm run corpus -- --write`, then **read the diff** —
-a changed title or a collapsed word count is the test working, not noise to bless.
-
-`web/dist` output is **committed** so an Xcode build never needs Node. Run
-`npm run build` and commit the result after changing anything in `web/src/`.
-
-After an intentional wire-format change: `ZENTIC_UPDATE_FIXTURES=1 swift test`, review
-the diff, then `cd web && npm test` to confirm TypeScript still parses it.
+`zentic.js` is committed. Rebuild and commit it after changing `web/src`.
 
 ## Invariants
 
-These are not style preferences. Each one is load-bearing, and each has a test.
+Each one has a test.
 
-1. **The page always becomes visible.** The reader hides the document at
-   `document-start` to avoid a flash of the original, so it must guarantee a reveal.
-   `Budget.revealFailsafe` (1500ms) is a hard ceiling — never raise it to make a slow
-   site work. Arm the timer *before* hiding. See `web/src/visibility.ts`.
-
-2. **Never restructure an app — but you may remodel one.** Archetype detection
-   fails *open*: low confidence means pass the original through. Mangling someone's
-   mail client costs their trust; declining to restructure an article costs nothing.
-
-   *Restructure* extracts the content and renders our own document over the hidden
-   original. It is forbidden on apps, and that has not changed.
-
-   *Remodel* is the lens layer, and it is a different operation: the site's own DOM
-   stays live, interactive and authoritative, and a lens only hides, moves, restyles,
-   reorders or filters parts of it. That is why "YouTube without the suggestions
-   rail" is allowed where restructuring YouTube never will be — the real player is
-   still the real player. Three properties make it safe, and each is load-bearing:
-   ops fail *independently* (a stale selector no-ops and is reported, it does not
-   break the page), nothing is destroyed (⌘\ and disabling both restore the
-   untouched page), and a model authors *validated ops over regions it was shown*,
-   never markup and never a selector it invented. A lens must never hide the whole
-   document — see `LensToken.regionSelector`, which is why `hide` on `body` is not a
-   legal lens.
-
-3. **Code, tables, math and embeds are never sent to a model.** A model asked to
-   restyle a code block renames identifiers; asked to restyle a table it drops cells.
-   `SectionKind.isRewritable` encodes this, and the rule is asserted in both languages
-   from one fixture.
-
-4. **A DOM skeleton carries no page text.** Recipe inference gets tag names, classes,
-   geometry and text *lengths* — never characters. Guarded by
-   `PrivacyContractTests`. If you need real text, you want `ExtractionResult`, which
-   stays on-device.
-
-5. **A model emits validated tokens, never CSS.** Free-form CSS can contain `url()`,
-   which would beacon on every page read. `ThemeTokens.validated()` clamps ranges and
-   repairs contrast. Fonts come from the closed `FontKey` set — all local, no webfonts.
-
-6. **Rewriting is opt-in and reversible.** Off by default behind a global switch,
-   badged while shown, original always one keystroke away (⌘\). The original DOM is
-   hidden, never destroyed. Every guard lives in
-   `BrowserViewController.requestRewrite` — the model is not reached by any other
-   path, because a guard that sits in a button's handler belongs to that button
-   rather than to rewriting.
-
-   Pinning a site to `.rewritten` is **standing consent for that origin**, and its
-   pages are rewritten on every visit: a rail reading "Rewritten" over prose nobody
-   rewrote is a control lying about the page. `LevelPolicy.resolve` still never
-   *infers* the top stop — it is only ever reached by an explicit pin.
-   Fidelity-sensitive content (news, medical, legal, financial) confirms **per page**
-   regardless, because there the standing consent is to the site, not to a claim
-   about what a particular article said.
-
-9. **`PageLevel` is the single source of truth for how much a page is changed.**
-   `ShieldState`, `ReaderMode`, cookie-wall dismissal and theming are *projections* of
-   it, never independently settable — two controls that can disagree are two controls
-   that will. The ladder is strictly ordered, and `PageLevel.requiresReload` is exactly
-   the strip delta: WebKit bakes `css-display-none` in at load, so a blocking change
-   describes the next document, not the one on screen.
-
-7. **No telemetry.** Nothing about browsing leaves the device. `RevealPayload.elapsedMs`
-   is for local diagnosis only.
-
-8. **Never invent a blocked-tracker count.** `WKContentRuleList` reports nothing back
-   to the app. Show shield *state*. A plausible-looking number would be fabricated.
+1. **Nothing a model writes can fetch.** Custom CSS is sanitised to a fixed point in
+   Swift (`CSSSanitizer`, also on decode, so old stored versions are cleaned) and again
+   in the page (`sanitize.ts`). Any remaining `url()` other than `data:`, `@import`,
+   `image-set()`, `src()` or backslash escape rejects the whole sheet. Never let the
+   two sanitizers depend on each other.
+2. **A broken preview is never offered.** `DesignSession` measures visible text
+   (`zentic.health()`) before and after a preview, and makes one repair call with a
+   screenshot. If the page is still broken, it reverts.
+3. **The page always becomes visible.** Minimal hides the document at document-start;
+   the 1200 ms failsafe is armed before hiding.
+4. **Modes switch live.** `apply()` is idempotent and fully reversible between any
+   modes. Only a change in blocking (to or from Original) reloads.
+5. **One source of truth.** `SiteBook` holds the user's choice; the tab's `previewing`
+   holds an unkept preview. Nothing else stores either.
+6. **Each tab has its own `WKUserContentController`**, popups included, because
+   blockers and the message handler live on it.
+7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists and
+   (on request) OpenAI.
 
 ## Conventions
 
-- One `ReaderBridge` per tab. Reader state (recipe, theme, mode) rides on
-  `WKUserScript`, which belongs to a `WKWebViewConfiguration` — so tabs cannot share a
-  configuration without sharing reader state.
-- Everything in-page runs in the `zentic` `WKContentWorld`. Page script must not be
-  able to see or patch us.
-- DOM work goes in `web/`, not Swift: extraction needs the post-JavaScript DOM, and
-  one implementation then serves both platforms and is testable in Node.
-- Budgets and thresholds live in `Budget`. Don't scatter magic numbers.
-- Tests are written against real failure modes, not for coverage. If a test can't fail,
-  delete it.
+- In-page code runs in the `zentic` `WKContentWorld`; page script cannot see it.
+- Don't use system shortcuts: ⌘E (Use Selection for Find) and ⌥⌘D (Dock) are taken.
+- Liquid Glass cannot sample a web view. Surfaces over a page use `GlassSurface`
+  (see `WindowChrome.swift`).
+- Tests are written against real failure modes. If a test can't fail, delete it.

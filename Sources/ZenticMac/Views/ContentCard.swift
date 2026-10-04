@@ -5,11 +5,16 @@ import ZenticKit
 struct ContentCard: View {
     @Environment(Browser.self) private var browser
     @Environment(\.colorScheme) private var scheme
-    /// Room for the traffic lights when no sidebar is there to hold them.
-    var leadingClearance: CGFloat
     @State private var pointerNearTop = false
 
-    private let radius: CGFloat = 12
+    /// Concentric with the toolbar's round buttons: their 17pt radius plus the
+    /// 9pt they sit in from the card's edge.
+    private let radius: CGFloat = Metrics.cardRadius
+
+    private func pageScheme(_ tab: Tab?) -> ColorScheme {
+        guard let dark = tab?.pageIsDark else { return scheme }
+        return dark ? .dark : .light
+    }
 
     var body: some View {
         let tab = browser.selectedTab
@@ -27,7 +32,14 @@ struct ContentCard: View {
                 EmptyStateView()
             }
 
-            FloatingToolbar(tab: tab, leadingClearance: leadingClearance, hoverReveal: pointerNearTop)
+            Group {
+                ToolbarBand(tab: tab)
+                FloatingToolbar(tab: tab, hoverReveal: pointerNearTop)
+            }
+            // The toolbar sits on the page, so it follows the page's own
+            // light or dark — including while a custom version is previewed.
+            .environment(\.colorScheme, pageScheme(tab))
+            .animation(.smooth(duration: 0.35), value: tab?.pageIsDark)
 
             if browser.findBar.isPresented, let tab {
                 FindBar(tab: tab)
@@ -170,8 +182,38 @@ private struct DownloadToast: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .frame(maxWidth: 360)
-            .panelGlass(in: .rect(cornerRadius: 16))
+            .panelGlass(in: .rect(cornerRadius: 20))
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
+    }
+}
+
+/// The strip the toolbar sits on at the top of a page: the site's own
+/// background colour, closed off from the page by a fine light hairline. It
+/// fades away when the toolbar folds into its pill, so a scrolled page uses
+/// the whole card.
+private struct ToolbarBand: View {
+    let tab: Tab?
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let collapsed = tab?.chromeCollapsed ?? false
+        Rectangle()
+            .fill(Color(nsColor: tab?.pageColor ?? .textBackgroundColor))
+            .frame(height: Metrics.toolbarInset)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.white.opacity(scheme == .dark ? 0.14 : 0.9))
+                    .frame(height: 1)
+                    .overlay(alignment: .bottom) {
+                        // A shadow line under the light one, so the edge reads
+                        // on white pages as well as dark ones.
+                        Rectangle().fill(Color.black.opacity(scheme == .dark ? 0.35 : 0.07)).frame(height: 0.5).offset(y: 0.5)
+                    }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .opacity(collapsed ? 0 : 1)
+            .animation(.smooth(duration: 0.3), value: collapsed)
+            .allowsHitTesting(false)
     }
 }

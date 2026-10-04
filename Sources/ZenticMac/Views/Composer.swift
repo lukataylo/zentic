@@ -34,7 +34,7 @@ struct Composer: View {
         }
         .padding(14)
         .frame(maxWidth: 640)
-        .panelGlass(in: .rect(cornerRadius: 22))
+        .panelGlass(in: .rect(cornerRadius: 26))
         .shadow(color: .black.opacity(0.18), radius: 30, x: 0, y: 10)
         .onAppear { focused = true }
         .onExitCommand { close() }
@@ -68,25 +68,22 @@ struct Composer: View {
         switch design.phase {
         case .idle:
             if design.draft.isEmpty && !hasVersion {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Self.suggestions, id: \.self) { suggestion in
-                            Button(suggestion) {
-                                design.draft = suggestion
-                                focused = true
-                            }
-                            .buttonStyle(SuggestionStyle())
+                FlowLayout(spacing: 6) {
+                    ForEach(Self.suggestions, id: \.self) { suggestion in
+                        Button(suggestion) {
+                            design.draft = suggestion
+                            focused = true
                         }
+                        .buttonStyle(SuggestionStyle())
                     }
                 }
-                .scrollClipDisabled()
             }
-        case .working(let started):
+        case .working(let started, let note):
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
                 TimelineView(.periodic(from: started, by: 1)) { context in
                     let seconds = Int(context.date.timeIntervalSince(started))
-                    Text(seconds < 4 ? "Reading the page…" : "Designing your version… \(seconds)s")
+                    Text(note.map { "\($0) \(seconds)s" } ?? (seconds < 4 ? "Looking at the page…" : "Designing your version… \(seconds)s"))
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
@@ -111,18 +108,7 @@ struct Composer: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
-                HStack(spacing: 8) {
-                    Text("Previewing — nothing is saved yet")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                    Spacer()
-                    Button("Discard") { design.discard(on: tab) }
-                        .controlSize(.regular)
-                    Button("Keep This Version") { design.keep(on: tab) }
-                        .controlSize(.regular)
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return, modifiers: .command)
-                }
+                previewActions
             }
         case .failed(let message):
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -136,6 +122,24 @@ struct Composer: View {
                     SettingsLink { Text("Settings…") }.controlSize(.small)
                 }
             }
+            // A failed refinement leaves the earlier preview on screen, and
+            // it can still be kept.
+            if tab.previewing != nil { previewActions }
+        }
+    }
+
+    private var previewActions: some View {
+        HStack(spacing: 8) {
+            Text("Previewing — nothing is saved yet")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Button("Discard") { design.discard(on: tab) }
+                .controlSize(.regular)
+            Button("Keep This Version") { design.keep(on: tab) }
+                .controlSize(.regular)
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.return, modifiers: .command)
         }
     }
 
@@ -148,6 +152,13 @@ struct Composer: View {
                 .focused($focused)
                 .disabled(design.isWorking)
                 .onSubmit { design.submit(on: tab) }
+                // A multi-line field takes ⌘↩ before any button's shortcut
+                // sees it, so Keep is wired here as well.
+                .onKeyPress(.return, phases: .down) { press in
+                    guard press.modifiers.contains(.command), tab.previewing != nil else { return .ignored }
+                    design.keep(on: tab)
+                    return .handled
+                }
                 .padding(.vertical, 8)
                 .padding(.leading, 12)
 
@@ -166,12 +177,12 @@ struct Composer: View {
             .help("Design (↩)")
         }
         .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.primary.opacity(0.06))
         }
     }
 
-    private var hasVersion: Bool { design.preview != nil || app.custom(for: tab.url) != nil }
+    private var hasVersion: Bool { tab.previewing != nil || app.custom(for: tab.url) != nil }
 
     private var placeholder: String {
         hasVersion ? "What should change?" : "Describe how you want \(tab.displayHost) to look…"
@@ -182,7 +193,7 @@ struct Composer: View {
     }
 
     private func close() {
-        if design.preview != nil || design.isWorking {
+        if tab.previewing != nil || design.isWorking {
             design.discard(on: tab)
         } else {
             design.reset()
@@ -244,6 +255,44 @@ struct KeyEntry: View {
             } catch {
                 self.error = error.localizedDescription
             }
+        }
+    }
+}
+
+/// Lays children out left to right, wrapping onto new lines — so suggestion
+/// chips stay inside the panel at any width.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0, widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0 && x + size.width > width {
+                y += line + spacing
+                x = 0
+                line = 0
+            }
+            x += size.width + spacing
+            line = max(line, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: min(widest, width), height: y + line)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + size.width > bounds.maxX {
+                y += line + spacing
+                x = bounds.minX
+                line = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            line = max(line, size.height)
         }
     }
 }

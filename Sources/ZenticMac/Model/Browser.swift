@@ -62,6 +62,7 @@ final class Browser {
         guard let index = tabs.firstIndex(where: { $0 === tab }) else { return }
         if SiteKey.isWeb(tab.url) { closed.append(tab.snapshotSource) }
         if closed.count > 30 { closed.removeFirst() }
+        tab.design.reset()  // and cancel any model call in flight
         tab.suspend()
         tabs.remove(at: index)
         if selectedID == tab.id {

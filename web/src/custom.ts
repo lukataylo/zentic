@@ -35,10 +35,6 @@ export function clearCustom(): void {
   document.querySelector(`style[${OWN}="${HIDE_ATTR}"]`)?.remove();
 }
 
-export function customResult(): ApplyResult {
-  return result;
-}
-
 function render(): void {
   if (!current) return;
   const parent = document.head ?? document.documentElement;

@@ -9,7 +9,6 @@ import ZenticKit
 struct FloatingToolbar: View {
     @Environment(Browser.self) private var browser
     let tab: Tab?
-    var leadingClearance: CGFloat
     var hoverReveal: Bool
     @Namespace private var glass
 
@@ -49,7 +48,7 @@ struct FloatingToolbar: View {
                     AddressPill(tab: tab)
                         .glassEffectID("address", in: glass)
                 }
-                .padding(.leading, 10 + leadingClearance)
+                .padding(.leading, 10)
                 .padding(.trailing, 10)
                 .padding(.top, 9)
             }
@@ -97,7 +96,7 @@ private struct AddressPill: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Choose how this site looks (⌥⌘D)")
+            .help("Choose how this site looks (⌥⌘0)")
             .disabled(!SiteKey.isWeb(tab?.url))
             .popover(isPresented: $browser.modePickerPresented, arrowEdge: .bottom) {
                 if let tab { ModePicker(tab: tab) }

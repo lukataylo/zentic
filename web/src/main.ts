@@ -1,10 +1,9 @@
-import { MINIMAL_DESCRIPTION, MINIMAL_VARIABLES } from "./minimal-css";
-import { apply, mode } from "./modes";
+import { apply } from "./modes";
 import { startMetaReporting } from "./meta";
 import { startScrollReporting } from "./scroll";
 import { snapshot } from "./snapshot";
+import { health } from "./health";
 import type { ZenticConfig } from "./types";
-import { validate } from "./validate";
 
 declare const __ZENTIC_VERSION__: string;
 
@@ -22,9 +21,7 @@ if (!window.zentic) {
     version: __ZENTIC_VERSION__,
     apply,
     snapshot,
-    validate,
-    mode,
-    minimal: Object.freeze({ variables: [...MINIMAL_VARIABLES], description: MINIMAL_DESCRIPTION }),
+    health,
   });
   try {
     apply(window.__zenticConfig ?? { mode: "original", custom: null });

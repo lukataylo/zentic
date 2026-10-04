@@ -18,6 +18,9 @@ export function apply(config: ZenticConfig | null | undefined): ApplyResult {
   currentMode = custom || mode !== "custom" ? mode : "clean";
 
   const minimal = currentMode === "minimal" || (currentMode === "custom" && custom?.base === "minimal");
+  // Off before Minimal reads what the site hides, so a previous version's
+  // hides are never mistaken for the site's own. Same task, so no flicker.
+  clearCustom();
   if (minimal) enableMinimal();
   else disableMinimal();
 
@@ -27,7 +30,6 @@ export function apply(config: ZenticConfig | null | undefined): ApplyResult {
   if (currentMode === "custom" && custom) {
     return applyCustom({ base: custom.base === "minimal" ? "minimal" : "clean", css: custom.css ?? "", hide: custom.hide ?? [] });
   }
-  clearCustom();
   return { hidden: [], rejected: [] };
 }
 

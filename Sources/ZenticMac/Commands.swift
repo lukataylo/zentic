@@ -70,7 +70,7 @@ struct BrowserCommands: Commands {
             Button("Actual Size") { tab?.zoom = 1 }
                 .keyboardShortcut("0")
             Button("Zoom In") { zoom(by: 1) }
-                .keyboardShortcut("+")
+                .keyboardShortcut("=")
             Button("Zoom Out") { zoom(by: -1) }
                 .keyboardShortcut("-")
             Divider()
@@ -85,8 +85,9 @@ struct BrowserCommands: Commands {
                 .disabled(!SiteKey.isWeb(tab?.url))
             }
             Divider()
+            // Not ⌘E: that is "Use Selection for Find" everywhere on the Mac.
             Button("Design Your Version…") { tab?.design.present() }
-                .keyboardShortcut("e")
+                .keyboardShortcut("e", modifiers: [.command, .option])
                 .disabled(!SiteKey.isWeb(tab?.url))
             Button("Remove Custom Version") {
                 if let key = tab?.siteKey { AppModel.shared.removeCustom(forKey: key) }
@@ -102,7 +103,8 @@ struct BrowserCommands: Commands {
                     browser.modePickerPresented = true
                 }
             }
-                .keyboardShortcut("d", modifiers: [.command, .option])
+                // Not ⌥⌘D, which shows and hides the Dock system-wide.
+                .keyboardShortcut("0", modifiers: [.command, .option])
                 .disabled(!SiteKey.isWeb(tab?.url))
         }
 

@@ -6,7 +6,6 @@ import ZenticKit
 struct Sidebar: View {
     @Environment(Browser.self) private var browser
     @Environment(AppModel.self) private var app
-    var isFloating = false
     @State private var dragging: UUID?
 
     var body: some View {
@@ -102,14 +101,14 @@ private struct FavoriteTile: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .background {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(fill)
                 }
                 .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(Color.white.opacity(active ? 0.22 : 0.06), lineWidth: 1)
                 }
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(PressableStyle())
         .help(favorite.title)
@@ -161,7 +160,7 @@ private struct NewTabRow: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 10)
             .frame(height: 34)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(hovering ? 0.06 : 0)))
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(hovering ? 0.06 : 0)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -224,19 +223,19 @@ private struct TabRow: View {
         .frame(height: 34)
         .background {
             if selected {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(.white.opacity(scheme == .dark ? 0.15 : 0.82))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(.white.opacity(scheme == .dark ? 0.14 : 0.5), lineWidth: 0.75)
                     }
                     .shadow(color: .black.opacity(scheme == .dark ? 0.2 : 0.06), radius: 3, x: 0, y: 1)
             } else if hovering {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.primary.opacity(0.06))
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture { browser.select(tab) }
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)

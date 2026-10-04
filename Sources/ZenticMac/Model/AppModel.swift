@@ -17,12 +17,9 @@ final class AppModel {
         didSet {
             guard book != oldValue else { return }
             bookFile.save(book)
-            siteRevision &+= 1
             onSitesChanged.forEach { $0(oldValue, book) }
         }
     }
-    /// Bumped whenever ``book`` changes, for views that only need to redraw.
-    private(set) var siteRevision = 0
     @ObservationIgnored var onSitesChanged: [(SiteBook, SiteBook) -> Void] = []
 
     func mode(for url: URL?) -> SiteMode {
@@ -167,9 +164,6 @@ final class AppModel {
     func saveAPIKey(_ key: String) throws {
         try APIKeyStore.save(key, for: .openAI)
         hasAPIKey = APIKeyStore.has(.openAI)
-        translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
-        appearance = defaults.string(forKey: "appearance").flatMap(AppAppearance.init) ?? .system
-        appearance.apply()
     }
 
     func removeAPIKey() {

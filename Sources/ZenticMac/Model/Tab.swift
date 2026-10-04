@@ -19,7 +19,17 @@ final class Tab: Identifiable {
     private(set) var progress: Double = 0
     private(set) var canGoBack = false
     private(set) var canGoForward = false
-    private(set) var hasOnlySecureContent = true
+    /// The page's own background, sampled by WebKit — the toolbar's band is
+    /// painted in it so the band reads as the top of the site.
+    private(set) var pageColor: NSColor?
+
+    /// Whether the page is dark, judged from its own background — the toolbar
+    /// floats on the page, so it takes the page's scheme, not the system's.
+    var pageIsDark: Bool? {
+        guard let color = pageColor?.usingColorSpace(.sRGB), color.alphaComponent > 0.5 else { return nil }
+        let luminance = 0.2126 * color.redComponent + 0.7152 * color.greenComponent + 0.0722 * color.blueComponent
+        return luminance < 0.45
+    }
     /// A load that failed before anything committed, shown as a native page.
     private(set) var failure: LoadFailure?
 
@@ -42,6 +52,7 @@ final class Tab: Identifiable {
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var delegate: TabDelegate?
     @ObservationIgnored private var blockingAttached: Bool?
+    @ObservationIgnored private var blockingChange: Task<Void, Never>?
     @ObservationIgnored private var pendingURL: URL?
     @ObservationIgnored private var declaredIcon: URL?
     /// A configuration handed to us by WebKit for a `window.open` — it must be
@@ -54,6 +65,7 @@ final class Tab: Identifiable {
 
     init(id: UUID = UUID(), url: URL?, title: String = "") {
         self.id = id
+        defer { design.tab = self }
         self.pendingURL = url
         self.url = url
         self.title = title
@@ -63,6 +75,7 @@ final class Tab: Identifiable {
 
     init(openerConfiguration: WKWebViewConfiguration) {
         self.id = UUID()
+        defer { design.tab = self }
         self.title = ""
         self.openerConfiguration = openerConfiguration
     }
@@ -75,11 +88,17 @@ final class Tab: Identifiable {
         if let webView { return webView }
 
         let configuration = openerConfiguration ?? Self.makeConfiguration()
+        if openerConfiguration != nil {
+            // A popup's configuration arrives carrying its opener's content
+            // controller. Shared, the two tabs would steal each other's message
+            // handler and flip each other's content blockers; each tab gets its
+            // own. (The opener relationship lives elsewhere in the configuration.)
+            configuration.userContentController = WKUserContentController()
+        }
         openerConfiguration = nil
         let delegate = TabDelegate(tab: self)
         self.delegate = delegate
         let controller = configuration.userContentController
-        controller.removeScriptMessageHandler(forName: InPageScript.handlerName, contentWorld: InPageScript.world)
         controller.add(delegate, contentWorld: InPageScript.world, name: InPageScript.handlerName)
         installScripts(on: controller)
 
@@ -90,23 +109,25 @@ final class Tab: Identifiable {
         webView.allowsMagnification = true
         webView.isInspectable = true
         webView.pageZoom = zoom
+        // The page lays out below the toolbar, so nothing at its very top is
+        // unreachable under the glass (a site's header has nowhere to scroll
+        // to at offset zero). WebKit fills the band with the page's own colour
+        // and content scrolls up beneath it.
+        webView.obscuredContentInsets = NSEdgeInsets(top: Metrics.toolbarInset, left: 0, bottom: 0, right: 0)
         self.webView = webView
 
-        let target = pendingURL
-        let blocks = AppModel.shared.mode(for: target).blocks
-        Blocking.attach(to: controller, shield: blocks ? .standard : .off)
-        blockingAttached = blocks
-
         observe(webView)
-        if let target {
+        if let target = pendingURL {
             pendingURL = nil
-            webView.load(URLRequest(url: target))
+            // Load only once the blockers are attached; otherwise the first
+            // page of a new tab would go out unblocked.
+            prepareBlocking(for: target) { webView.load(URLRequest(url: target)) }
         }
         return webView
     }
 
     /// Drop the web view, keeping the URL and title. Used when a tab is closed
-    /// and when memory is reclaimed.
+    /// (closing keeps the record for Reopen Closed Tab).
     func suspend() {
         guard let webView else { return }
         pendingURL = webView.url ?? url
@@ -176,8 +197,8 @@ final class Tab: Identifiable {
             webView.observe(\.canGoForward, options: [.new]) { [weak self] wv, _ in
                 MainActor.assumeIsolated { self?.canGoForward = wv.canGoForward }
             },
-            webView.observe(\.hasOnlySecureContent, options: [.new]) { [weak self] wv, _ in
-                MainActor.assumeIsolated { self?.hasOnlySecureContent = wv.hasOnlySecureContent }
+            webView.observe(\.underPageBackgroundColor, options: [.initial, .new]) { [weak self] wv, _ in
+                MainActor.assumeIsolated { self?.pageColor = wv.underPageBackgroundColor }
             },
         ]
     }
@@ -218,7 +239,10 @@ final class Tab: Identifiable {
     /// site. Live where possible; a reload only when blocking has to change.
     func applyMode() {
         let target = AppModel.shared.mode(for: url)
-        previewing = nil
+        if previewing != nil {
+            previewing = nil
+            design.previewDropped()
+        }
         guard let webView, SiteKey.isWeb(url) else {
             mode = target
             return
@@ -241,6 +265,32 @@ final class Tab: Identifiable {
             "return zentic.apply(config)",
             arguments: ["config": InPageConfig.pageConfig(mode: .custom, custom: version)])
         return ((result as? [String: Any])?["rejected"] as? [String]) ?? []
+    }
+
+    struct Health {
+        var visibleText: Int
+        var overflowsX: Bool
+    }
+
+    /// How much of the page is readable right now. See `web/src/health.ts`.
+    func health() async -> Health? {
+        guard let value = await callJS("return zentic.health()", arguments: [:]) as? [String: Any] else { return nil }
+        return Health(
+            visibleText: (value["visibleText"] as? NSNumber)?.intValue ?? 0,
+            overflowsX: value["overflowsX"] as? Bool ?? false)
+    }
+
+    /// The visible page as a JPEG data URL, for a model to look at.
+    func screenshot() async -> String? {
+        guard let webView else { return nil }
+        let configuration = WKSnapshotConfiguration()
+        configuration.snapshotWidth = NSNumber(value: min(1280, Double(webView.bounds.width)))
+        guard let image = try? await webView.takeSnapshot(configuration: configuration),
+            let tiff = image.tiffRepresentation,
+            let rep = NSBitmapImageRep(data: tiff),
+            let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.6])
+        else { return nil }
+        return "data:image/jpeg;base64," + jpeg.base64EncodedString()
     }
 
     /// The structural outline a model writes selectors against.
@@ -274,7 +324,12 @@ final class Tab: Identifiable {
     private func setBlocking(_ on: Bool, then proceed: @escaping () -> Void) {
         guard let controller = webView?.configuration.userContentController else { return proceed() }
         blockingAttached = on
-        Task {
+        // Strictly in order. Attaching waits on compiled lists and detaching
+        // does not, so two quick navigations could otherwise finish backwards
+        // and leave the lists attached on a page the user set to Original.
+        let previous = blockingChange
+        blockingChange = Task {
+            await previous?.value
             await Blocking.reattach(to: controller, shield: on ? .standard : .off)
             proceed()
         }
@@ -282,7 +337,7 @@ final class Tab: Identifiable {
 
     // MARK: - Events from the delegate
 
-    fileprivate func didStartNavigation(to url: URL?) {
+    fileprivate func didStartNavigation() {
         failure = nil
         chromeCollapsed = false
     }
@@ -290,13 +345,23 @@ final class Tab: Identifiable {
     fileprivate func didCommit() {
         failure = nil
         mode = AppModel.shared.mode(for: webView?.url)
-        previewing = nil
+        if previewing != nil {
+            // A new document: the preview lived on the old one.
+            previewing = nil
+            design.previewDropped()
+        }
         declaredIcon = nil
         chromeCollapsed = false
     }
 
     fileprivate func didFinish() {
         guard let url = webView?.url else { return }
+        // A page restored from the back/forward cache was styled when it was
+        // cached, perhaps under a mode the user has since changed. `apply` is
+        // idempotent, so this costs nothing when nothing changed.
+        if SiteKey.isWeb(url), previewing == nil {
+            apply(InPageConfig.pageConfig(mode: mode, custom: AppModel.shared.custom(for: url)))
+        }
         AppModel.shared.recordVisit(url: url, title: title)
         if icon == nil || declaredIcon == nil { refreshIcon() }
         browser?.tabDidChange(self)
@@ -346,7 +411,12 @@ final class Tab: Identifiable {
     // MARK: - Find, zoom, print
 
     func find(_ text: String, backwards: Bool = false) async -> Bool {
-        guard let webView, !text.isEmpty else { return false }
+        guard let webView else { return false }
+        guard !text.isEmpty else {
+            // Clear the last match's highlight.
+            _ = try? await webView.evaluateJavaScript("getSelection().removeAllRanges()")
+            return false
+        }
         let configuration = WKFindConfiguration()
         configuration.backwards = backwards
         configuration.caseSensitive = false
@@ -373,10 +443,11 @@ struct LoadFailure: Equatable {
 }
 
 enum Metrics {
-    /// The height of the floating toolbar. The page is *not* inset by it: the
-    /// page starts at the very top of the card and the toolbar floats over it,
-    /// folding away as soon as the page scrolls.
+    /// The height of the floating toolbar's band at the top of the page.
     static let toolbarInset: CGFloat = 52
+    /// The page card's corner: concentric with the toolbar's 34pt round
+    /// buttons, which sit 9pt in from its edge.
+    static let cardRadius: CGFloat = 17 + 9
 }
 
 // MARK: - Delegate
@@ -434,7 +505,7 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        tab?.didStartNavigation(to: webView.url)
+        tab?.didStartNavigation()
     }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { tab?.didCommit() }

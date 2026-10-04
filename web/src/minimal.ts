@@ -44,10 +44,6 @@ const MAX_BODY_RESCANS = 4;
 const RESCAN_DELAY_MS = 250;
 const MAX_RESCANS = 16;
 
-export function isMinimalActive(): boolean {
-  return active;
-}
-
 /** Turn minimal on. Safe to call repeatedly. */
 export function enableMinimal(): void {
   if (active) return;
@@ -156,9 +152,13 @@ function transform(): void {
   bodyRescans = 0;
   scannedShapes = new Set();
 
-  // 2. What the site hid, it meant to hide. Read it before its CSS goes.
-  markHidden();
-  markCollapsed(document);
+  // 2. What the site hid, it meant to hide. Read it before its CSS goes —
+  // and with a custom version's sheets off, or what *it* hides would be
+  // recorded as the site's own and stay hidden after the version is gone.
+  withCustomOff(() => {
+    markHidden();
+    markCollapsed(document);
+  });
   // 3. Off with the author styles.
   for (const el of Array.from(document.querySelectorAll<HTMLElement>("link, style"))) disableSheet(el);
   disableAdoptedSheets();
@@ -271,7 +271,7 @@ function rescan(): void {
   observer?.disconnect();
   const sheets = Array.from(document.querySelectorAll<HTMLElement>(`[${STASH_MEDIA}]`));
   const ours = document.querySelector<HTMLStyleElement>(`style[${OWN}="minimal"]`);
-  const custom = document.querySelector<HTMLStyleElement>(`style[${OWN}="custom"]`);
+  const custom = Array.from(document.querySelectorAll<HTMLStyleElement>(`style[${OWN}="custom"], style[${OWN}="hide"]`));
   const inline: Element[] = [];
   try {
     for (const el of sheets) {
@@ -281,7 +281,7 @@ function rescan(): void {
     }
     for (const sheet of disabledAdopted) sheet.disabled = false;
     ours?.setAttribute("media", OFF_MEDIA);
-    custom?.setAttribute("media", OFF_MEDIA);
+    for (const el of custom) el.setAttribute("media", OFF_MEDIA);
     for (const root of top) {
       for (const el of [root, ...Array.from(root.querySelectorAll(`[${STASH_STYLE}]`))]) {
         if (!el.hasAttribute(STASH_STYLE)) continue;
@@ -295,9 +295,20 @@ function rescan(): void {
     for (const el of sheets) el.setAttribute("media", OFF_MEDIA);
     for (const sheet of disabledAdopted) sheet.disabled = true;
     ours?.removeAttribute("media");
-    custom?.removeAttribute("media");
+    for (const el of custom) el.removeAttribute("media");
     observer?.takeRecords();
     observe();
+  }
+}
+
+/** Run `read` with a custom version's stylesheet and hide rules switched off. */
+function withCustomOff(read: () => void): void {
+  const sheets = Array.from(document.querySelectorAll<HTMLStyleElement>(`style[${OWN}="custom"], style[${OWN}="hide"]`));
+  for (const el of sheets) el.setAttribute("media", OFF_MEDIA);
+  try {
+    read();
+  } finally {
+    for (const el of sheets) el.removeAttribute("media");
   }
 }
 

@@ -33,7 +33,7 @@ struct WebContainer: NSViewRepresentable {
             layer?.masksToBounds = true
             // SwiftUI's clip does not reach an AppKit subview; the card's
             // corners have to be cut here too.
-            layer?.cornerRadius = 12
+            layer?.cornerRadius = Metrics.cardRadius
             layer?.cornerCurve = .continuous
         }
 

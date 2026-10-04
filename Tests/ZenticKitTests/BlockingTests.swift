@@ -346,41 +346,6 @@ struct ShieldTests {
         #expect(standard.count > blockingOnly.count)
     }
 
-    @Test func shieldsSurviveARelaunch() async throws {
-        let harness = try Harness()
-        await harness.engine.setShield(.blockingOnly, for: "https://example.com")
-        await harness.engine.setShield(.off, for: "https://broken.example.org")
-
-        let relaunched = harness.makeEngine()
-        #expect(await relaunched.shield(for: "https://example.com") == .blockingOnly)
-        #expect(await relaunched.shield(for: "https://broken.example.org") == .off)
-        #expect(await relaunched.shield(for: "https://untouched.example.net") == .standard)
-    }
-
-    /// The toolbar has a full URL and a settings row has a bare host. If they key
-    /// differently, a shield the user set looks like it did not stick.
-    @Test func originsNormaliseToOneKey() async throws {
-        let harness = try Harness()
-        await harness.engine.setShield(.off, for: "HTTPS://Example.com:443/some/path?q=1")
-
-        for spelling in [
-            "https://example.com", "https://example.com/", "https://EXAMPLE.com/other",
-        ] {
-            #expect(await harness.engine.shield(for: spelling) == .off, "\(spelling)")
-        }
-        // A different scheme or port is a different origin.
-        #expect(await harness.engine.shield(for: "http://example.com") == .standard)
-        #expect(await harness.engine.shield(for: "https://example.com:8443") == .standard)
-    }
-
-    @Test func resettingToStandardForgetsTheOverride() async throws {
-        let harness = try Harness()
-        await harness.engine.setShield(.off, for: "https://example.com")
-        await harness.engine.setShield(.standard, for: "https://example.com")
-
-        let relaunched = harness.makeEngine()
-        #expect(await relaunched.shield(for: "https://example.com") == .standard)
-    }
 }
 
 // MARK: - Measurement

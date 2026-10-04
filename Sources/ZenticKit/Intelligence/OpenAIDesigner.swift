@@ -18,13 +18,24 @@ public struct OpenAIDesigner: Sendable {
         public var instruction: String
         /// The version being refined, if any.
         public var current: CustomVersion?
+        /// A JPEG of the page as it looks now, as a data URL. A model that can
+        /// see the page writes CSS that fits it; one working from the outline
+        /// alone guesses at the layout and breaks table-built sites.
+        public var screenshot: String?
+        /// Set on a repair pass: what went wrong with `current` when previewed.
+        public var problem: String?
 
-        public init(url: URL, title: String, outline: String, instruction: String, current: CustomVersion?) {
+        public init(
+            url: URL, title: String, outline: String, instruction: String, current: CustomVersion?,
+            screenshot: String? = nil, problem: String? = nil
+        ) {
             self.url = url
             self.title = title
             self.outline = outline
             self.instruction = instruction
             self.current = current
+            self.screenshot = screenshot
+            self.problem = problem
         }
     }
 
@@ -63,7 +74,7 @@ public struct OpenAIDesigner: Sendable {
             "model": model,
             "messages": [
                 ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": userPrompt(request)],
+                ["role": "user", "content": userContent(request)],
             ],
             "response_format": [
                 "type": "json_schema",
@@ -203,12 +214,31 @@ public struct OpenAIDesigner: Sendable {
         - Never hide html, body, or the element holding the main content.
         - No url(), @import or @font-face — they are stripped. Use system fonts \
         (-apple-system, "SF Pro", "New York", Georgia, Menlo, ui-monospace…).
+        - Choose the base deliberately. Any change to the overall look — a theme, dark \
+        mode, typography, a "reader" or "newspaper" feel — should use base "minimal" and \
+        restyle it mainly through the --z-* variables plus a few plain element rules: that \
+        is reliable on every site. Use "clean" only for surgical tweaks where the site's \
+        own design should stay (hide a panel, recolour a bar, enlarge text).
+        - Never change the display, position or float of table, tr or td elements, and \
+        never turn rows into blocks: many sites are laid out with tables, and that \
+        collapses them. Style inside cells instead.
+        - When you change background colours, also set the colour of all text, links, \
+        metadata and form controls, so nothing becomes unreadable.
         - Respect prefers-color-scheme unless the user asked for a specific scheme.
         - Keep it accessible: readable contrast, visible focus, no text under 13px.
         - Be bold and complete when the user asks for a redesign; be surgical when they \
         ask for a tweak. When refining an existing version, return the full revised \
         stylesheet and hide list, not a diff.
         """
+    }
+
+    /// Text, plus the screenshot when there is one.
+    static func userContent(_ request: Request) -> Any {
+        guard let screenshot = request.screenshot else { return userPrompt(request) }
+        return [
+            ["type": "text", "text": userPrompt(request)],
+            ["type": "image_url", "image_url": ["url": screenshot, "detail": "high"]],
+        ]
     }
 
     static func userPrompt(_ request: Request) -> String {
@@ -231,6 +261,17 @@ public struct OpenAIDesigner: Sendable {
                 Revise it according to the new instruction below.
 
                 """
+        }
+        if let problem = request.problem {
+            text += """
+                Previewing that stylesheet broke the page: \(problem)
+                The screenshot shows the broken result. Fix it — keep what the user asked for, \
+                but make sure all the content is visible, readable and laid out sensibly.
+
+                """
+        }
+        if request.screenshot != nil && request.problem == nil {
+            text += "The screenshot shows the page as it looks now.\n\n"
         }
         text += """
             Instruction: \(request.instruction)

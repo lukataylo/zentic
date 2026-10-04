@@ -95,6 +95,23 @@ public struct CustomVersion: Codable, Sendable, Hashable {
     }
 }
 
+extension CustomVersion {
+    private enum CodingKeys: String, CodingKey { case base, css, hide, summary, prompts, updatedAt }
+
+    /// Decoding goes through the sanitizing initializer, so a version stored by
+    /// an older, weaker sanitizer is cleaned on load rather than replayed.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            base: try c.decode(CustomBase.self, forKey: .base),
+            css: try c.decode(String.self, forKey: .css),
+            hide: try c.decodeIfPresent([String].self, forKey: .hide) ?? [],
+            summary: try c.decodeIfPresent(String.self, forKey: .summary) ?? "",
+            prompts: try c.decodeIfPresent([String].self, forKey: .prompts) ?? [],
+            updatedAt: try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date())
+    }
+}
+
 /// What the user chose for one site.
 public struct SiteSettings: Codable, Sendable, Hashable {
     public var mode: SiteMode

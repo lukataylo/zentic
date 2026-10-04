@@ -6,7 +6,6 @@ struct BrowserView: View {
     @Environment(Browser.self) private var browser
     @Environment(AppModel.self) private var app
     @Environment(\.colorScheme) private var scheme
-    @State private var isFullScreen = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -21,7 +20,7 @@ struct BrowserView: View {
                 }
                 // With the sidebar gone the traffic lights hide too (see
                 // `TrafficLights`), so the toolbar takes the whole row.
-                ContentCard(leadingClearance: 0)
+                ContentCard()
                     .padding(.vertical, 8)
                     .padding(.trailing, 8)
                     .padding(.leading, browser.sidebarVisible ? 0 : 8)
@@ -32,7 +31,7 @@ struct BrowserView: View {
             }
         }
         .ignoresSafeArea()
-        .background(WindowConfigurator(isFullScreen: $isFullScreen))
+        .background(WindowConfigurator())
         .animation(.smooth(duration: 0.32), value: browser.sidebarVisible)
         .onChange(of: browser.sidebarVisible || browser.sidebarPeeking, initial: true) { _, shown in
             TrafficLights.setHidden(!shown)
@@ -104,22 +103,25 @@ private struct SidebarPeek: View {
                 }
 
             if browser.sidebarPeeking {
-                Sidebar(isFloating: true)
+                // Slides in exactly where the docked sidebar lives — flush with
+                // the window's edge, the same glass, the traffic lights in their
+                // usual place — and casts a shadow over the page it covers.
+                let shape = UnevenRoundedRectangle(
+                    topLeadingRadius: 0, bottomLeadingRadius: 0,
+                    bottomTrailingRadius: Metrics.cardRadius, topTrailingRadius: Metrics.cardRadius,
+                    style: .continuous)
+                Sidebar()
                     .frame(width: browser.sidebarWidth)
+                    .frame(maxHeight: .infinity)
                     .background {
                         ZStack {
-                            VisualEffect(material: .hudWindow)
-                            WindowBackground(tint: app.tint).opacity(0.9)
+                            VisualEffect(material: .sidebar, blending: .behindWindow)
+                            WindowBackground(tint: app.tint)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(shape)
                     }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(.white.opacity(0.12))
-                    }
-                    .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 8)
-                    .padding(.vertical, 8)
-                    .padding(.leading, 6)
+                    .overlay { shape.stroke(Color.white.opacity(0.18), lineWidth: 0.5) }
+                    .shadow(color: .black.opacity(0.25), radius: 18, x: 6, y: 0)
                     .onHover { inside in
                         if !inside { withAnimation(.smooth(duration: 0.28)) { browser.sidebarPeeking = false } }
                     }

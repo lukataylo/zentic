@@ -10,7 +10,10 @@ struct VisualEffect: NSViewRepresentable {
         let view = NSVisualEffectView()
         view.material = material
         view.blendingMode = blending
-        view.state = .followsWindowActiveState
+        // Always live. By default AppKit flattens vibrancy to an opaque grey
+        // whenever the window isn't key (Settings open, another app in front),
+        // and the glass frame would visibly switch off.
+        view.state = .active
         return view
     }
 
@@ -21,10 +24,9 @@ struct VisualEffect: NSViewRepresentable {
 }
 
 /// Reaches the hosting `NSWindow` to set what SwiftUI scene modifiers cannot:
-/// a transparent, full-size titlebar with the traffic lights floating over the
-/// sidebar, and full-screen state for layout.
+/// a transparent, full-size titlebar with the traffic lights seated on the
+/// toolbar's row.
 struct WindowConfigurator: NSViewRepresentable {
-    @Binding var isFullScreen: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = ConfiguratorView()
@@ -45,26 +47,16 @@ struct WindowConfigurator: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 
-    func makeCoordinator() -> Coordinator { Coordinator(isFullScreen: $isFullScreen) }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     @MainActor
     final class Coordinator {
-        var isFullScreen: Binding<Bool>
         private var tokens: [NSObjectProtocol] = []
-        init(isFullScreen: Binding<Bool>) { self.isFullScreen = isFullScreen }
 
         func observe(_ window: NSWindow) {
             tokens.forEach(NotificationCenter.default.removeObserver)
             let center = NotificationCenter.default
-            tokens = [
-                center.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: window, queue: .main) {
-                    [weak self] _ in MainActor.assumeIsolated { self?.isFullScreen.wrappedValue = true }
-                },
-                center.addObserver(forName: NSWindow.willExitFullScreenNotification, object: window, queue: .main) {
-                    [weak self] _ in MainActor.assumeIsolated { self?.isFullScreen.wrappedValue = false }
-                },
-            ]
-            isFullScreen.wrappedValue = window.styleMask.contains(.fullScreen)
+            tokens = []
 
             // AppKit lays the titlebar out again on every resize and on leaving
             // full screen, so the traffic lights are re-seated each time.

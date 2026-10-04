@@ -43,7 +43,6 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
     /// Whether every configured source is currently compiled and installed. False
     /// means the seed is carrying us and a background refresh is worth starting.
     private var isComplete = false
-    private var shields: [String: ShieldState]?
     private var observers: [UUID: AsyncStream<Void>.Continuation] = [:]
 
     public init(
@@ -182,61 +181,6 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
     private func adopt(_ installed: Installed) {
         self.installed = installed
         notifyObservers()
-    }
-
-    // MARK: - Shields
-
-    public func setShield(_ state: ShieldState, for origin: String) async {
-        let key = Self.normalize(origin)
-        guard !key.isEmpty else { return }
-
-        var shields = loadedShields()
-        // `.standard` is the default, so it is stored as an absence. Keeps the file
-        // proportional to the number of sites the user actually had to override.
-        if state == .standard {
-            shields.removeValue(forKey: key)
-        } else {
-            shields[key] = state
-        }
-        self.shields = shields
-        try? storage.write(shields: shields)
-    }
-
-    public func shield(for origin: String) async -> ShieldState {
-        loadedShields()[Self.normalize(origin)] ?? .standard
-    }
-
-    private func loadedShields() -> [String: ShieldState] {
-        if let shields { return shields }
-        let loaded = storage.readShields()
-        shields = loaded
-        return loaded
-    }
-
-    /// Reduces an origin to `scheme://host[:port]`.
-    ///
-    /// The toolbar has a full URL, a settings row has a bare hostname, and both must
-    /// land on the same key or a shield the user set will appear not to have stuck.
-    static func normalize(_ origin: String) -> String {
-        let trimmed = origin.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard let url = URL(string: trimmed), let host = url.host(), !host.isEmpty else {
-            return trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
-        }
-        var result = ""
-        if let scheme = url.scheme { result += "\(scheme)://" }
-        result += host
-        if let port = url.port, port != Self.defaultPort(for: url.scheme) {
-            result += ":\(port)"
-        }
-        return result
-    }
-
-    private static func defaultPort(for scheme: String?) -> Int? {
-        switch scheme {
-        case "http": 80
-        case "https": 443
-        default: nil
-        }
     }
 
     // MARK: - The pipeline
@@ -518,7 +462,7 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
     }
 
     /// Conversion is seconds of straight-line CPU for a list the size of EasyList, and
-    /// running it on the actor would block every `installedRuleLists()` and `shield(for:)`
+    /// running it on the actor would block every `installedRuleLists()` and `ruleLists(for:)`
     /// call behind it — a hung toolbar during the first-run background refresh. It has
     /// no need for actor state, so it goes to a detached task instead.
     private nonisolated func convertOffActor(

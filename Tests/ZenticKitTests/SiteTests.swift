@@ -123,6 +123,36 @@ import Testing
         #expect(!out.contains("\\"))
     }
 
+    /// Found in review: removing one token used to splice its neighbours into
+    /// a new one, and the two sanitizers in series completed each other's work.
+    @Test(arguments: [
+        "body{background:urjavajavascript:script:l(https://evil.example/p.png)}",
+        "@imjavajavascript:script:port \"https://evil.example/x.css\";",
+        "a{background:urlexpression(https://evil.example/a.png)}",
+        "a{background:\\75 rl(https://evil.example/a.png)}",
+        "a{background:u/**/rl(https://evil.example/a.png)}",
+        "a{background:-webkit-image-set(\"https://evil.example/a.png\" 1x)}",
+        "a{background:src(\"https://evil.example/a.png\")}",
+        "@import'https://evil.example/x.css';",
+    ])
+    func splicedTokensCannotFetch(_ css: String) {
+        let out = CSSSanitizer.sanitize(css)
+        #expect(!out.contains("evil.example") || !CSSSanitizer.fetchesRemotely(out), "\(out)")
+        #expect(!CSSSanitizer.fetchesRemotely(out), "\(out)")
+    }
+
+    @Test func storedVersionsAreCleanedWhenLoaded() throws {
+        let json = #"{"base":"clean","css":"a{background:url(https://evil.example/x)}","hide":[".ad"],"summary":"","prompts":[],"updatedAt":"2026-10-04T15:00:00Z"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let version = try decoder.decode(CustomVersion.self, from: Data(json.utf8))
+        #expect(!version.css.contains("evil.example"))
+    }
+
+    @Test func tailwindSelectorsSurvive() {
+        #expect(CSSSanitizer.sanitizeSelectors([#".md\:hidden"#]) == [#".md\:hidden"#])
+    }
+
     @Test func cannotCloseTheStyleElement() {
         #expect(!CSSSanitizer.sanitize("a{}</style><script>alert(1)</script>").lowercased().contains("</style"))
     }

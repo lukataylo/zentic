@@ -15,22 +15,39 @@ public enum CSSSanitizer {
 
     public static func sanitize(_ css: String) -> String {
         var out = String(css.prefix(maxLength))
-        // Comments first, so nothing below can be hidden inside one or split by one.
-        out = replacing(#"/\*[\s\S]*?\*/"#, in: out, with: "")
-        out = out.replacingOccurrences(of: "\\", with: "")
-        out = removeAtRuleBlocks(named: "font-face", in: out)
-        out = replacing(#"@import[^;]*;?"#, in: out, with: "")
-        out = replacing(#"@namespace[^;]*;?"#, in: out, with: "")
-        // `url(` with anything but a data: URL. Quoted or not.
-        out = replacing(
-            #"url\(\s*(?!['"]?\s*data:)[^)]*\)"#, in: out, with: "none")
-        out = replacing(#"image-set\([^)]*\)"#, in: out, with: "none")
-        out = replacing(#"(?i)expression\s*\("#, in: out, with: "(")
-        out = replacing(#"(?i)javascript\s*:"#, in: out, with: "")
-        out = replacing(#"(?i)-moz-binding|behavior\s*:"#, in: out, with: "")
-        // Something that tries to escape a <style> element.
-        out = replacing(#"(?i)</\s*style"#, in: out, with: "")
-        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Repeat to a fixed point, replacing with a space rather than nothing:
+        // a single pass that *deletes* a token can splice the text around it
+        // into a new one (`urjavascript:l(` → `url(`). The in-page sanitizer in
+        // `web/src/sanitize.ts` does the same, again, at apply time.
+        for _ in 0..<8 {
+            let before = out
+            out = replacing(#"/\*[\s\S]*?(\*/|$)"#, in: out, with: " ")
+            // No escapes at all: they are how every filter below would be spelled around.
+            out = out.replacingOccurrences(of: "\\", with: " ")
+            out = replacing(#"</?\s*style"#, in: out, with: " ")
+            out = removeAtRuleBlocks(named: "font-face", in: out)
+            out = replacing(#"@import[^;]*;?"#, in: out, with: " ")
+            out = replacing(#"@namespace[^;]*;?"#, in: out, with: " ")
+            out = replacing(#"url\(\s*(?!['"]?\s*data:)[^)]*\)"#, in: out, with: "none")
+            out = replacing(#"(-webkit-)?image-set\([^)]*\)"#, in: out, with: "none")
+            out = replacing(#"\bsrc\s*\([^)]*\)"#, in: out, with: "none")
+            out = replacing(#"expression\s*\("#, in: out, with: " (")
+            out = replacing(#"javascript\s*:"#, in: out, with: " ")
+            out = replacing(#"-moz-binding|behaviou?r\s*:"#, in: out, with: " ")
+            if out == before { break }
+        }
+        // Anything that can still fetch condemns the whole sheet.
+        return fetchesRemotely(out) ? "" : out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whether CSS still contains anything that can reach the network.
+    public static func fetchesRemotely(_ css: String) -> Bool {
+        let lower = css.lowercased()
+        if lower.contains("@import") || lower.contains("\\") { return true }
+        for pattern in [#"image-set\s*\("#, #"\bsrc\s*\("#, #"url\s*\(\s*(?!['"]?\s*data:)"#] {
+            if lower.range(of: pattern, options: .regularExpression) != nil { return true }
+        }
+        return false
     }
 
     /// Selectors are inserted into a stylesheet as `sel { display: none }`, so a
