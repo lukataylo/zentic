@@ -17,7 +17,14 @@ import Testing
     static let hide = [".rail", ".promo", ".comments", ".never"]
     static let baseline = CustomBaseline(check([".rail": 1, ".promo": 3, ".comments": 1, ".never": 0]))
 
-    func tracker() -> DriftTracker { DriftTracker(hide: Self.hide, baseline: Self.baseline) }
+    static let all = [".rail": 1, ".promo": 1, ".comments": 1]
+
+    /// A tracker whose checks have found every selector once, so their misses count.
+    func tracker() -> DriftTracker {
+        var t = DriftTracker(hide: Self.hide, baseline: Self.baseline)
+        _ = t.record(Self.check(Self.all), path: "/seen")
+        return t
+    }
 
     @Test func aVersionThatStillMatchesHasNotDrifted() {
         var t = tracker()
@@ -27,7 +34,7 @@ import Testing
     @Test func missingOnTheSameKindOfPageIsLostOnTheSecondCheck() {
         var t = tracker()
         let missing = Self.check([".rail": 0, ".promo": 0, ".comments": 1])
-        // Once could be a popup that has not opened yet, or a banner already dismissed.
+        // Once could be an A/B test.
         #expect(t.record(missing, path: "/b") == nil)
         // A site with one page is judged too: the same page twice is evidence.
         let drift = t.record(missing, path: "/b")
@@ -94,11 +101,35 @@ import Testing
     @Test func newSidewaysScrollingIsDriftButOldIsNot() {
         var t = tracker()
         let all = [".rail": 1, ".promo": 1, ".comments": 1]
+        // Once could be a page with its own wide table.
+        #expect(t.record(Self.check(all, overflows: true), path: "/") == nil)
         #expect(t.record(Self.check(all, overflows: true), path: "/")?.scrollsSideways == true)
 
         let overflowing = CustomBaseline(Self.check(all, overflows: true))
         var tolerant = DriftTracker(hide: Self.hide, baseline: overflowing)
         #expect(tolerant.record(Self.check(all, overflows: true), path: "/") == nil)
+    }
+
+    /// A reference page with a wide table overflows in Original too: it is
+    /// another kind of page, and says nothing about the version.
+    @Test func sidewaysScrollingOnAnotherKindOfPageIsNotDrift() {
+        var t = tracker()
+        let wide = Self.check(Self.all, overflows: true, landmarks: Self.frontPage)
+        #expect(t.record(wide, path: "/ref/a") == nil)
+        #expect(t.record(wide, path: "/ref/b") == nil)
+        #expect(t.record(wide, path: "/ref/c") == nil)
+    }
+
+    /// A selector matched at Keep that no check has ever found — a modal on
+    /// a timer, a lazily injected launcher — is the page's timing, not drift.
+    @Test func aSelectorOnlyEverFoundAtKeepIsNotJudged() {
+        var t = DriftTracker(hide: Self.hide, baseline: Self.baseline)
+        let early = Self.check([".rail": 1, ".comments": 1])
+        for path in ["/a", "/b", "/c", "/d"] { #expect(t.record(early, path: path) == nil) }
+        // Once a check has seen it, its absence is evidence again.
+        _ = t.record(Self.check(Self.all), path: "/e")
+        _ = t.record(early, path: "/f")
+        #expect(t.record(early, path: "/g")?.lost == [".promo"])
     }
 
     @Test func pageKindToleratesLengthButNotShape() {

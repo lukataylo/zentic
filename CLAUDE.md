@@ -114,7 +114,8 @@ Each one has a test.
     asks for `zentic.recheck()` after a Custom page's `didFinish`, in an idle callback,
     at most once per site per `Drift.checkInterval`. What it finds is only shown; the
     model is reached only through `DesignSession.repair`, from a button. A selector is
-    lost after `Drift.missesOnSameKind` misses on the kept kind of page
+    judged only once a check has found it (the baseline is taken at Keep, later in the
+    page's life than any check), and lost after `Drift.missesOnSameKind` misses on the kept kind of page
     (`CustomBaseline.isSameKind`) or `Drift.missesOnOtherPages` distinct other pages.
     Private windows are never checked (what is found outlives the window). A legacy version's baseline is adopted
     only from a page that `canBeBaseline` (never an error page).

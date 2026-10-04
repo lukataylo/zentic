@@ -113,8 +113,8 @@ public struct Drift: Sendable, Hashable {
     /// Visible text falling below this fraction of what it was is a drop.
     public static let textDrop = 0.5
     /// Checks of the same kind of page a selector must miss on before it
-    /// counts as lost. Not one: a newsletter popup that has not opened yet, a
-    /// cookie banner already dismissed or an A/B test would each cry wolf.
+    /// counts as lost — and that the page must newly scroll sideways on. Not
+    /// one: an A/B test, or a page with its own wide table, would cry wolf.
     public static let missesOnSameKind = 2
     /// Pages of a different kind a selector must miss on, all of them distinct,
     /// before it counts as lost. One kind of page lacking a sidebar says
@@ -157,14 +157,28 @@ public struct Drift: Sendable, Hashable {
 ///
 /// A selector is lost once it has missed on `Drift.missesOnSameKind` checks of
 /// the kind of page the version was kept on, or on `Drift.missesOnOtherPages`
-/// distinct pages of other kinds, without being found on any in between. Text
-/// and overflow are judged on each check alone. A page with too little text
-/// to be a real one — an error page, a bot challenge — is no evidence at all.
+/// distinct pages of other kinds, without being found on any in between.
+///
+/// Only a selector a check has found is judged. The baseline is measured at
+/// Keep, seconds or minutes into the page's life; a check runs as the page
+/// first idles. A newsletter modal on a timer, a chat launcher or a lazily
+/// inserted ad matched at Keep and is not there yet when checked — every
+/// time — so its misses would be the moment, not drift.
+///
+/// Text share is judged on each check alone; new sideways scrolling, like a
+/// selector, on `Drift.missesOnSameKind` checks of the kept kind of page in a
+/// row, so a page with its own wide table does not raise it. A page with too
+/// little text to be a real one — an error page, a bot challenge — is no
+/// evidence at all.
 public struct DriftTracker: Sendable {
     public let baseline: CustomBaseline
     private let judged: [String]
+    /// Judged selectors some check has found: the only ones whose misses count.
+    private var seen: Set<String> = []
     private var lost: Set<String> = []
     private var misses: [String: Misses] = [:]
+    /// Checks of the kept kind of page in a row that newly scrolled sideways.
+    private var sideways = 0
 
     private struct Misses: Sendable {
         var sameKind = 0
@@ -183,9 +197,10 @@ public struct DriftTracker: Sendable {
             let sameKind = baseline.isSameKind(as: check.landmarks)
             for selector in judged {
                 if (check.matches[selector] ?? 0) > 0 {
+                    seen.insert(selector)
                     lost.remove(selector)
                     misses[selector] = nil
-                } else if !lost.contains(selector) {
+                } else if seen.contains(selector), !lost.contains(selector) {
                     // Counted only until lost, so evidence never grows past the thresholds.
                     var missed = misses[selector] ?? Misses()
                     if sameKind { missed.sameKind += 1 } else { missed.otherPages.insert(path) }
@@ -202,8 +217,10 @@ public struct DriftTracker: Sendable {
             if sameKind, let kept = baseline.textShare, let now = check.textShare, now < kept * Drift.textDrop {
                 drift.hiddenText = .init(kept: kept, now: now)
             }
-            drift.scrollsSideways = check.overflowsX && !baseline.overflowsX
+            // Only the kept kind of page can say the version made it overflow.
+            if sameKind { sideways = check.overflowsX && !baseline.overflowsX ? sideways + 1 : 0 }
         }
+        drift.scrollsSideways = sideways >= Drift.missesOnSameKind
         drift.lost = judged.filter(lost.contains)
         return drift.reasons.isEmpty ? nil : drift
     }
