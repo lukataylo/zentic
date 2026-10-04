@@ -162,7 +162,7 @@ final class Tab: Identifiable {
         if let state {
             webView.interactionState = state
         } else {
-            webView.load(URLRequest(url: url))
+            webView.load(address: url)
         }
     }
 
@@ -327,7 +327,7 @@ final class Tab: Identifiable {
         failure = nil
         chromeCollapsed = false
         if let webView {
-            prepareBlocking(for: url) { webView.load(URLRequest(url: url)) }
+            prepareBlocking(for: url) { webView.load(address: url) }
         } else {
             pendingURL = url
             self.url = url
@@ -346,7 +346,7 @@ final class Tab: Identifiable {
             realize()
             return
         }
-        if webView.url == nil, let url { webView.load(URLRequest(url: url)) } else { webView.reload() }
+        if webView.url == nil, let url { webView.load(address: url) } else { webView.reload() }
     }
 
     func stop() { webView?.stopLoading() }

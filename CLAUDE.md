@@ -11,12 +11,12 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | Path | What |
 |---|---|
 | `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
-| `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
+| `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess`, `IncomingURL` (links and files from other apps) |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -86,4 +86,9 @@ Each one has a test.
   `DataDirectory.defaults`, never `UserDefaults.standard`, web views use
   `WKWebsiteDataStore.zentic`, and stores that live elsewhere (Keychain) are keyed
   by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
+- Links and files from other apps arrive as Apple Events taken by `OpenFromElsewhere`
+  before SwiftUI sees them. Don't add `onOpenURL` or `application(_:open:)`: SwiftUI
+  answers those by opening another window onto the same browser.
+- Load addresses with `WKWebView.load(address:)`, which gives a file URL read access to
+  its folder, so a saved page from Finder finds the images beside it.
 - Tests are written against real failure modes. If a test can't fail, delete it.

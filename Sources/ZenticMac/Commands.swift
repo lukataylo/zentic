@@ -174,6 +174,11 @@ struct BrowserCommands: Commands {
             }
         }
 
+        // In place of "Zentic Help", which had no help book behind it.
+        CommandGroup(replacing: .help) {
+            Button("Welcome to Zentic") { Onboarding.shared.show(over: browser) }
+        }
+
         CommandMenu("Spaces") {
             Button("New Space…") { if let browser { browser.spaceDraft = SpaceDraft(newIn: browser) } }
                 .disabled(browser == nil || browser?.isPrivate == true)
