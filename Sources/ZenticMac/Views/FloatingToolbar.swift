@@ -16,6 +16,7 @@ struct FloatingToolbar: View {
         guard let tab else { return false }
         return tab.chromeCollapsed && !hoverReveal && !browser.modePickerPresented
             && !tab.design.isPresented && !browser.commandBar.isPresented && !browser.findBar.isPresented
+            && !browser.editingAddress
             && tab.permissions.current == nil
             && Downloads.shared.presentedIn != browser.id
             && !Extensions.shared.prompts.contains { $0.window == browser.id }
@@ -101,6 +102,8 @@ private struct AddressPill: View {
     @Environment(Browser.self) private var browser
     let tab: Tab?
     @State private var hovering = false
+    @State private var draft = ""
+    @FocusState private var fieldFocused: Bool
     private var drifted: Bool { Rechecks.shared.drift(for: tab) != nil }
 
     var body: some View {
@@ -123,14 +126,38 @@ private struct AddressPill: View {
                 if let tab { ModePicker(tab: tab) }
             }
 
-            // The whole pill opens the command bar, but the badge beside the
+            if browser.editingAddress {
+                // Edited in place: the toolbar is already open, so a panel
+                // over the page would only cover what the user is looking at.
+                TextField("Search or enter address", text: $draft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .focused($fieldFocused)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .onSubmit {
+                        browser.go(draft, newTab: false)
+                        browser.editingAddress = false
+                    }
+                    .onExitCommand { browser.editingAddress = false }
+                    .onChange(of: fieldFocused) { _, focused in
+                        if !focused { browser.editingAddress = false }
+                    }
+                    .onAppear {
+                        draft = tab?.url?.absoluteString ?? ""
+                        fieldFocused = true
+                    }
+                    .accessibilityLabel("Address")
+            } else {
+            // The whole pill edits the address, but the badge beside the
             // site's name is a button of its own. A button inside a button's
             // label gives the click to whichever AppKit picks, so the address
             // sits over the pill's button instead, letting clicks through to
             // it everywhere except the badge.
             ZStack {
                 Button {
-                    browser.showCommandBar(newTab: false)
+                    browser.editAddress()
                 } label: {
                     Color.clear
                         .frame(maxWidth: .infinity)
@@ -160,6 +187,7 @@ private struct AddressPill: View {
                     .allowsHitTesting(false)
                 }
                 .padding(.horizontal, 8)
+            }
             }
 
             Button {
@@ -207,11 +235,13 @@ private struct ProgressLine: View {
 
 /// The folded toolbar: just the site, on a small pill. Click to unfold.
 private struct CompactPill: View {
+    @Environment(Browser.self) private var browser
     let tab: Tab?
 
     var body: some View {
+        // Scrolled down the page, the address is a lookup away.
         Button {
-            tab?.chromeCollapsed = false
+            browser.showCommandBar(newTab: false)
         } label: {
             HStack(spacing: 6) {
                 ModeGlyph(mode: tab?.mode ?? .clean, previewing: false, drifted: Rechecks.shared.drift(for: tab) != nil, size: 10)

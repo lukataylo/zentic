@@ -27,6 +27,8 @@ final class Browser: Identifiable {
     var sidebarPeeking = false
 
     var commandBar = CommandBarState()
+    /// The address being edited in place in the open toolbar.
+    var editingAddress = false
     var findBar = FindBarState()
     var modePickerPresented = false
     /// The New Space or Edit Space sheet, while it is up.
@@ -418,6 +420,17 @@ final class Browser: Identifiable {
             openTab(url, after: selectedTab)
         } else {
             selectedTab?.load(url)
+        }
+    }
+
+    /// ⌘L and a click on the address: edit it in place while the toolbar is
+    /// open at the top of the page; the command bar only once the page has
+    /// been scrolled and the toolbar has folded away.
+    func editAddress() {
+        if selectedTab?.chromeCollapsed == true {
+            showCommandBar(newTab: false)
+        } else {
+            editingAddress = true
         }
     }
 
