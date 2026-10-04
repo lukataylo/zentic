@@ -86,7 +86,7 @@ struct CommandBar: View {
     struct Result: Identifiable {
         enum Kind {
             case go(URL), search(URL), tab(Tab), favorite(Favorite), history(HistoryEntry), bookmark(Bookmark)
-            case panel(LibraryPanel)
+            case synced(SyncedDevice.Tab), panel(LibraryPanel)
         }
         let id: String
         let kind: Kind
@@ -143,11 +143,22 @@ struct CommandBar: View {
 
         results += Self.bookmarkResults(for: text, app: app, limit: 6 - results.count)
 
-        let seen = Set(results.compactMap { r -> String? in
+        var seen = Set(results.compactMap { r -> String? in
             if case .tab(let t) = r.kind { return t.url?.absoluteString }
             if case .bookmark(let b) = r.kind { return b.url?.absoluteString }
             return nil
         })
+        if !browser.isPrivate {
+            for (device, tab) in TabSync.shared.devices.tabs(matching: text, limit: 3)
+            where seen.insert(tab.url.absoluteString).inserted {
+                results.append(
+                    Result(
+                        id: "s" + tab.url.absoluteString, kind: .synced(tab),
+                        title: tab.title.isEmpty ? URLGuess.displayHost(tab.url) : tab.title,
+                        subtitle: "\(device.name) · \(URLGuess.displayHost(tab.url))",
+                        icon: Favicons.shared.cached(for: tab.url), symbol: device.kind.symbol, trailing: nil))
+            }
+        }
         for entry in app.searchHistory(text, limit: 8) where !seen.contains(entry.url.absoluteString) {
             results.append(
                 Result(
@@ -177,6 +188,8 @@ struct CommandBar: View {
             newTab ? _ = browser.openTab(url, after: browser.selectedTab) : browser.selectedTab?.load(url)
         case .panel(let panel):
             panel.show(in: browser, openWindow: openWindow)
+        case .synced(let tab):
+            newTab ? browser.open(tab) : browser.selectedTab?.load(tab.url)
         }
         dismiss()
     }

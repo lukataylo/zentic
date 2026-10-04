@@ -270,6 +270,43 @@ app stays installed. Not supported yet: native messaging to an extension's own a
 (Bitwarden's Touch ID unlock, for one). Safari routes it through private plumbing, so
 features that depend on it don't work here.
 
+## iCloud tab sync
+
+Your other Macs' tabs appear at the bottom of the sidebar under **Other Devices**,
+each Mac with its name, and its tabs grouped by space. Click one to open it here;
+right-click a Mac for **Open All in New Space**. `⌘T` finds them too, and the History
+menu lists them. Turn it off in Settings › General › iCloud, which also shows when
+it last synced, or why it can't.
+
+What syncs is one small record per Mac in your private iCloud database: the names of
+its spaces, and the title and address of each pinned and open tab in its ordinary
+windows. Never private windows, history, site settings or passwords. A Mac sends at
+most every 30 seconds, only when something changed, and once more as it quits; it
+learns of the others' changes by push, not polling. Without an iCloud account the
+section is simply absent. Turning sync off removes this Mac from the others' lists.
+
+**Setting it up** (once): the iCloud entitlements need a provisioning profile, and
+Xcode can make one only with an Apple account. Until then the app builds without
+them and the feature hides itself.
+
+1. Xcode › Settings › Accounts › **+** › Apple ID; sign in with the account for team
+   `5QC5886P5V`.
+2. `scripts/build-app.sh --icloud`. Automatic signing registers the
+   `iCloud.com.lukadadiani.Zentic` container and the push capability for
+   `com.lukadadiani.Zentic`. If it says the container is missing, create it in the
+   developer portal (Certificates, IDs & Profiles › Identifiers › iCloud Containers)
+   and enable iCloud › CloudKit on the App ID with that container ticked, then build again.
+3. Once that works, set `ZENTIC_ICLOUD: YES` in `project.yml` so every build has it.
+4. Before shipping a Release build: in the CloudKit Console, **Deploy Schema
+   Changes** to Production (the `Device` record type is created in Development on
+   first use), and give `release.sh` a Developer ID provisioning profile that
+   includes the container — manual signing does not make one.
+
+`ZENTIC_SYNC_FIXTURE=devices.json` (Debug builds only) shows a JSON list of
+`SyncedDevice`s instead of syncing, for working on the interface without CloudKit.
+An isolated run (`ZENTIC_DATA_DIR`) syncs in a zone of its own, so it never appears
+on your real Macs.
+
 ## Keyboard
 
 | | |
@@ -345,7 +382,9 @@ exception is AppKit's own window position, which goes to the app's normal prefer
 
 ## Privacy
 
-- No telemetry. Nothing about browsing leaves the Mac except the pages themselves.
+- No telemetry. Nothing about browsing leaves the Mac except the pages themselves —
+  and, if you leave iCloud tab sync on, your open tabs' titles and addresses, to your
+  own private iCloud database.
 - Saved passwords stay in the login Keychain, are read only to fill, show or copy one
   after Touch ID or your password, and are filled only on explicit choice into the
   exact secure origin they belong to.

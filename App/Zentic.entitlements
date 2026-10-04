@@ -15,7 +15,8 @@
   is a one-line change rather than an audit. The camera, microphone and location
   entries ARE enforced: Hardened Runtime blocks those devices without them.
 
-  iCloud entitlements belong to the sync feature and are added there.
+  Tab sync's iCloud entries are in Zentic-iCloud.entitlements, used when
+  ZENTIC_ICLOUD=YES: they need a provisioning profile, and this build must not.
 -->
 <plist version="1.0">
 <dict>

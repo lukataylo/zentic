@@ -65,6 +65,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate()
         OpenFromElsewhere.didFinishLaunching(notification)
+        TabSync.shared.start()
+    }
+
+    /// The other Macs should see the tabs this one quit with. Held up for a
+    /// moment at most; offline, they go on the next launch.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard TabSync.shared.hasUnsentChanges else { return .terminateNow }
+        Task {
+            await TabSync.shared.sendBeforeQuit(within: .seconds(3))
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {

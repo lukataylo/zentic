@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Zentic itself is not sandboxed, deliberately. A browser reads and writes
+  wherever the user points it - downloads to any folder, uploads from anywhere,
+  files opened from Finder - and the App Sandbox turns each of those into a
+  per-file permission dance. Browsers distributed outside the App Store (Chrome,
+  Firefox, Arc) ship unsandboxed for the same reason. The part that runs
+  untrusted code, web content, is still sandboxed: WebKit runs every page in its
+  own sandboxed WebContent process whatever the host app does. Hardened Runtime
+  (on in project.yml) and notarization protect the app process itself.
+
+  Without the sandbox, the network and file entries below are not enforced. They
+  are kept so the bundle states what it uses, and so turning the sandbox on later
+  is a one-line change rather than an audit. The camera, microphone and location
+  entries ARE enforced: Hardened Runtime blocks those devices without them.
+
+  This file is App/Zentic.entitlements plus tab sync's iCloud entries: one
+  CloudKit container, private database only, and push so CloudKit can tell
+  this Mac when another one changed its tabs (nothing polls). It is used when
+  ZENTIC_ICLOUD=YES (project.yml), because these entries need a provisioning
+  profile and the plain build must not. SyncEntitlementsTests keeps the two
+  files in step.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.downloads.read-write</key>
+	<true/>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.lukadadiani.Zentic</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.aps-environment</key>
+	<string>$(ZENTIC_APS_ENVIRONMENT)</string>
+</dict>
+</plist>

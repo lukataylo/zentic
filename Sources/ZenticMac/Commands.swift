@@ -161,6 +161,7 @@ struct BrowserCommands: Commands {
             Button("Forward") { tab?.goForward() }
                 .keyboardShortcut("]")
                 .disabled(tab?.canGoForward != true)
+            OtherDevicesMenu(browser: browser)
             Divider()
             Button("Show All History") { openWindow(id: HistoryWindow.id) }
                 .keyboardShortcut("y")

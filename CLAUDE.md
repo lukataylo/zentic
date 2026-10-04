@@ -18,9 +18,10 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Safety/` | `ThreatFeed` (the two host lists, parsing), `ThreatSet` (hashed matching), `ThreatLists` (download, ETag, on-disk copies), `ThreatRules` (subresource blocker), `CertificateCheck` (why a certificate failed), `CertificateExceptions` |
 | `Sources/ZenticKit/Library/` | `HistoryEntry`, `HistoryRange` (Clear History spans), `HistoryDay` (grouping), `Bookmark`/`BookmarkList`, `BookmarkImport` (Netscape HTML), `DownloadName` (safe, unique file names) |
 | `Sources/ZenticKit/Extensions/` | `ExtensionRecord` (what the user allowed, persisted), `SiteAccess`, `SitePattern`, `ExtensionDiscovery`, `KeyChord`, `TabMoves` |
+| `Sources/ZenticKit/Sync/` | `SyncedDevice` (one Mac's tabs, built from the session; its CloudKit record), `SyncedDevices` (merge), `SyncPacing` |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour), `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings), `Recheck/` (`Rechecks`: drift of kept versions, its dot and picker actions) |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour), `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings), `Recheck/` (`Rechecks`: drift of kept versions, its dot and picker actions), `Sync/` (`TabSync`: iCloud tabs over CKSyncEngine) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -69,9 +70,12 @@ Each one has a test.
 6. **Each tab has its own `WKUserContentController`**, popups included, because
    blockers and the message handler live on it.
 7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists
-   (Safe Browsing's threat lists among them) and (on request) OpenAI. Safe Browsing
-   downloads whole lists and matches on the Mac; never add a lookup service, which
-   would send it every address.
+   (Safe Browsing's threat lists among them), (on request) OpenAI, and (while tab sync
+   is on) the user's own private CloudKit database. Safe Browsing downloads whole lists
+   and matches on the Mac; never add a lookup service, which would send it every
+   address. Tab sync sends only what `SyncedDevice.spaces(from:)` takes from the
+   session — titles and addresses of ordinary windows' tabs — and other Macs' tabs
+   never fetch an icon.
 8. **A private window writes nothing to disk.** No session, history, favicon cache or
    tab state; its site choices and permission answers are in-memory overlays
    (`SiteBook.overlaying`, `PermissionScope`) and its
@@ -141,4 +145,8 @@ Each one has a test.
 - WebKit forgets an extension's grants and storage identity on quit. `ExtensionRecord`
   holds both, and a record's `storageID` must never change, because the extension's
   data is filed under it.
+- CloudKit is touched only after `TabSync.isSupported` (the entitlement check): an
+  unentitled build (`swift run`) is killed by CloudKit otherwise. The iCloud
+  entitlements live in `App/Zentic-iCloud.entitlements`, chosen by `ZENTIC_ICLOUD`
+  in `project.yml`; keep it equal to `Zentic.entitlements` plus iCloud (tested).
 - Tests are written against real failure modes. If a test can't fail, delete it.
