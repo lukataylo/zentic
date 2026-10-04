@@ -207,6 +207,15 @@ export function startPasswords(
   // of the person — even as an "update" over their real password. Only
   // trusted `input` proves a person entered it.
   const typed = new WeakSet<HTMLInputElement>();
+  // And not every trusted `input` is a person: a page's
+  // `execCommand("insertText")` fires one too, with no key press behind it.
+  // Typing, pasting and dropping each start with an event only a person can
+  // cause, aimed at the field; this is the field the last one went to.
+  let handled: EventTarget | null = null;
+  const handle = (event: Event) => {
+    if (trusted(event)) handled = event.target;
+  };
+  for (const type of ["keydown", "paste", "drop"]) doc.addEventListener(type, handle, true);
 
   const showFor = (input: HTMLInputElement, role: Role) => {
     field = input;
@@ -246,7 +255,8 @@ export function startPasswords(
   doc.addEventListener(
     "input",
     (event) => {
-      if (trusted(event) && isInput(event.target) && event.target.type === "password") typed.add(event.target);
+      const target = event.target;
+      if (trusted(event) && target === handled && isInput(target) && target.type === "password") typed.add(target);
     },
     true,
   );
