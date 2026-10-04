@@ -15,9 +15,10 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Passwords/` | `LoginOrigin`, `PasswordPolicy` (what to offer, where to fill), `PasswordKeychain`, the sign-in script |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
+| `Sources/ZenticKit/Safety/` | `ThreatFeed` (the two host lists, parsing), `ThreatSet` (hashed matching), `ThreatLists` (download, ETag, on-disk copies), `ThreatRules` (subresource blocker), `CertificateCheck` (why a certificate failed), `CertificateExceptions` |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane) |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -65,8 +66,10 @@ Each one has a test.
    holds an unkept preview. Nothing else stores either.
 6. **Each tab has its own `WKUserContentController`**, popups included, because
    blockers and the message handler live on it.
-7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists and
-   (on request) OpenAI.
+7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists
+   (Safe Browsing's threat lists among them) and (on request) OpenAI. Safe Browsing
+   downloads whole lists and matches on the Mac; never add a lookup service, which
+   would send it every address.
 8. **A private window writes nothing to disk.** No session, history, favicon cache or
    tab state; its site choices and permission answers are in-memory overlays
    (`SiteBook.overlaying`, `PermissionScope`) and its
@@ -92,6 +95,11 @@ Each one has a test.
     typed into its password field (trusted `input`; a page's `requestSubmit()` fires a
     trusted `submit`), and passwords live only in the Keychain (`PasswordKeychain`), read
     behind `Passwords.unlock`.
+12. **A certificate is never trusted on Zentic's own judgement.** An exception exists only
+    after "Visit This Site Anyway" on the error page, lives in memory until quit, and
+    is for one certificate (SHA-256 of the leaf) on one host: a different certificate
+    on the same host asks again. Revoked certificates get no exception.
+    (`CertificateExceptions`, `CertificateTrust.respond`.)
 
 ## Conventions
 

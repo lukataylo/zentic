@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Before anything else can crash: notes the launch, reads the session.
         _ = Windows.shared
         Blocking.warm()
+        SafeBrowsing.shared.start()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

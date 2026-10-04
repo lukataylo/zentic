@@ -109,6 +109,12 @@ struct BrowserCommands: Commands {
                 if let key = tab?.siteKey { browser?.removeCustom(forKey: key) }
             }
             .disabled(browser?.custom(for: tab?.url) == nil)
+            Button("Show Certificate…") {
+                if let tab, let trust = tab.serverTrust {
+                    CertificateTrust.show(trust, for: tab.displayHost, in: browser?.window)
+                }
+            }
+            .disabled(tab?.canShowCertificate != true)
             Divider()
             Button("Page Settings…") {
                 // A transient popover opened while the menu is still tracking is

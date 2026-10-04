@@ -9,6 +9,7 @@ struct SettingsView: View {
             SwiftUI.Tab("Sites", systemImage: "globe") { SitesSettings() }
             SwiftUI.Tab("Passwords", systemImage: "key") { PasswordsSettings() }
             SwiftUI.Tab("Permissions", systemImage: "hand.raised") { PermissionsSettings() }
+            SwiftUI.Tab("Security", systemImage: "checkmark.shield") { SafetySettings() }
         }
         .frame(width: 560)
     }

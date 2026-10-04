@@ -32,6 +32,13 @@ final class Tab: Identifiable {
     }
     /// A load that failed before anything committed, shown as a native page.
     private(set) var failure: LoadFailure?
+    /// A page stopped before it loaded: a listed host, or a certificate that
+    /// could not be verified. See `Features/Safety`.
+    var securityWarning: SecurityWarning?
+    /// An `http:` page asking for a password or card number.
+    var hasInsecureForm = false
+    /// Working out why a certificate failed; dropped if the tab moves on first.
+    @ObservationIgnored private var certificateDiagnosis: Task<Void, Never>?
 
     /// The mode the document on screen is in — what the toolbar should show.
     private(set) var mode: SiteMode = .clean
@@ -80,7 +87,7 @@ final class Tab: Identifiable {
     var lastShown = Date()
     /// Back/forward list and scroll position, kept across a suspension.
     @ObservationIgnored private var savedState: Any?
-    var displayHost: String { URLGuess.displayHost(url ?? pendingURL) }
+    var displayHost: String { URLGuess.displayHost(securityWarning?.url ?? url ?? pendingURL) }
     var siteKey: String? { SiteKey.for(url ?? pendingURL) }
 
     init(id: UUID = UUID(), url: URL?, title: String = "", pinnedURL: URL? = nil) {
@@ -353,6 +360,7 @@ final class Tab: Identifiable {
 
     func load(_ url: URL) {
         failure = nil
+        securityWarning = nil
         chromeCollapsed = false
         if let webView {
             prepareBlocking(for: url) { webView.load(URLRequest(url: url)) }
@@ -365,11 +373,19 @@ final class Tab: Identifiable {
         }
     }
 
-    func goBack() { webView?.goBack() }
+    func goBack() {
+        // The warned-about load never entered history: Back from its warning
+        // is the page underneath, not the one before that.
+        if securityWarning != nil { return leaveWarning() }
+        webView?.goBack()
+    }
     func goForward() { webView?.goForward() }
 
     func reload() {
         failure = nil
+        // Under a warning the web view still holds the previous page;
+        // reloading means trying the warned-about address again.
+        if let warning = securityWarning { return load(warning.url) }
         guard let webView else {
             realize()
             return
@@ -527,12 +543,15 @@ final class Tab: Identifiable {
 
     fileprivate func didStartNavigation() {
         failure = nil
+        securityWarning = nil
+        certificateDiagnosis?.cancel()
         chromeCollapsed = false
     }
 
     fileprivate func didCommit() {
         failure = nil
         permissions.documentChanged()
+        hasInsecureForm = false
         mode = siteMode(for: webView?.url)
         if previewing != nil {
             // A new document: the preview lived on the old one.
@@ -554,6 +573,7 @@ final class Tab: Identifiable {
         }
         if !isPrivate { AppModel.shared.recordVisit(url: url, title: title) }
         persistState()
+        checkForInsecureForm()
         if icon == nil || declaredIcon == nil { refreshIcon() }
         browser?.tabDidChange(self)
     }
@@ -579,9 +599,18 @@ final class Tab: Identifiable {
         // interrupted" (a download, or a policy change) are not failures.
         if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
         if ns.domain == "WebKitErrorDomain" && (ns.code == 102 || ns.code == 204) { return }
-        failure = LoadFailure(
+        let failure = LoadFailure(
             url: url ?? (ns.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? self.url,
             message: ns.localizedDescription, code: ns.code)
+        guard CertificateTrust.isCertificateError(ns) else { return self.failure = failure }
+        certificateDiagnosis?.cancel()
+        certificateDiagnosis = Task {
+            // A certificate failure gets its own page; diagnosing it takes a
+            // trust evaluation off the main thread first.
+            let warning = await CertificateTrust.warning(for: ns)
+            guard !Task.isCancelled else { return }
+            if let warning { securityWarning = .certificate(warning) } else { self.failure = failure }
+        }
     }
 
     fileprivate func receive(_ message: [String: Any]) {
@@ -688,6 +717,13 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             NSWorkspace.shared.open(url)
             return (.cancel, preferences)
         }
+        // Downloads too: a file from a malware host is the very thing to stop.
+        if navigationAction.targetFrame?.isMainFrame == true || navigationAction.shouldPerformDownload, let tab,
+            let threat = await SafeBrowsing.shared.warning(for: url)
+        {
+            tab.securityWarning = .dangerous(threat)
+            return (.cancel, preferences)
+        }
         if navigationAction.shouldPerformDownload {
             let allowed = await tab?.permissions.allowsDownload(
                 named: Self.fileName(url), site: Self.page(of: webView, else: url))
@@ -712,6 +748,11 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     func webView(
         _ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse
     ) async -> WKNavigationResponsePolicy {
+        if navigationResponse.isForMainFrame, let tab, let threat = await SafeBrowsing.shared.warning(for: navigationResponse.response.url) {
+            // Redirected onto a listed host.
+            tab.securityWarning = .dangerous(threat)
+            return .cancel
+        }
         if !navigationResponse.canShowMIMEType {
             let response = navigationResponse.response
             let allowed = await tab?.permissions.allowsDownload(
@@ -753,6 +794,12 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         tab?.didFail(error, url: webView.url)
+    }
+
+    func webView(
+        _ webView: WKWebView, respondTo challenge: URLAuthenticationChallenge
+    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        await CertificateTrust.shared.respond(to: challenge)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {

@@ -12,6 +12,7 @@ struct ContentCard: View {
     private let radius: CGFloat = Metrics.cardRadius
 
     private func pageScheme(_ tab: Tab?) -> ColorScheme {
+        if tab?.securityWarning != nil { return .dark }
         guard let dark = tab?.pageIsDark else { return scheme }
         return dark ? .dark : .light
     }
@@ -25,7 +26,10 @@ struct ContentCard: View {
                 withAnimation(.smooth(duration: 0.3)) { pointerNearTop = near }
             }
 
-            if let tab, let failure = tab.failure {
+            if let tab, let warning = tab.securityWarning {
+                SecurityWarningView(tab: tab, warning: warning)
+                    .transition(.opacity)
+            } else if let tab, let failure = tab.failure {
                 LoadFailureView(failure: failure) { tab.reload() }
                     .transition(.opacity)
             } else if let tab, !tab.isRealized {
@@ -95,6 +99,7 @@ struct ContentCard: View {
         .animation(.smooth(duration: 0.3), value: browser.findBar.isPresented)
         .animation(.smooth(duration: 0.36), value: tab?.design.isPresented)
         .animation(.smooth(duration: 0.2), value: browser.commandBar.isPresented)
+        .animation(.smooth(duration: 0.3), value: tab?.securityWarning)
     }
 }
 
@@ -228,7 +233,9 @@ private struct ToolbarBand: View {
                     }
             }
             .frame(maxHeight: .infinity, alignment: .top)
-            .opacity(collapsed ? 0 : 1)
+            // A warning page runs up under the toolbar; the previous page's
+            // colour would be a stripe across it.
+            .opacity(collapsed || tab?.securityWarning != nil ? 0 : 1)
             .animation(.smooth(duration: 0.3), value: collapsed)
             .allowsHitTesting(false)
     }
