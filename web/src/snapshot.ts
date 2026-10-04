@@ -5,6 +5,8 @@
 // of text that the model can tell the sidebar from the article. Repetition is
 // the enemy of the budget, so runs of look-alike siblings collapse to one.
 
+import { isOwn } from "./types";
+
 export const SNAPSHOT_BUDGET = 14_000;
 
 const SKIP = new Set([
@@ -59,7 +61,7 @@ function hasGeometry(): boolean {
 
 function walk(el: Element, depth: number, pass: Pass, geometry: boolean, lines: string[], hardCap: number): void {
   if (lines.length > 4000 || totalLength(lines) > hardCap) return;
-  const children = Array.from(el.children).filter((c) => !SKIP.has(c.localName) && !c.hasAttribute("data-zentic"));
+  const children = Array.from(el.children).filter((c) => !SKIP.has(c.localName) && !isOwn(c));
   let i = 0;
   while (i < children.length) {
     const child = children[i]!;
@@ -78,7 +80,7 @@ function walk(el: Element, depth: number, pass: Pass, geometry: boolean, lines: 
   }
 }
 
-let lengthCache = new WeakMap<string[], { count: number; length: number }>();
+const lengthCache = new WeakMap<string[], { count: number; length: number }>();
 function totalLength(lines: string[]): number {
   const cached = lengthCache.get(lines);
   let length = cached?.length ?? 0;
@@ -190,7 +192,3 @@ function indent(depth: number): string {
   return "  ".repeat(depth);
 }
 
-/** Test hook. */
-export function __resetSnapshotForTests(): void {
-  lengthCache = new WeakMap();
-}

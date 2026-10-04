@@ -1,5 +1,5 @@
 import { isSafeSelectorText } from "./sanitize";
-import type { SelectorReport } from "./types";
+import { isOwn, type SelectorReport } from "./types";
 
 /** A hide selector may not swallow the page: this share of body text is the ceiling. */
 export const MAX_TEXT_SHARE = 0.7;
@@ -20,7 +20,7 @@ export function validate(selectors: string[]): SelectorReport[] {
     } catch {
       return { selector, count: 0, ok: false, reason: "invalid selector" };
     }
-    const own = matches.filter((el) => !el.hasAttribute("data-zentic") && el.id !== "zentic-custom");
+    const own = matches.filter((el) => !isOwn(el));
     if (own.some((el) => el === document.documentElement || el === document.body || el === document.head)) {
       return { selector, count: own.length, ok: false, reason: "matches the whole page" };
     }

@@ -3,7 +3,7 @@ import { post } from "./post";
 // The site's icon, for the sidebar. (The toolbar takes its colour from
 // WebKit's own sample of the page background, not from here.)
 
-export function bestIcon(doc: Document): string | null {
+function bestIcon(doc: Document): string | null {
   const links = Array.from(
     doc.querySelectorAll<HTMLLinkElement>("link[rel~='icon' i], link[rel='apple-touch-icon' i], link[rel='apple-touch-icon-precomposed' i], link[rel='shortcut icon' i]"),
   );

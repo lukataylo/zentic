@@ -1,12 +1,11 @@
 import { sanitizeCSS } from "./sanitize";
-import { OWN, type ApplyResult, type CustomVersion } from "./types";
+import { CUSTOM_ID, OWN, type ApplyResult, type CustomVersion } from "./types";
 import { validate } from "./validate";
 
 // A custom version: the model's CSS plus a list of things to hide, layered on
 // a base (clean or minimal). Our <style id="zentic-custom"> is always appended
 // after the minimal sheet so it wins on equal specificity.
 
-const CUSTOM_ID = "zentic-custom";
 const HIDE_ATTR = "hide";
 
 let current: CustomVersion | null = null;
