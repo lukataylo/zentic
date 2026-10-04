@@ -17,6 +17,7 @@ struct FloatingToolbar: View {
         return tab.chromeCollapsed && !hoverReveal && !browser.modePickerPresented
             && !tab.design.isPresented && !browser.commandBar.isPresented && !browser.findBar.isPresented
             && tab.permissions.current == nil
+            && Downloads.shared.presentedIn != browser.id
     }
 
     var body: some View {
@@ -54,6 +55,11 @@ struct FloatingToolbar: View {
                             .glassEffectID("capture", in: glass)
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
+                    if DownloadsButton.isShown(in: browser) {
+                        DownloadsButton()
+                            .glassEffectID("downloads", in: glass)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
                 }
                 .padding(.leading, 10)
                 .padding(.trailing, 10)
@@ -63,6 +69,7 @@ struct FloatingToolbar: View {
         .animation(.smooth(duration: 0.38, extraBounce: 0.04), value: collapsed)
         .animation(.smooth(duration: 0.25), value: tab?.canGoForward)
         .animation(.smooth(duration: 0.3), value: tab?.permissions.isCapturing)
+        .animation(.smooth(duration: 0.3, extraBounce: 0.1), value: DownloadsButton.isShown(in: browser))
         .frame(maxWidth: .infinity, alignment: .top)
     }
 }
@@ -207,6 +214,7 @@ private struct CompactPill: View {
                     .font(.system(size: 11.5, weight: .semibold))
                     .lineLimit(1)
                 if let tab, tab.permissions.isCapturing { CaptureGlyphs(permissions: tab.permissions, size: 10) }
+                DownloadsPillRing()
             }
             .padding(.horizontal, 12)
             .frame(height: 26)

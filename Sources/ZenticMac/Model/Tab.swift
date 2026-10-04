@@ -689,9 +689,7 @@ enum Metrics {
 
 /// WebKit's delegates, kept off `Tab` so the web view never retains the tab.
 @MainActor
-private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler,
-    WKDownloadDelegate
-{
+private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     weak var tab: Tab?
     init(tab: Tab) { self.tab = tab }
 
@@ -807,25 +805,11 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     }
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
-        download.delegate = self
+        Downloads.shared.adopt(download, isPrivate: !webView.configuration.websiteDataStore.isPersistent)
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
-        download.delegate = self
-    }
-
-    // Downloads
-
-    func download(
-        _ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String
-    ) async -> URL? {
-        Downloads.shared.destination(for: suggestedFilename, download: download)
-    }
-
-    func downloadDidFinish(_ download: WKDownload) { Downloads.shared.finished(download) }
-
-    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-        Downloads.shared.failed(download, error: error)
+        Downloads.shared.adopt(download, isPrivate: !webView.configuration.websiteDataStore.isPersistent)
     }
 
     // UI

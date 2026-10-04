@@ -16,9 +16,10 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Passwords/` | `LoginOrigin`, `PasswordPolicy` (what to offer, where to fill), `PasswordKeychain`, the sign-in script |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Safety/` | `ThreatFeed` (the two host lists, parsing), `ThreatSet` (hashed matching), `ThreatLists` (download, ETag, on-disk copies), `ThreatRules` (subresource blocker), `CertificateCheck` (why a certificate failed), `CertificateExceptions` |
+| `Sources/ZenticKit/Library/` | `HistoryEntry`, `HistoryRange` (Clear History spans), `HistoryDay` (grouping), `Bookmark`/`BookmarkList`, `BookmarkImport` (Netscape HTML), `DownloadName` (safe, unique file names) |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge) |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -113,4 +114,6 @@ Each one has a test.
   `DataDirectory.defaults`, never `UserDefaults.standard`, web views use
   `WKWebsiteDataStore.zentic`, and stores that live elsewhere (Keychain) are keyed
   by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
+- Bookmarks are hidden by default. Nothing may touch `BookmarkStore.shared` while
+  `AppModel.showsBookmarks` is off — touching it reads the file.
 - Tests are written against real failure modes. If a test can't fail, delete it.

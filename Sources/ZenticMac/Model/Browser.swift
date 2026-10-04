@@ -41,7 +41,9 @@ final class Browser: Identifiable {
     /// Restored from a session written before windows had saved frames.
     @ObservationIgnored var adoptsLegacyFrame = false
 
-    @ObservationIgnored private var closed: [Tab.Saved] = []
+    /// Closed tabs, oldest first, for Reopen Closed Tab and History ›
+    /// Recently Closed. Observed: the menu follows it.
+    private(set) var closed: [Tab.Saved] = []
 
     var space: Space { spaces.first { $0.id == spaceID } ?? spaces[0] }
     /// The current space's open (unpinned) tabs.
@@ -277,7 +279,12 @@ final class Browser: Identifiable {
     }
 
     func reopenClosed() {
-        guard let saved = closed.popLast() else { return }
+        if let last = closed.last { reopenClosed(last.id) }
+    }
+
+    func reopenClosed(_ id: UUID) {
+        guard let index = closed.firstIndex(where: { $0.id == id }) else { return }
+        let saved = closed.remove(at: index)
         let tab = Tab(id: UUID(), url: saved.url, title: saved.title)
         insert(tab, after: selectedTab, select: true)
     }

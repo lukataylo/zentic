@@ -145,6 +145,33 @@ final class Windows {
 
     var canReopenWindow: Bool { recentlyClosed != nil }
 
+    var hasPrivateWindow: Bool { open.contains(where: \.isPrivate) }
+
+    /// How History › Recently Closed names the closed window.
+    var recentlyClosedWindowTitle: String? {
+        guard let recentlyClosed else { return nil }
+        let count = recentlyClosed.allTabs.count
+        return count == 1 ? "Window with 1 Tab" : "Window with \(count) Tabs"
+    }
+
+    /// Open `url` from a window that is not a browser — History, Bookmarks —
+    /// in the browser window in front, or in one brought back for it.
+    func open(_ url: URL, inNewTab newTab: Bool) {
+        if let browser = frontmost {
+            browser.window?.makeKeyAndOrderFront(nil)
+            if newTab || browser.selectedTab == nil {
+                browser.openTab(url, after: browser.selectedTab)
+            } else {
+                browser.selectedTab?.load(url)
+            }
+            return
+        }
+        let browser = parked ?? Browser()
+        if parked == nil { pending.append(browser) }
+        browser.openTab(url)
+        show(browser)
+    }
+
     func reopenClosedWindow() {
         if let recentlyClosed { show(recentlyClosed) }
     }
@@ -161,6 +188,7 @@ final class Windows {
         if browser.isPrivate {
             // Its pages, cookies and caches go with it.
             browser.closeAllTabs(forgettingState: false)
+            if !hasPrivateWindow { Downloads.shared.forgetPrivate() }
         } else if open.contains(where: { !$0.isPrivate }) {
             // Out of the session, and its tabs' files go; their state stays
             // in memory for Reopen Closed Window.

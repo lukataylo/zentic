@@ -60,6 +60,13 @@ private struct GeneralSettings: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                Toggle("Show Bookmarks", isOn: $app.showsBookmarks)
+                Text("Adds a Bookmarks menu (⇧⌘D to add, ⌥⌘B to show), bookmarks in the address bar’s suggestions, and import from Safari, Chrome or Firefox.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Content Blocking") {
                 LabeledContent("Filter lists") {
                     HStack {
@@ -76,7 +83,7 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(height: 440)
+        .frame(height: 520)
     }
 
     private func refresh() {

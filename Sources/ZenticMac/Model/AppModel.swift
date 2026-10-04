@@ -80,6 +80,15 @@ final class AppModel {
 
     @ObservationIgnored private var history: [String: HistoryEntry]
     @ObservationIgnored private var historySaveTask: Task<Void, Never>?
+    /// Bumped on every change, so the History window — the one view that
+    /// shows history rather than searching it — redraws without observing a
+    /// dictionary of thousands of entries.
+    private(set) var historyRevision = 0
+    /// History writes, in order, off the main thread: a clear must never be
+    /// overtaken by an older save still on its way to disk.
+    @ObservationIgnored private let historyIO = DispatchQueue(label: "Zentic.history", qos: .utility)
+
+    var historyEntries: Dictionary<String, HistoryEntry>.Values { history.values }
 
     func recordVisit(url: URL, title: String) {
         guard SiteKey.isWeb(url) else { return }
@@ -89,6 +98,7 @@ final class AppModel {
         entry.lastVisit = .now
         if !title.isEmpty { entry.title = title }
         history[key] = entry
+        historyRevision += 1
         scheduleHistorySave()
     }
 
@@ -117,9 +127,27 @@ final class AppModel {
             .map(\.0)
     }
 
-    func clearHistory() {
-        history = [:]
-        historyFile.save([])
+    func removeHistory(_ urls: some Sequence<URL>) {
+        for url in urls { history[url.absoluteString] = nil }
+        historyRevision += 1
+        saveHistorySoon()
+    }
+
+    func clearHistory(_ range: HistoryRange) {
+        let kept = range.kept(Array(history.values), now: .now, calendar: .current)
+        history = Dictionary(kept.map { ($0.url.absoluteString, $0) }, uniquingKeysWith: { a, _ in a })
+        historyRevision += 1
+        saveHistorySoon()
+    }
+
+    /// After the user deleted something: now, not in two seconds, so a crash
+    /// in between cannot bring it back.
+    private func saveHistorySoon() {
+        historySaveTask?.cancel()
+        guard historyLoaded else { return }
+        let entries = historySnapshot()
+        let file = historyFile
+        historyIO.async { file.save(entries) }
     }
 
     private func scheduleHistorySave() {
@@ -131,19 +159,21 @@ final class AppModel {
             // visit must never cost a frame.
             let entries = self.historySnapshot()
             let file = self.historyFile
-            await Task.detached(priority: .utility) { file.save(entries) }.value
+            self.historyIO.async { file.save(entries) }
         }
     }
 
     /// Not until the file has been read: saving a half-loaded history would
-    /// overwrite the rest of it.
-    @ObservationIgnored private var historyLoaded = false
+    /// overwrite the rest of it — and clearing it would be undone by the load.
+    private(set) var historyLoaded = false
 
     /// Synchronous, for app termination.
     func saveHistoryNow() {
         guard historyLoaded else { return }
         historySaveTask?.cancel()
-        historyFile.save(historySnapshot())
+        let entries = historySnapshot()
+        let file = historyFile
+        historyIO.sync { file.save(entries) }
     }
 
     private func historySnapshot() -> [HistoryEntry] {
@@ -174,6 +204,11 @@ final class AppModel {
             defaults.set(appearance.rawValue, forKey: "appearance")
             appearance.apply()
         }
+    }
+    /// Bookmarks are hidden unless asked for: no menu, no window, nothing in
+    /// the address bar. Favourites and history do most of their job.
+    var showsBookmarks: Bool {
+        didSet { defaults.set(showsBookmarks, forKey: "showsBookmarks") }
     }
     /// Whether a key is stored, kept here so views never ask the Keychain on
     /// every redraw.
@@ -216,9 +251,10 @@ final class AppModel {
         hasAPIKey = APIKeyStore.has(.openAI)
         translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
         appearance = defaults.string(forKey: "appearance").flatMap(AppAppearance.init) ?? .system
+        showsBookmarks = defaults.bool(forKey: "showsBookmarks")
         appearance.apply()
 
-        // History is only searched, never shown at launch: decode it off the
+        // History is not shown at launch: decode it off the
         // main thread so it never delays the first window.
         let file = historyFile
         Task { [weak self] in
@@ -228,6 +264,7 @@ final class AppModel {
                 self.history[entry.url.absoluteString] = entry
             }
             self.historyLoaded = true
+            self.historyRevision += 1
         }
     }
 }
@@ -236,41 +273,6 @@ struct Favorite: Codable, Identifiable, Hashable {
     var id: UUID
     var url: URL
     var title: String
-}
-
-struct HistoryEntry: Codable, Hashable, Sendable {
-    var url: URL { didSet { index() } }
-    var title: String { didSet { index() } }
-    var lastVisit: Date
-    var visits: Int
-
-    // Lowercased once, not on every keystroke of every search.
-    private(set) var searchURL = ""
-    private(set) var searchHost = ""
-    private(set) var searchTitle = ""
-
-    private enum CodingKeys: String, CodingKey { case url, title, lastVisit, visits }
-
-    init(url: URL, title: String, lastVisit: Date, visits: Int) {
-        self.url = url
-        self.title = title
-        self.lastVisit = lastVisit
-        self.visits = visits
-        index()
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            url: try c.decode(URL.self, forKey: .url), title: try c.decode(String.self, forKey: .title),
-            lastVisit: try c.decode(Date.self, forKey: .lastVisit), visits: try c.decode(Int.self, forKey: .visits))
-    }
-
-    private mutating func index() {
-        searchURL = url.absoluteString.lowercased()
-        searchHost = URLGuess.displayHost(url).lowercased()
-        searchTitle = title.lowercased()
-    }
 }
 
 /// The colour the window frame and sidebar are washed with — each space has one.
