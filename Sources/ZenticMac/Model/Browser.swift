@@ -15,6 +15,8 @@ final class Browser: Identifiable {
     /// with the window.
     let isPrivate: Bool
     @ObservationIgnored let dataStore: WKWebsiteDataStore
+    /// What this window's pages may do; a private window's answers stay in it.
+    @ObservationIgnored private(set) lazy var permissions = PermissionScope(isPrivate: isPrivate)
 
     private(set) var spaces: [Space]
     private(set) var spaceID: UUID

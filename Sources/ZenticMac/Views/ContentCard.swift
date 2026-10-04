@@ -75,6 +75,10 @@ struct ContentCard: View {
                     .transition(.opacity)
             }
         }
+        .overlayPreferenceValue(SiteControlAnchor.self) { anchor in
+            PermissionPromptLayer(tab: tab, anchor: anchor)
+                .environment(\.colorScheme, pageScheme(tab))
+        }
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)

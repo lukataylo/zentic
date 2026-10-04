@@ -47,6 +47,8 @@ final class Tab: Identifiable {
     let design = DesignSession()
     /// The save prompt and AutoFill menu for this tab's sign-ins.
     @ObservationIgnored private(set) lazy var passwords = TabPasswords(tab: self)
+    /// Camera, location and the rest: what this page asked and may do.
+    let permissions = TabPermissions()
 
     /// Set by the browser so the tab can open new tabs and report changes.
     /// The tab's window decides its sites' modes (a private window keeps its
@@ -83,7 +85,7 @@ final class Tab: Identifiable {
 
     init(id: UUID = UUID(), url: URL?, title: String = "", pinnedURL: URL? = nil) {
         self.id = id
-        defer { design.tab = self }
+        defer { (design.tab, permissions.tab) = (self, self) }
         self.pendingURL = url
         self.url = url
         self.title = title
@@ -94,7 +96,7 @@ final class Tab: Identifiable {
 
     init(openerConfiguration: WKWebViewConfiguration) {
         self.id = UUID()
-        defer { design.tab = self }
+        defer { (design.tab, permissions.tab) = (self, self) }
         self.title = ""
         self.openerConfiguration = openerConfiguration
     }
@@ -106,7 +108,12 @@ final class Tab: Identifiable {
     func realize() -> WKWebView {
         if let webView { return webView }
 
-        let configuration = openerConfiguration ?? Self.makeConfiguration(dataStore: browser?.dataStore ?? .zentic)
+        // A pop-up's configuration is WebKit's to give, autoplay included,
+        // and it is never re-made: that would cut it off from its opener.
+        autoplay = openerConfiguration == nil ? autoplayDecision(for: loadAfterRestore ?? pendingURL) : nil
+        let configuration =
+            openerConfiguration
+            ?? Self.makeConfiguration(dataStore: browser?.dataStore ?? .zentic, autoplay: autoplay ?? .ask)
         if openerConfiguration != nil {
             // A popup's configuration arrives carrying its opener's content
             // controller. Shared, the two tabs would steal each other's message
@@ -136,6 +143,7 @@ final class Tab: Identifiable {
         self.webView = webView
 
         observe(webView)
+        permissions.attach(webView)
         isRealized = true
         if let target = pendingURL {
             pendingURL = nil
@@ -143,10 +151,16 @@ final class Tab: Identifiable {
             savedState = nil
             let readsDisk = state == nil && hasStateOnDisk
             hasStateOnDisk = false
+            let next = loadAfterRestore
+            loadAfterRestore = nil
             // Load only once the blockers are attached; otherwise the first
             // page of a new tab would go out unblocked.
-            prepareBlocking(for: target) { [id] in
-                guard readsDisk else { return Self.restore(state, or: target, in: webView) }
+            prepareBlocking(for: next ?? target) { [id] in
+                guard readsDisk else {
+                    Self.restore(state, or: target, in: webView)
+                    if let next { webView.load(URLRequest(url: next)) }
+                    return
+                }
                 Task {
                     let saved = await Windows.tabStates.read(id)
                     // The user may have gone somewhere else while it was read.
@@ -228,6 +242,7 @@ final class Tab: Identifiable {
         webView.stopLoading()
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
         observations.removeAll()
+        permissions.detach()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.removeFromSuperview()
@@ -247,18 +262,28 @@ final class Tab: Identifiable {
         guard let webView else { return false }
         // An unkept custom version lives only on the live page.
         if design.isPresented || previewing != nil { return true }
+        // A question on screen would be answered into a page that is gone.
+        if permissions.current != nil { return true }
         if webView.cameraCaptureState != .none || webView.microphoneCaptureState != .none { return true }
         return await webView.requestMediaPlaybackState() == .playing
     }
 
-    private static func makeConfiguration(dataStore: WKWebsiteDataStore) -> WKWebViewConfiguration {
+    private static func makeConfiguration(dataStore: WKWebsiteDataStore, autoplay: PermissionDecision)
+        -> WKWebViewConfiguration
+    {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = dataStore
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.isTextInteractionEnabled = true
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
-        // Safari's rule: muted video may autoplay, sound waits for the user.
-        configuration.mediaTypesRequiringUserActionForPlayback = .audio
+        // Safari's rule by default: muted video may autoplay, sound waits for
+        // the user. Per site, from the Auto-Play permission.
+        configuration.mediaTypesRequiringUserActionForPlayback =
+            switch autoplay {
+            case .allow: []
+            case .ask: .audio
+            case .deny: .all
+            }
         // Without a Safari token many sites serve a degraded page to WKWebView.
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         return configuration
@@ -458,6 +483,46 @@ final class Tab: Identifiable {
         }
     }
 
+    // MARK: - Autoplay
+
+    /// The Auto-Play decision this web view was made with; nil for a pop-up's,
+    /// which WebKit configured.
+    @ObservationIgnored private var autoplay: PermissionDecision?
+    /// Where to go once a re-made web view has its history back.
+    @ObservationIgnored private var loadAfterRestore: URL?
+    @ObservationIgnored private var lastRemade: ContinuousClock.Instant?
+
+    private func autoplayDecision(for url: URL?) -> PermissionDecision {
+        (browser?.permissions ?? .shared).decision(.autoplay, for: SiteKey.for(url))
+    }
+
+    /// Whether going to `url` needs a new web view. Autoplay is part of a web
+    /// view's configuration, fixed when it is made, so a site set differently
+    /// from the one the web view was made for gets a fresh one — with the
+    /// history carried over. Most sites share the default, so this is rare.
+    fileprivate func remakesForAutoplay(_ url: URL?) -> Bool {
+        guard let autoplay, SiteKey.isWeb(url), autoplayDecision(for: url) != autoplay else { return false }
+        // Restoring the history loads the page it was on, which may well be
+        // set differently again. Once is enough; that load is superseded.
+        if let lastRemade, ContinuousClock.now - lastRemade < .seconds(2) { return false }
+        return true
+    }
+
+    fileprivate func remake(loading target: URL) {
+        guard let webView else { return }
+        let current = webView.url
+        lastRemade = .now
+        suspend(persisting: false)
+        if current == nil {
+            // Nothing to carry over: just load the page.
+            savedState = nil
+            pendingURL = target
+        } else if current != target {
+            loadAfterRestore = target
+        }
+        realize()
+    }
+
     // MARK: - Events from the delegate
 
     fileprivate func didStartNavigation() {
@@ -467,6 +532,7 @@ final class Tab: Identifiable {
 
     fileprivate func didCommit() {
         failure = nil
+        permissions.documentChanged()
         mode = siteMode(for: webView?.url)
         if previewing != nil {
             // A new document: the preview lived on the old one.
@@ -622,7 +688,19 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             NSWorkspace.shared.open(url)
             return (.cancel, preferences)
         }
-        if navigationAction.shouldPerformDownload { return (.download, preferences) }
+        if navigationAction.shouldPerformDownload {
+            let allowed = await tab?.permissions.allowsDownload(
+                named: Self.fileName(url), site: Self.page(of: webView, else: url))
+            return (allowed == true ? .download : .cancel, preferences)
+        }
+        if navigationAction.targetFrame?.isMainFrame == true, let tab, let url,
+            navigationAction.request.httpMethod == "GET", navigationAction.navigationType != .backForward,
+            tab.remakesForAutoplay(url)
+        {
+            // Once WebKit has the cancel.
+            Task { tab.remake(loading: url) }
+            return (.cancel, preferences)
+        }
         if navigationAction.targetFrame?.isMainFrame == true, let tab {
             await withCheckedContinuation { continuation in
                 tab.prepareBlocking(for: url) { continuation.resume() }
@@ -634,7 +712,12 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
     func webView(
         _ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse
     ) async -> WKNavigationResponsePolicy {
-        if !navigationResponse.canShowMIMEType { return .download }
+        if !navigationResponse.canShowMIMEType {
+            let response = navigationResponse.response
+            let allowed = await tab?.permissions.allowsDownload(
+                named: response.suggestedFilename ?? "", site: Self.page(of: webView, else: response.url))
+            return allowed == true ? .download : .cancel
+        }
         if navigationResponse.isForMainFrame, let tab {
             // A redirect may have landed us on a host with a different mode.
             await withCheckedContinuation { continuation in
@@ -642,6 +725,19 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
             }
         }
         return .allow
+    }
+
+    /// What a link's file is called, if its URL says; not "/" for a site's root,
+    /// nor a blob's UUID.
+    private static func fileName(_ url: URL?) -> String {
+        guard let url, SiteKey.isWeb(url), url.path != "/" else { return "" }
+        return url.lastPathComponent
+    }
+
+    /// The site of the page on screen — not the URL being navigated to, which
+    /// WebKit reports as soon as a navigation starts.
+    private static func page(of webView: WKWebView, else fallback: URL?) -> String? {
+        SiteKey.for(webView.backForwardList.currentItem?.url ?? fallback)
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -691,10 +787,28 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
         for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        guard let tab, let browser = tab.browser else { return nil }
+        guard let tab, let browser = tab.browser,
+            tab.permissions.allowsPopup(to: navigationAction.request.url, from: webView.url)
+        else { return nil }
         let child = Tab(openerConfiguration: configuration)
         browser.insert(child, after: tab, select: true)
         return child.realize()
+    }
+
+    func webView(
+        _ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin,
+        initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType
+    ) async -> WKPermissionDecision {
+        await tab?.permissions.decideCapture(type, origin: origin, frame: frame) ?? .deny
+    }
+
+    @available(macOS 27.0, *)
+    func webView(
+        _ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo, decisionHandler: @escaping @MainActor (WKPermissionDecision) -> Void
+    ) {
+        guard let tab else { return decisionHandler(.deny) }
+        Task { decisionHandler(await tab.permissions.decideLocation(origin: origin, frame: frame)) }
     }
 
     func webViewDidClose(_ webView: WKWebView) {

@@ -67,6 +67,9 @@ struct ModePicker: View {
                 .padding(.top, 10)
             }
 
+            PagePermissionsSection(tab: tab)
+                .padding(.top, 2)
+
             Divider().padding(.vertical, 10)
 
             HStack {
