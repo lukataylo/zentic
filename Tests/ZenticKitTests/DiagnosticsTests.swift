@@ -54,6 +54,29 @@ private func noSymbols(_: String, _: UInt64) -> String? { nil }
         #expect(launch.breadcrumb == nil)
     }
 
+    /// A run that crashes in its first second never flushes a breadcrumb, and
+    /// that crash-on-launch is the one whose crash log matters most: the next
+    /// launch must still know when it began, to find the log.
+    @Test func aRunThatCrashedBeforeItsFirstBreadcrumbStillHasItsLaunchDate() {
+        let guard_ = LaunchGuard(directory: temporaryDirectory())
+        _ = guard_.begin(now: wholeSecond)
+        let next = guard_.begin()
+        #expect(next.outcome == .recovered)
+        #expect(next.breadcrumb == nil)
+        #expect(next.launched == wholeSecond)
+    }
+
+    /// A marker from before launch dates were stored falls back to the time
+    /// the file was created, which was that run's launch.
+    @Test func aMarkerWithoutALaunchDateUsesWhenItWasCreated() throws {
+        let dir = temporaryDirectory()
+        let marker = dir.appendingPathComponent("running.marker")
+        try Data(#"{"startupCrashes":0,"survivedStartup":true}"#.utf8).write(to: marker)
+        let created = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.creationDate: created], ofItemAtPath: marker.path)
+        #expect(LaunchGuard(directory: dir).begin().launched == created)
+    }
+
     @Test func keepsOnlyTheLastEventsAndFoldsRepeats() {
         var crumb = Breadcrumb(appVersion: "1")
         for _ in 0..<5 { crumb.note("Closed a tab") }
@@ -304,6 +327,12 @@ private func noSymbols(_: String, _: UInt64) -> String? { nil }
         #expect(crash.isCovered(by: crash))
         // A hang in that run is a different problem.
         #expect(!hang.isCovered(by: quit))
+        // The same hang delivered again is one; another hang in the same run is not.
+        #expect(hang.isCovered(by: hang))
+        var later = hang
+        later.summary = "Not responding for 8 sec"
+        later.text += "\nanother stack"
+        #expect(!later.isCovered(by: hang))
 
         var elsewhere = crash
         elsewhere.processID = 1

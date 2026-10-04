@@ -48,8 +48,7 @@ targets:
       - package: ZenticPackage
         product: ZenticKit
       - package: Sparkle
-    # A shared scheme, so xcodebuild need not invent one (it warns when it does)
-    # and the UI-test target has a scheme to join.
+    # A shared scheme, so xcodebuild need not invent one (it warns when it does).
     scheme: {}
     settings:
       base:

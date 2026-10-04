@@ -402,7 +402,8 @@ has run.
    update again.
 2. Raise `MARKETING_VERSION` in `project.yml` and commit. The build number is the
    commit count, which Sparkle compares.
-3. `scripts/release.sh`. It checks that the keychain key matches Info.plist, then
+3. `scripts/release.sh`. It refuses a version that is already tagged, released or
+   in the published appcast, checks that the keychain key matches Info.plist, then
    archives, notarizes and staples the app. It zips it, signs the zip with
    `sign_update`, downloads the published `appcast.xml` (so older releases stay
    listed) and runs `generate_appcast` to add this version and sign the feed.

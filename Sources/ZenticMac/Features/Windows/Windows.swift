@@ -44,9 +44,12 @@ final class Windows {
     let launch: LaunchGuard.Outcome
     /// What the previous run was doing, when it ended without quitting.
     let previousRun: Breadcrumb?
+    /// When the previous run launched, when it ended without quitting — known
+    /// even if it crashed before recording a breadcrumb.
+    let previousLaunch: Date?
 
     private init() {
-        (launch, previousRun) = launchGuard.begin()
+        (launch, previousRun, previousLaunch) = launchGuard.begin()
         let session = sessionFile.load()
         pending = session?.windows.map(Browser.init(restoring:)) ?? []
         restoredIDs = Set(pending.map(\.id))

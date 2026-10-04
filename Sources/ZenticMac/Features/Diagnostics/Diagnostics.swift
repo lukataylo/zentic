@@ -35,7 +35,7 @@ final class Diagnostics {
     func start() {
         Breadcrumbs.note("Launched")
         let windows = Windows.shared
-        if windows.launch != .clean { writeIncident(previousRun: windows.previousRun) }
+        if windows.launch != .clean { writeIncident(previousRun: windows.previousRun, launched: windows.previousLaunch) }
         // Off the launch path. MetricKit delivers when it has something,
         // which is never in the first seconds.
         Task {
@@ -82,12 +82,14 @@ final class Diagnostics {
         io.async { store.delete(report.id) }
     }
 
-    private func writeIncident(previousRun: Breadcrumb?) {
+    private func writeIncident(previousRun: Breadcrumb?, launched: Date?) {
         let process = ProcessInfo.processInfo.processName
         let store = self.store
         io.async {
             // Bounded by when that run launched: an older log is another crash.
-            let log = previousRun.flatMap { SystemCrashLog.newest(for: process, since: $0.launched) }
+            // Not tied to the breadcrumb, which a crash in the first second
+            // never got to write.
+            let log = launched.flatMap { SystemCrashLog.newest(for: process, since: $0) }
             let report = ProblemReport.unexpectedQuit(previousRun: previousRun, crashLog: log)
             store.save(report)
             Task { @MainActor in

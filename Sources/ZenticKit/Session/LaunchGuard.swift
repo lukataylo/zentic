@@ -33,6 +33,10 @@ public struct LaunchGuard: Sendable {
         var startupCrashes: Int
         /// Absent in markers from before breadcrumbs, and until the first is recorded.
         var breadcrumb: Breadcrumb?
+        /// When the run began. Written by `begin()` itself, so it is there even
+        /// when the run crashed before its first breadcrumb was flushed — the
+        /// crash-on-launch case. Absent in markers from before it existed.
+        var launched: Date?
     }
 
     private let file: JSONFile<Record>
@@ -43,9 +47,17 @@ public struct LaunchGuard: Sendable {
 
     /// Call once, first thing at launch. Synchronous on purpose: the marker
     /// must be on disk before anything that could crash runs. After an
-    /// unexpected quit, also returns the last breadcrumb that run recorded.
-    public func begin() -> (outcome: Outcome, breadcrumb: Breadcrumb?) {
+    /// unexpected quit, also returns the last breadcrumb that run recorded and
+    /// when it launched (what bounds the search for its crash log), whether or
+    /// not it got as far as a breadcrumb.
+    public func begin(now: Date = .now) -> (outcome: Outcome, breadcrumb: Breadcrumb?, launched: Date?) {
         let previous = file.load()
+        // An older marker has no launch date; the file was created at launch.
+        // Read before the save below replaces it.
+        let launched = previous.flatMap {
+            $0.launched ?? $0.breadcrumb?.launched
+                ?? (try? FileManager.default.attributesOfItem(atPath: file.url.path)[.creationDate]) as? Date
+        }
         var crashes = 0
         let outcome: Outcome
         if let previous {
@@ -54,8 +66,8 @@ public struct LaunchGuard: Sendable {
         } else {
             outcome = .clean
         }
-        file.save(Record(survivedStartup: false, startupCrashes: crashes))
-        return (outcome, previous?.breadcrumb)
+        file.save(Record(survivedStartup: false, startupCrashes: crashes, launched: now))
+        return (outcome, previous?.breadcrumb, launched)
     }
 
     /// Keep the latest breadcrumb with the marker. Never recreates a marker

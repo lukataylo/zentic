@@ -37,6 +37,36 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 65
 fi
 
+# As in build-app.sh: Xcode writes Sparkle's pin into the root Package.resolved,
+# which belongs to Package.swift. Put it back when done.
+resolved=$(mktemp)
+cp Package.resolved "$resolved"
+trap 'cp "$resolved" Package.resolved; rm -f "$resolved"' EXIT
+
+# The tag, the zip's name and its download URL all come from the marketing
+# version, which only changes by hand (project.yml). Releasing it twice would
+# list two archives at one URL, and replacing the asset would break the older
+# entry's signature — so refuse a version that is already out.
+version=$(sed -nE 's/^ *MARKETING_VERSION: *"?([^"]+)"?$/\1/p' project.yml)
+if [[ -z "$version" ]]; then
+  echo "error: no MARKETING_VERSION in project.yml." >&2
+  exit 65
+fi
+published=$(mktemp)
+if curl -fsSL "$feed" -o "$published"; then
+  if grep -qE "shortVersionString(>|=\")${version//./\\.}[<\"]" "$published"; then
+    echo "error: the published appcast already lists $version. Raise MARKETING_VERSION in project.yml." >&2
+    exit 65
+  fi
+else
+  rm -f "$published"
+fi
+if git rev-parse -q --verify "refs/tags/v$version" >/dev/null \
+  || { command -v gh >/dev/null && gh release view "v$version" >/dev/null 2>&1; }; then
+  echo "error: v$version is already tagged or released. Raise MARKETING_VERSION in project.yml." >&2
+  exit 65
+fi
+
 if ! security find-identity -v -p codesigning | grep -q '"Developer ID Application'; then
   echo "error: no \"Developer ID Application\" signing identity in the keychain." >&2
   echo "Create one in Xcode → Settings → Accounts → Manage Certificates, then run this again." >&2
@@ -123,7 +153,11 @@ xcodebuild -exportArchive \
   -quiet
 
 app="$out/export/Zentic.app"
-version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+built=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+if [[ "$built" != "$version" ]]; then
+  echo "error: the app says version $built, project.yml says $version." >&2
+  exit 1
+fi
 codesign --verify --deep --strict "$app"
 
 # MARK: Notarize and staple
@@ -169,10 +203,10 @@ signature=$("$sparkle_bin/sign_update" --account "$sparkle_account" -p "$zip")
 step "Updating appcast.xml"
 # Start from the published feed so earlier releases stay listed. There is none
 # before the first release; generate_appcast then starts a new one.
-if curl -fsSL "$feed" -o "$updates/appcast.xml"; then
+if [[ -f "$published" ]]; then
+  mv "$published" "$updates/appcast.xml"
   echo "Extending the published appcast."
 else
-  rm -f "$updates/appcast.xml"
   echo "No published appcast yet; starting one."
 fi
 # Also signs the feed itself, which Info.plist requires (SURequireSignedFeed).
