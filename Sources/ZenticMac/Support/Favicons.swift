@@ -22,6 +22,13 @@ final class Favicons {
     private let directory: URL
     private nonisolated static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
+        // One session serves ordinary and private windows alike: a cookie or a
+        // cached response from one must never travel with the other's request,
+        // and an icon needs neither.
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCache = nil
         configuration.timeoutIntervalForRequest = 6
         configuration.networkServiceType = .background
         return URLSession(configuration: configuration)
@@ -95,6 +102,25 @@ final class Favicons {
             if let fetched = await fetch(candidate, session: session) { return fetched }
         }
         return nil
+    }
+
+    /// Forget the icon of every site not in `keep`, on disk and in memory.
+    /// The folder's file names list the sites visited, and their dates say
+    /// when: once history no longer holds a site, neither may this.
+    func forget(keeping keep: Set<String>) {
+        for key in Set(memory.keys).union(declaredFor.keys).union(failed).union(inFlight.keys) where !keep.contains(key) {
+            memory[key] = nil
+            declaredFor[key] = nil
+            failed.remove(key)
+        }
+        notOnDisk = []
+        let directory = self.directory
+        Task.detached(priority: .utility) {
+            let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+            for file in files where file.pathExtension == "png" && !keep.contains(file.deletingPathExtension().lastPathComponent) {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
     }
 
     private struct Fetched: @unchecked Sendable {

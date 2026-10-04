@@ -205,7 +205,7 @@ enum ClearHistoryAlert {
         let alert = NSAlert()
         alert.messageText = "Clear History"
         alert.informativeText =
-            "Removes the pages you visited from History and from the address bar’s suggestions. Cookies, website data, open tabs and favourites are kept."
+            "Removes the pages you visited from History and from the address bar’s suggestions, and the icons kept for their sites. Cookies, website data, open tabs and favourites are kept."
         alert.alertStyle = .warning
 
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)

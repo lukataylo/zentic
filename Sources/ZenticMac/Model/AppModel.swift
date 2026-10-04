@@ -59,8 +59,10 @@ final class AppModel {
         return favorites.contains { SiteKey.for($0.url) == key }
     }
 
-    func addFavorite(url: URL, title: String) {
-        guard !isFavorite(url) else { return }
+    /// From a tab in `browser`. Never a private window's page: favourites are
+    /// written to disk and shown in every window.
+    func addFavorite(url: URL, title: String, from browser: Browser) {
+        guard !browser.isPrivate, !isFavorite(url) else { return }
         favorites.append(Favorite(id: UUID(), url: url, title: title))
     }
 
@@ -128,6 +130,13 @@ final class AppModel {
         history = Dictionary(kept.map { ($0.url.absoluteString, $0) }, uniquingKeysWith: { a, _ in a })
         historyRevision += 1
         saveHistorySoon()
+        // Site icons too, but those of what is still in use: open tabs,
+        // favourites, saved passwords and the history that is left.
+        let tabs = (Windows.shared.open + Windows.shared.waitingToOpen).flatMap(\.allTabs)
+        let urls = kept.map(\.url) + favorites.map(\.url) + tabs.compactMap(\.url) + tabs.compactMap(\.pinnedURL)
+        var sites = Set(urls.compactMap(SiteKey.for))
+        sites.formUnion(Passwords.shared.logins.map(\.origin.siteKey))
+        Favicons.shared.forget(keeping: sites)
     }
 
     /// After the user deleted something: now, not in two seconds, so a crash
