@@ -110,7 +110,11 @@ private struct ExtensionOverflow: View {
                         Text(action?.label ?? item.context.webExtension.displayName ?? "Extension")
                         if !badge.isEmpty { Text(badge) }
                     } icon: {
-                        Image(nsImage: action?.icon(for: CGSize(width: 16, height: 16)) ?? NSImage())
+                        if let icon = action?.icon(for: CGSize(width: 16, height: 16)) {
+                            Image(nsImage: icon)
+                        } else {
+                            Image(systemName: "puzzlepiece.extension")
+                        }
                     }
                 }
                 .disabled(action?.isEnabled == false)
@@ -167,8 +171,10 @@ private struct ExtensionMenu: View {
             if case .whenClicked(let sites) = extensions.siteAccess(item.id), sites.contains(SitePattern.site(of: pattern) ?? "") {
                 Button("Stop Allowing on \(host)") { extensions.disallow(site: SitePattern.site(of: pattern) ?? host, item.id) }
             } else {
-                Button("Always Allow on \(host)") {
-                    extensions.allow(site: pattern, item.id, privately: tab?.browser?.isPrivate == true)
+                // From a private window it lasts until quit, so not "Always".
+                let privately = tab?.browser?.isPrivate == true
+                Button(privately ? "Allow on \(host)" : "Always Allow on \(host)") {
+                    extensions.allow(site: pattern, item.id, privately: privately)
                     if item.context.hasInjectedContent(for: url) { tab?.reload() }
                 }
             }
@@ -179,6 +185,22 @@ private struct ExtensionMenu: View {
         Button("Manage Extensions…", action: manage)
         Divider()
         Button("Turn Off \(name)") { extensions.setEnabled(false, item.id) }
+    }
+}
+
+/// What running extensions add to a tab's menu (the `menus` API's "tab"
+/// context), for the sidebar's right-click menu.
+struct ExtensionTabMenuItems: View {
+    let tab: Tab
+
+    var body: some View {
+        let extensions = Extensions.shared
+        let items = extensions.toolbarItems(privateWindow: tab.browser?.isPrivate == true)
+            .flatMap { $0.context.menuItems(for: extensions.events.tab(for: tab)) }
+        if !items.isEmpty {
+            Divider()
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in BridgedMenuItem(item: item) }
+        }
     }
 }
 

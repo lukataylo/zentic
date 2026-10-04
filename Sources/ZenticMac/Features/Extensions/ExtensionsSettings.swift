@@ -132,7 +132,9 @@ private struct ExtensionRow: View {
             .toggleStyle(.switch)
             .labelsHidden()
             .controlSize(.small)
-            .disabled(extensions.parsed[listing.id] == nil)
+            // One that can't be read can't be turned on, but one left on
+            // when its app went away must still be turned off.
+            .disabled(extensions.parsed[listing.id] == nil && extensions.record(listing.id)?.isEnabled != true)
             // SwiftUI's switch offers assistive apps no press action here;
             // without one, VoiceOver could read it but not flip it.
             .accessibilityAction {
@@ -182,7 +184,7 @@ private struct ExtensionDetail: View {
                         )
                         .toggleStyle(.switch)
                         .labelsHidden()
-                        .disabled(webExtension == nil)
+                        .disabled(webExtension == nil && record?.isEnabled != true)
                         .accessibilityLabel("Turn on \(name)")
                         .accessibilityAction { extensions.setEnabled(record?.isEnabled != true, id) }
                     }

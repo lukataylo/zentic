@@ -13,17 +13,10 @@ import ZenticKit
 final class ExtensionControllerDelegate: NSObject, WKWebExtensionControllerDelegate {
     private var extensions: Extensions { .shared }
 
-    /// The windows an extension may see, front to back.
-    private func windows(for context: WKWebExtensionContext) -> [Browser] {
-        let visible = Windows.shared.open.filter { !$0.isPrivate || context.hasAccessToPrivateData }
-        let ordered = NSApp.orderedWindows.compactMap { window in visible.first { $0.window === window } }
-        return ordered + visible.filter { browser in !ordered.contains { $0 === browser } }
-    }
-
     func webExtensionController(
         _ controller: WKWebExtensionController, openWindowsFor extensionContext: WKWebExtensionContext
     ) -> [any WKWebExtensionWindow] {
-        windows(for: extensionContext).map(extensions.events.window(for:))
+        extensions.windows(visibleTo: extensionContext).map(extensions.events.window(for:))
     }
 
     func webExtensionController(
@@ -52,7 +45,7 @@ final class ExtensionControllerDelegate: NSObject, WKWebExtensionControllerDeleg
     ) {
         let parent = (configuration.parentTab as? ExtensionTab)?.tab
         let requested = (configuration.window as? ExtensionWindow)?.browser ?? parent?.browser
-        guard let browser = requested ?? windows(for: extensionContext).first else {
+        guard let browser = requested ?? extensions.windows(visibleTo: extensionContext).first else {
             let browser = Windows.shared.openWindow(showing: configuration.url.map { [$0] } ?? [], private: false)
             return completionHandler(browser.allTabs.first.map(extensions.events.tab(for:)), nil)
         }

@@ -170,7 +170,7 @@ final class Windows {
         // still contain them.
         guard !terminating, let index = open.firstIndex(where: { $0 === browser }) else { return }
         open.remove(at: index)
-        Extensions.shared.events.windowClosed(browser)
+        Extensions.shared.windowClosed(browser)
         if browser.isPrivate {
             // Its pages, cookies and caches go with it.
             browser.closeAllTabs(forgettingState: false)

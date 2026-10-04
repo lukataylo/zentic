@@ -119,6 +119,10 @@ final class ExtensionEvents {
             }
         }
         for browser in Windows.shared.open {
+            // Reordered within the window: only the tabs the user moved, not
+            // the ones a drag slid past or an opened or closed tab shifted.
+            let before = reported.filter { $0.value.window == browser.id }.sorted { $0.value.index < $1.value.index }
+            let reordered = TabMoves.moved(from: before.map(\.key), to: browser.allTabs.map(\.id))
             for tab in browser.allTabs {
                 guard let new = now[tab.id] else { continue }
                 let adapter = self.tab(for: tab)
@@ -126,7 +130,7 @@ final class ExtensionEvents {
                     controller.didOpenTab(adapter)
                     continue
                 }
-                if old.window != new.window {
+                if old.window != new.window || reordered.contains(tab.id) {
                     controller.didMoveTab(adapter, from: old.index, in: windowAdapters[old.window])
                 }
                 var changed: WKWebExtension.TabChangedProperties = []

@@ -102,6 +102,23 @@ import WebKit
     }
 }
 
+@Suite struct TabMovesTests {
+    @Test func draggingOneTabMovesThatTabOnly() {
+        // A to the end slides B and C up; they did not move.
+        #expect(TabMoves.moved(from: ["a", "b", "c", "d"], to: ["b", "c", "d", "a"]) == ["a"])
+        #expect(TabMoves.moved(from: ["a", "b", "c", "d"], to: ["a", "d", "b", "c"]) == ["d"])
+    }
+
+    @Test func openingAndClosingTabsMovesNothing() {
+        #expect(TabMoves.moved(from: ["a", "b", "c"], to: ["new", "a", "c"]).isEmpty)
+        #expect(TabMoves.moved(from: ["a", "b", "c"], to: ["a", "b", "c"]).isEmpty)
+    }
+
+    @Test func swappingTwoTabsMovesOne() {
+        #expect(TabMoves.moved(from: ["a", "b"], to: ["b", "a"]).count == 1)
+    }
+}
+
 @Suite struct ExtensionDiscoveryTests {
     /// A fake Applications folder: one Safari extension, one other kind of
     /// app extension, and an app one folder down (as Setapp installs).

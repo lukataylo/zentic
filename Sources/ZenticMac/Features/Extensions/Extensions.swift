@@ -48,9 +48,6 @@ final class Extensions {
     /// Sites allowed from a private window, by record id. In force until
     /// quit and never written down: a private window writes nothing to disk.
     @ObservationIgnored private var privateSites: [String: [String: Date]] = [:]
-    /// Set while a private window's question is being answered, so the grants
-    /// WebKit makes in reply stay out of the saved record.
-    @ObservationIgnored private var answeringPrivately = false
     @ObservationIgnored private var shortcutMonitor: Any?
     /// "Not Now" answers to a click, as "record-id pattern", for this run.
     @ObservationIgnored private var notNow: Set<String> = []
@@ -87,7 +84,10 @@ final class Extensions {
     func isRunning(_ id: String) -> Bool { contexts[id] != nil }
 
     func name(_ id: String) -> String {
-        parsed[id]?.displayName ?? installed.first { "app:\($0.bundleID)" == id }?.appName ?? "Extension"
+        parsed[id]?.displayName ?? installed.first { "app:\($0.bundleID)" == id }?.appName
+            // Its app deleted, or its folder gone: the name it was filed under.
+            ?? record(id).map { URL(filePath: $0.source.path).deletingPathExtension().lastPathComponent }
+            ?? "Extension"
     }
 
     /// The extension a `webkit-extension://` page belongs to — its options
@@ -175,7 +175,7 @@ final class Extensions {
     private func stop(_ id: String) {
         guard let context = contexts.removeValue(forKey: id) else { return }
         try? controller.unload(context)
-        prompts.removeAll { $0.extensionID == id }
+        withdrawPrompts { $0.extensionID == id }
         if contexts.isEmpty { events.stop() }
         updateShortcuts()
     }
@@ -282,8 +282,10 @@ final class Extensions {
     }
 
     func siteAccess(_ id: String) -> SiteAccess {
-        let saved = record(id)?.grants.sites.keys.map { $0 } ?? []
-        let unsaved = privateSites[id]?.keys.map { $0 } ?? []
+        // A day's grant that ran out is gone from WebKit before it says so.
+        let now = Date.now
+        let saved = record(id)?.grants.sites.filter { $0.value > now }.keys.map { $0 } ?? []
+        let unsaved = privateSites[id]?.filter { $0.value > now }.keys.map { $0 } ?? []
         return SiteAccess(requested: requestedSites(id), granted: Set(saved + unsaved))
     }
 
@@ -356,12 +358,9 @@ final class Extensions {
     private func capture(_ context: WKWebExtensionContext) {
         guard let id = contexts.first(where: { $0.value === context })?.key else { return }
         let manifest = Set(context.webExtension.requestedPermissions.map(\.rawValue))
-        var sites = Dictionary(context.grantedPermissionMatchPatterns.map { ($0.key.string, $0.value) }) { a, _ in a }
-        if answeringPrivately {
-            let saved = record(id)?.grants.sites ?? [:]
-            for (pattern, date) in sites where saved[pattern] == nil { privateSites[id, default: [:]][pattern] = date }
-        }
-        sites = sites.filter { privateSites[id]?[$0.key] == nil }
+        // Sites a private window allowed are in force but never saved.
+        let sites = Dictionary(context.grantedPermissionMatchPatterns.map { ($0.key.string, $0.value) }) { a, _ in a }
+            .filter { privateSites[id]?[$0.key] == nil }
         update(id) { record in
             record.grants = ExtensionGrants(
                 permissions: Dictionary(
@@ -432,7 +431,7 @@ final class Extensions {
     func present(_ action: WKWebExtension.Action, of context: WKWebExtensionContext) -> Error? {
         guard let popover = action.popupPopover,
             let id = contexts.first(where: { $0.value === context })?.key,
-            let browser = (action.associatedTab as? ExtensionTab)?.tab?.browser ?? Windows.shared.frontmost,
+            let browser = window(for: action.associatedTab, of: context),
             let window = browser.window
         else { return LoadError.noWindow }
         action.hasUnreadBadgeText = false
@@ -473,6 +472,21 @@ final class Extensions {
 
     // MARK: - Questions from extensions
 
+    /// The windows an extension may see, front to back — private ones only
+    /// when it is allowed in them.
+    func windows(visibleTo context: WKWebExtensionContext) -> [Browser] {
+        let visible = Windows.shared.open.filter { !$0.isPrivate || context.hasAccessToPrivateData }
+        let ordered = NSApp.orderedWindows.compactMap { window in visible.first { $0.window === window } }
+        return ordered + visible.filter { browser in !ordered.contains { $0 === browser } }
+    }
+
+    /// Where to ask or show something for an extension: the tab's window, or
+    /// the frontmost it may see. A private window it is kept out of has no
+    /// button to show it from.
+    private func window(for tab: (any WKWebExtensionTab)?, of context: WKWebExtensionContext) -> Browser? {
+        (tab as? ExtensionTab)?.tab?.browser ?? windows(visibleTo: context).first
+    }
+
     /// Ask about something an extension requested at run time. `respond`
     /// gets nil for "Don't Allow", else when the answer expires.
     func ask(
@@ -480,7 +494,7 @@ final class Extensions {
         respond: @escaping (_ allowedUntil: Date?) -> Void
     ) {
         guard let id = contexts.first(where: { $0.value === context })?.key,
-            let browser = (tab as? ExtensionTab)?.tab?.browser ?? Windows.shared.frontmost
+            let browser = window(for: tab, of: context)
         else { return respond(nil) }
         browser.selectedTab?.chromeCollapsed = false
         prompts.append(
@@ -489,9 +503,15 @@ final class Extensions {
                 switch answer {
                 case .deny: respond(nil)
                 case .oneDay, .always:
-                    self.answeringPrivately = browser.isPrivate
+                    let before = Set(context.grantedPermissionMatchPatterns.keys.map(\.string))
                     respond(answer == .oneDay ? .now.addingTimeInterval(86_400) : .distantFuture)
-                    self.answeringPrivately = false
+                    // WebKit grants before returning but only announces it on
+                    // a later turn, so what a private window allowed is set
+                    // aside now, ahead of `capture` saving it.
+                    guard browser.isPrivate else { return }
+                    for (pattern, date) in context.grantedPermissionMatchPatterns where !before.contains(pattern.string) {
+                        self.privateSites[id, default: [:]][pattern.string] = date
+                    }
                 }
             })
     }
@@ -500,6 +520,21 @@ final class Extensions {
         guard prompts.contains(where: { $0.id == prompt.id }) else { return }
         prompts.removeAll { $0.id == prompt.id }
         prompt.respond(answer)
+    }
+
+    /// A window closed: its questions go with it, and an extension waiting on
+    /// one hears no.
+    func windowClosed(_ browser: Browser) {
+        events.windowClosed(browser)
+        withdrawPrompts { $0.window == browser.id }
+    }
+
+    /// Questions that can no longer be shown. WebKit holds the extension's
+    /// request open until it is answered, so its own requests are declined.
+    private func withdrawPrompts(where matches: (ExtensionPrompt) -> Bool) {
+        let gone = prompts.filter(matches)
+        prompts.removeAll(where: matches)
+        for prompt in gone where !prompt.isClick { prompt.respond(.deny) }
     }
 
     /// The question was closed without an answer. One prompted by a click
