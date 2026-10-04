@@ -1,0 +1,58 @@
+# The Zentic app bundle. Generate with `xcodegen generate` (or scripts/build-app.sh);
+# Zentic.xcodeproj is generated and ignored, this file is the source of truth.
+#
+# The app compiles Sources/ZenticMac itself and takes ZenticKit from the Swift
+# package in this directory, so `swift run ZenticMac` and the app build the same
+# code, and ZenticKit's `Bundle.module` resources travel inside Zentic.app.
+name: Zentic
+
+options:
+  bundleIdPrefix: com.lukadadiani
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: 5QC5886P5V
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    # Release builds override this with the commit count (scripts/release.sh), so
+    # every published build is numbered higher than the last.
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  ZenticPackage:
+    path: .
+
+targets:
+  Zentic:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/ZenticMac
+      - path: App/Assets.xcassets
+    dependencies:
+      - package: ZenticPackage
+        product: ZenticKit
+    settings:
+      base:
+        PRODUCT_NAME: Zentic
+        PRODUCT_BUNDLE_IDENTIFIER: com.lukadadiani.Zentic
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Zentic.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+      configs:
+        # Debug signs automatically for this Mac. Release signs manually: Xcode's
+        # automatic signing only produces development builds, and a build for
+        # other people's Macs must carry Developer ID and a secure timestamp
+        # for notarization to accept it.
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: Apple Development
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Developer ID Application
+          OTHER_CODE_SIGN_FLAGS: --timestamp
