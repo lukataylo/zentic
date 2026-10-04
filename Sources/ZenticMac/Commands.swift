@@ -132,6 +132,7 @@ struct BrowserCommands: Commands {
             Button("Forward") { tab?.goForward() }
                 .keyboardShortcut("]")
                 .disabled(tab?.canGoForward != true)
+            OtherDevicesMenu(browser: browser)
             Divider()
             Button("Clear History…") { AppModel.shared.clearHistory() }
         }

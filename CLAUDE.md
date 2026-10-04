@@ -16,7 +16,8 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Sync/` (`TabSync`: iCloud tabs over CKSyncEngine) |
+| `Sources/ZenticKit/Sync/` | `SyncedDevice` (one Mac's tabs, built from the session; its CloudKit record), `SyncedDevices` (merge), `SyncPacing` |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
@@ -64,8 +65,11 @@ Each one has a test.
    holds an unkept preview. Nothing else stores either.
 6. **Each tab has its own `WKUserContentController`**, popups included, because
    blockers and the message handler live on it.
-7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists and
-   (on request) OpenAI.
+7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists,
+   (on request) OpenAI, and (while tab sync is on) the user's own private CloudKit
+   database. Tab sync sends only what `SyncedDevice.spaces(from:)` takes from the
+   session — titles and addresses of ordinary windows' tabs — and other Macs' tabs
+   never fetch an icon.
 8. **A private window writes nothing to disk.** No session, history, favicon cache or
    tab state; its site choices are an in-memory overlay (`SiteBook.overlaying`) and its
    cookies live in its own `WKWebsiteDataStore.nonPersistent()`. Every write path
@@ -86,4 +90,8 @@ Each one has a test.
   `DataDirectory.defaults`, never `UserDefaults.standard`, web views use
   `WKWebsiteDataStore.zentic`, and stores that live elsewhere (Keychain) are keyed
   by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
+- CloudKit is touched only after `TabSync.isSupported` (the entitlement check): an
+  unentitled build (`swift run`) is killed by CloudKit otherwise. The iCloud
+  entitlements live in `App/Zentic-iCloud.entitlements`, chosen by `ZENTIC_ICLOUD`
+  in `project.yml`; keep it equal to `Zentic.entitlements` plus iCloud (tested).
 - Tests are written against real failure modes. If a test can't fail, delete it.

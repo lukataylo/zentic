@@ -110,6 +110,9 @@ private struct SpacePage: View {
                     if space.allTabs.isEmpty && !browser.isPrivate {
                         EmptySpaceHint(space: space)
                     }
+                    if !browser.isPrivate {
+                        OtherDevicesSection()
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)

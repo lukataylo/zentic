@@ -3,6 +3,8 @@
 #
 #   scripts/build-app.sh            # Debug, signed "Apple Development"
 #   scripts/build-app.sh --release  # Release, signed "Developer ID Application"
+#   scripts/build-app.sh --icloud   # with tab sync's iCloud entitlements (either
+#                                   # configuration; needs an Apple account in Xcode)
 #
 # Prints the path of build/Zentic.app on success. The equivalent by hand:
 #
@@ -16,11 +18,14 @@ set -euo pipefail
 cd "${0:A:h}/.."
 
 configuration=Debug
-case "${1:-}" in
-  "") ;;
-  --release) configuration=Release ;;
-  *) echo "usage: $0 [--release]" >&2; exit 64 ;;
-esac
+icloud=()
+for arg in "$@"; do
+  case "$arg" in
+    --release) configuration=Release ;;
+    --icloud) icloud=(ZENTIC_ICLOUD=YES) ;;
+    *) echo "usage: $0 [--release] [--icloud]" >&2; exit 64 ;;
+  esac
+done
 
 if ! command -v xcodegen >/dev/null; then
   echo "error: xcodegen not found. Install it with: brew install xcodegen" >&2
@@ -38,6 +43,7 @@ xcodebuild \
   -derivedDataPath build/DerivedData \
   -allowProvisioningUpdates \
   -quiet \
+  "${icloud[@]}" \
   build
 
 # ditto, not cp: it preserves the bundle's symlinks and extended attributes,

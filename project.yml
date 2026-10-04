@@ -20,6 +20,13 @@ settings:
     # Release builds override this with the commit count (scripts/release.sh), so
     # every published build is numbered higher than the last.
     CURRENT_PROJECT_VERSION: "1"
+    # Tab sync's iCloud entitlements (App/Zentic-iCloud.entitlements) need a
+    # provisioning profile with the iCloud.com.lukadadiani.Zentic container,
+    # which Xcode can only make once an Apple account is added in Xcode ›
+    # Settings › Accounts. Until then the app builds without them and tab sync
+    # hides itself. `scripts/build-app.sh --icloud` turns them on for one
+    # build; set YES here once the account is added (README › iCloud tab sync).
+    ZENTIC_ICLOUD: NO
 
 packages:
   ZenticPackage:
@@ -43,7 +50,9 @@ targets:
         PRODUCT_NAME: Zentic
         PRODUCT_BUNDLE_IDENTIFIER: com.lukadadiani.Zentic
         INFOPLIST_FILE: App/Info.plist
-        CODE_SIGN_ENTITLEMENTS: App/Zentic.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(ZENTIC_ENTITLEMENTS_$(ZENTIC_ICLOUD))
+        ZENTIC_ENTITLEMENTS_NO: App/Zentic.entitlements
+        ZENTIC_ENTITLEMENTS_YES: App/Zentic-iCloud.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         COMBINE_HIDPI_IMAGES: YES
@@ -55,7 +64,9 @@ targets:
         Debug:
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: Apple Development
+          ZENTIC_APS_ENVIRONMENT: development
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: Developer ID Application
           OTHER_CODE_SIGN_FLAGS: --timestamp
+          ZENTIC_APS_ENVIRONMENT: production

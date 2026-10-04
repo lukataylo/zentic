@@ -178,7 +178,7 @@ final class Windows {
 
     @ObservationIgnored private var saveTask: Task<Void, Never>?
 
-    private var snapshot: SessionSnapshot {
+    var snapshot: SessionSnapshot {
         SessionSnapshot(windows: everyBrowser.filter { !$0.isPrivate }.map(\.snapshot))
     }
 
@@ -192,6 +192,7 @@ final class Windows {
             let snapshot = self.snapshot
             let file = self.sessionFile
             self.io.async { file.save(snapshot) }
+            TabSync.shared.sessionChanged()
         }
     }
 

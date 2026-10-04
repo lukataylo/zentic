@@ -37,6 +37,8 @@ private struct GeneralSettings: View {
                 }
             }
 
+            TabSyncSettings()
+
             Section("Appearance") {
                 Picker("Appearance", selection: $app.appearance) {
                     ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
