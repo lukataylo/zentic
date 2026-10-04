@@ -27,6 +27,7 @@ let package = Package(
             resources: [
                 .copy("Resources/zentic.js"),
                 .copy("Resources/zentic-consent.js"),
+                .copy("Resources/zentic-passwords.js"),
                 .copy("Blocking/Resources/seed.txt"),
             ]
         ),

@@ -26,7 +26,15 @@ export interface ApplyResult {
 
 export type OutboundMessage =
   | { type: "scroll"; y: number; direction: "up" | "down" }
-  | { type: "meta"; icon: string | null };
+  | { type: "meta"; icon: string | null }
+  | {
+      type: "login-field";
+      role: "username" | "password";
+      rect: { x: number; y: number; width: number; height: number };
+    }
+  | { type: "login-dismiss" }
+  | { type: "login-key"; key: "up" | "down" | "enter" | "escape" }
+  | { type: "login-submit"; username: string; password: string };
 
 /** Marks every element Zentic itself inserted, so we never disable our own sheets. */
 export const OWN = "data-zentic";

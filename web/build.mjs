@@ -7,6 +7,8 @@
 //                      document-end, and a no-op on Original pages. It is most
 //                      of the code by weight, so it stays off the path to first
 //                      paint.
+//   zentic-passwords.js  sign-in detection and AutoFill. At document-end; adds
+//                      listeners and nothing else until a login field is used.
 //
 // Output is committed so an Xcode/SwiftPM build never needs Node. Run
 // `npm run build` after changing anything under src/ and commit the result.
@@ -53,7 +55,11 @@ function bundle(entry, name) {
   };
 }
 
-export const bundles = [bundle("main.ts", "zentic.js"), bundle("consent-entry.ts", "zentic-consent.js")];
+export const bundles = [
+  bundle("main.ts", "zentic.js"),
+  bundle("consent-entry.ts", "zentic-consent.js"),
+  bundle("passwords-entry.ts", "zentic-passwords.js"),
+];
 
 const invokedDirectly =
   process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

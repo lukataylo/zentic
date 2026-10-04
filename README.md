@@ -71,6 +71,33 @@ says so, once, and restores everything; if it crashes twice in a row within 30 s
 of launching, it restores the tabs without loading the selected one until you click
 it. A session file it cannot read is set aside, never overwritten.
 
+## Passwords
+
+Sign in to a site and Zentic offers to save the password, in a small card that hangs
+from the toolbar: **Save**, **Not Now**, or **Never for This Site**. Change a password
+and it offers to update the saved one instead. Private windows never offer.
+
+Passwords live in your **login Keychain**, as ordinary web-form passwords, so Keychain
+Access shows them too. Nothing else is written anywhere: no file, no preferences, no
+copy in memory. The list of sites you said never to save for is a plain file of host
+names.
+
+**AutoFill** (on by default, Settings › Passwords) shows your saved accounts under a
+sign-in field when you click into it. Arrow keys move through them, Return picks one.
+Nothing is filled until you choose, and only:
+
+- into the page itself, never a frame inside it,
+- on the exact origin the password was saved for (`accounts.example.com` is not
+  `example.com`), checked again after you choose,
+- over an encrypted connection. On a plain `http://` page the menu warns instead.
+
+Filling, showing or copying a password asks for Touch ID or your login password, and
+that covers the next two minutes, until the Mac sleeps or its screen locks. `⇧⌘A`
+offers your accounts on the page's sign-in form even with AutoFill off.
+
+Settings › Passwords lists every account by site, with search, show, copy (taken off
+the clipboard again after a minute), edit and delete, and the sites never saved for.
+
 ## Keyboard
 
 | | |
@@ -86,6 +113,7 @@ it. A session file it cannot read is set aside, never overwritten.
 | `⇧⌘[` `⇧⌘]`, `⌘1`–`⌘9` | switch tabs |
 | `⌘F` `⌘G` | find |
 | `⌘D` | add to favourites |
+| `⇧⌘A` | AutoFill a saved password |
 | `⌃⌘S` | sidebar |
 
 ## Build
@@ -143,6 +171,9 @@ exception is AppKit's own window position, which goes to the app's normal prefer
 ## Privacy
 
 - No telemetry. Nothing about browsing leaves the Mac except the pages themselves.
+- Saved passwords stay in the login Keychain, are read only to fill, show or copy one
+  after Touch ID or your password, and are filled only on explicit choice into the
+  exact secure origin they belong to.
 - A custom version's stylesheet is sanitised twice, in Swift before it's stored and in
   the page before it's applied. Anything that could fetch a URL (`url()`, `@import`,
   `@font-face`, `image-set()`, CSS escapes) is removed, and a sheet that still could is
