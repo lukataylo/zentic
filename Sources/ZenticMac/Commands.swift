@@ -109,6 +109,11 @@ struct BrowserCommands: Commands {
                 if let key = tab?.siteKey { browser?.removeCustom(forKey: key) }
             }
             .disabled(browser?.custom(for: tab?.url) == nil)
+            Button("Repair Custom Version…") {
+                if let tab, let drift = Rechecks.shared.drift(for: tab) { tab.design.repair(on: tab, drift: drift) }
+            }
+            .keyboardShortcut("e", modifiers: [.command, .option, .shift])
+            .disabled(Rechecks.shared.drift(for: tab) == nil)
             Divider()
             Button("Page Settings…") {
                 // A transient popover opened while the menu is still tracking is

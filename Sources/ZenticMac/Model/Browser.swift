@@ -487,7 +487,8 @@ final class Browser: Identifiable {
         for tab in allTabs where tab.isRealized {
             let key = tab.siteKey
             let changed =
-                old.mode(for: key) != new.mode(for: key) || old.custom(for: key) != new.custom(for: key)
+                old.mode(for: key) != new.mode(for: key)
+                || !CustomVersion.sameDesign(old.custom(for: key), new.custom(for: key))
             if changed { tab.applyMode() } else { tab.installScripts() }
         }
     }

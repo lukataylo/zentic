@@ -3,6 +3,7 @@ import { startMetaReporting } from "./meta";
 import { startScrollReporting } from "./scroll";
 import { snapshot } from "./snapshot";
 import { health } from "./health";
+import { recheck } from "./recheck";
 import type { ZenticConfig } from "./types";
 
 declare const __ZENTIC_VERSION__: string;
@@ -22,6 +23,7 @@ if (!window.zentic) {
     apply,
     snapshot,
     health,
+    recheck,
     mode,
     unlockScroll,
   });

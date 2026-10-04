@@ -10,6 +10,7 @@ struct ModePicker: View {
 
     var body: some View {
         let custom = browser.custom(for: tab.url)
+        let drift = Rechecks.shared.drift(for: tab)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 SiteIcon(image: tab.icon, size: 22)
@@ -33,7 +34,8 @@ struct ModePicker: View {
                         shortcut: "⌥⌘\(index + 1)",
                         selected: tab.mode == mode && tab.previewing == nil,
                         reloads: mode.blocks != tab.mode.blocks && !(mode == .custom && custom == nil),
-                        detail: mode == .custom ? custom.map { "“\($0.summary)”" } ?? "Describe it in your own words…" : nil
+                        detail: mode == .custom ? custom.map { "“\($0.summary)”" } ?? "Describe it in your own words…" : nil,
+                        drift: mode == .custom ? drift : nil
                     ) {
                         browser.choose(mode)
                         if mode != .custom || custom != nil {
@@ -47,7 +49,10 @@ struct ModePicker: View {
                 }
             }
 
-            if custom != nil {
+            if let custom, let drift {
+                DriftActions(tab: tab, drift: drift, version: custom)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if custom != nil {
                 HStack(spacing: 8) {
                     Button {
                         browser.modePickerPresented = false
@@ -86,6 +91,7 @@ struct ModePicker: View {
         }
         .padding(12)
         .frame(width: 340)
+        .animation(.smooth(duration: 0.25), value: drift)
     }
 }
 
@@ -95,6 +101,7 @@ private struct ModeRow: View {
     let selected: Bool
     let reloads: Bool
     let detail: String?
+    var drift: Drift? = nil
     var action: () -> Void
     @State private var hovering = false
 
@@ -123,11 +130,15 @@ private struct ModeRow: View {
                                 .background(Capsule().fill(Color.primary.opacity(0.07)))
                         }
                     }
-                    Text(detail ?? mode.subtitle)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                    if let drift {
+                        DriftReason(drift: drift)
+                    } else {
+                        Text(detail ?? mode.subtitle)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
                 }
                 Spacer(minLength: 6)
                 if selected {
@@ -155,6 +166,7 @@ private struct ModeRow: View {
         .animation(.easeOut(duration: 0.12), value: hovering)
         .animation(.smooth(duration: 0.2), value: selected)
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityHint(drift?.reasons.joined(separator: ". ") ?? "")
     }
 }
 

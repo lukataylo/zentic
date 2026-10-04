@@ -24,10 +24,13 @@ public struct OpenAIDesigner: Sendable {
         public var screenshot: String?
         /// Set on a repair pass: what went wrong with `current` when previewed.
         public var problem: String?
+        /// Set when repairing a kept version the site has changed under: what
+        /// no longer works (``Drift/problem``).
+        public var drift: String?
 
         public init(
             url: URL, title: String, outline: String, instruction: String, current: CustomVersion?,
-            screenshot: String? = nil, problem: String? = nil
+            screenshot: String? = nil, problem: String? = nil, drift: String? = nil
         ) {
             self.url = url
             self.title = title
@@ -36,6 +39,7 @@ public struct OpenAIDesigner: Sendable {
             self.current = current
             self.screenshot = screenshot
             self.problem = problem
+            self.drift = drift
         }
     }
 
@@ -262,6 +266,15 @@ public struct OpenAIDesigner: Sendable {
 
                 """
         }
+        if let drift = request.drift {
+            text += """
+                That version was kept a while ago, and the site has changed its layout since: \(drift).
+                The screenshot shows the page as it looks now, with the version applied. Rewrite the \
+                selectors and stylesheet against the page as it is now, so the version does again \
+                what the user asked for. Change nothing else.
+
+                """
+        }
         if let problem = request.problem {
             text += """
                 Previewing that stylesheet broke the page: \(problem)
@@ -270,7 +283,7 @@ public struct OpenAIDesigner: Sendable {
 
                 """
         }
-        if request.screenshot != nil && request.problem == nil {
+        if request.screenshot != nil && request.problem == nil && request.drift == nil {
             text += "The screenshot shows the page as it looks now.\n\n"
         }
         text += """

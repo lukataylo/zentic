@@ -148,9 +148,11 @@ private struct IntelligenceSettings: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            RecheckSettingsSection()
         }
         .formStyle(.grouped)
-        .frame(height: 360)
+        .frame(height: 470)
     }
 
     @ViewBuilder
@@ -267,6 +269,9 @@ private struct SiteRow: View {
                 }
             }
             Spacer()
+            if Rechecks.shared.drift(forKey: key, version: settings.custom) != nil, settings.mode == .custom {
+                NeedsRepairBadge()
+            }
             Label(settings.mode.title, systemImage: settings.mode.symbol)
                 .font(.callout)
                 .foregroundStyle(.secondary)

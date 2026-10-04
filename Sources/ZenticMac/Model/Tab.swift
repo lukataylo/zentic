@@ -420,7 +420,7 @@ final class Tab: Identifiable {
         Task { _ = await callJS("return zentic.apply(config)", arguments: ["config": config]) }
     }
 
-    private func callJS(_ body: String, arguments: [String: Any]) async -> Any? {
+    func callJS(_ body: String, arguments: [String: Any]) async -> Any? {
         guard let webView else { return nil }
         do {
             return try await webView.callAsyncJavaScript(
@@ -481,6 +481,7 @@ final class Tab: Identifiable {
         // idempotent and leaves the DOM alone when nothing changed.
         if SiteKey.isWeb(url), previewing == nil {
             apply(InPageConfig.pageConfig(mode: mode, custom: siteCustom(for: url)))
+            if mode == .custom { Rechecks.shared.pageDidLoad(self) }
         }
         if !isPrivate { AppModel.shared.recordVisit(url: url, title: title) }
         persistState()

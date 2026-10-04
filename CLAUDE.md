@@ -10,18 +10,18 @@ their own key; previewed, verified, kept, replayed with no further calls).
 
 | Path | What |
 |---|---|
-| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
+| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `Drift` (re-checking kept versions), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/` |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Recheck/` (`Rechecks`: drift of kept versions, its dot and picker actions) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
 | `scripts/` | `build-app.sh` (→ `build/Zentic.app`), `release.sh` (archive, notarize, staple, zip) |
-| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `scroll.ts` |
+| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `recheck.ts`, `scroll.ts` |
 
 ## Build
 
@@ -73,6 +73,13 @@ Each one has a test.
 9. **A session that can't be read is never overwritten.** `JSONFile` moves it aside,
    a newer `SessionSnapshot.version` refuses to decode, and tab-state files are pruned
    only against a session that was actually read.
+10. **Re-checking never calls a model and never runs on the hot path.** `Rechecks`
+    asks for `zentic.recheck()` after a Custom page's `didFinish`, in an idle callback,
+    at most once per site per `Drift.checkInterval`. What it finds is only shown; the
+    model is reached only through `DesignSession.repair`, from a button. A selector
+    missing on a different kind of page (`CustomBaseline.isSameKind`) is not drift until
+    `Drift.missesOnOtherPages` distinct pages agree. A legacy version's baseline is adopted
+    only from a page that `canBeBaseline` (never an error page).
 
 ## Conventions
 
