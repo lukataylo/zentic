@@ -71,8 +71,11 @@ Each one has a test.
 6. **Each tab has its own `WKUserContentController`**, popups included, because
    blockers and the message handler live on it.
 7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists
-   (Safe Browsing's threat lists among them), (on request) OpenAI, and (while tab sync
-   is on) the user's own private CloudKit database. Safe Browsing downloads whole lists
+   (Safe Browsing's threat lists among them), (on request) OpenAI, (while tab sync
+   is on) the user's own private CloudKit database, and (when update checks are on
+   or requested) Sparkle's signed appcast and update archive from this repository's
+   GitHub releases — never with a system profile (`SUEnableSystemProfiling`) and
+   never from an isolated run. Safe Browsing downloads whole lists
    and matches on the Mac; never add a lookup service, which would send it every
    address. Tab sync sends only what `SyncedDevice.spaces(from:)` takes from the
    session — titles and addresses of ordinary windows' tabs — and other Macs' tabs
