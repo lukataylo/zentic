@@ -32,11 +32,9 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 if ! notary_check=$(xcrun notarytool history --keychain-profile "$profile" 2>&1); then
+  echo "error: no usable notarytool keychain profile named \"$profile\". notarytool said:\n" >&2
+  print -r -- "$notary_check" | sed 's/^/  /' >&2
   cat >&2 <<EOF
-error: no usable notarytool keychain profile named "$profile".
-
-notarytool said:
-  ${notary_check//$'\n'/$'\n'  }
 
 Create the profile once (it is stored in your login keychain, not in this repo):
 
