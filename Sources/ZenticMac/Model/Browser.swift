@@ -1,14 +1,24 @@
 import AppKit
 import Observation
 import SwiftUI
+import WebKit
 import ZenticKit
 
-/// The window's state: its tabs, which one is shown, and the chrome around it.
+/// One window's state: its spaces and their tabs, which tab is shown, and the
+/// chrome around it. `Windows` owns the set of them.
 @MainActor
 @Observable
-final class Browser {
-    private(set) var tabs: [Tab] = []
-    private(set) var selectedID: UUID?
+final class Browser: Identifiable {
+    let id: UUID
+    /// A private window writes nothing to disk: no session, history, icons or
+    /// site choices, and its cookies and caches live in `dataStore` and die
+    /// with the window.
+    let isPrivate: Bool
+    @ObservationIgnored let dataStore: WKWebsiteDataStore
+
+    private(set) var spaces: [Space]
+    private(set) var spaceID: UUID
+
     var sidebarVisible = true { didSet { scheduleSave() } }
     var sidebarWidth: Double = 260 { didSet { scheduleSave() } }
     /// The sidebar slid in over the page while it is collapsed.
@@ -17,84 +27,181 @@ final class Browser {
     var commandBar = CommandBarState()
     var findBar = FindBarState()
     var modePickerPresented = false
+    /// The New Space or Edit Space sheet, while it is up.
+    var spaceDraft: SpaceDraft?
+    /// Set on the first window after an unexpected quit, until dismissed.
+    var recoveryNotice: LaunchGuard.Outcome?
+
+    /// The window's frame, kept for the next launch.
+    @ObservationIgnored var frame: NSRect? { didSet { scheduleSave() } }
+    @ObservationIgnored weak var window: NSWindow?
+    @ObservationIgnored var windowObservers: [NSObjectProtocol] = []
+    /// Restored from a session written before windows had saved frames.
+    @ObservationIgnored var adoptsLegacyFrame = false
 
     @ObservationIgnored private var closed: [Tab.Saved] = []
-    @ObservationIgnored private var saveTask: Task<Void, Never>?
 
-    var selectedTab: Tab? { tabs.first { $0.id == selectedID } }
+    var space: Space { spaces.first { $0.id == spaceID } ?? spaces[0] }
+    /// The current space's open (unpinned) tabs.
+    var tabs: [Tab] { space.tabs }
+    var selectedID: UUID? { space.selectedID }
+    var selectedTab: Tab? { space.selected }
+    /// Every tab in every space of this window.
+    var allTabs: [Tab] { spaces.flatMap(\.allTabs) }
 
-    init() {
-        restore()
-        watchMemory()
-        AppModel.shared.onSitesChanged.append { [weak self] old, new in
-            self?.sitesChanged(from: old, to: new)
-        }
+    /// A new, empty window.
+    init(isPrivate: Bool = false, dataStore: WKWebsiteDataStore? = nil, space: Space? = nil) {
+        id = UUID()
+        self.isPrivate = isPrivate
+        self.dataStore = dataStore ?? (isPrivate ? .nonPersistent() : .default())
+        let first =
+            space
+            ?? Space(
+                name: isPrivate ? "Private" : SessionSnapshot.defaultSpaceName,
+                icon: isPrivate ? "eye.slash" : SessionSnapshot.defaultSpaceIcon, tint: .default)
+        spaces = [first]
+        spaceID = first.id
     }
 
-    // MARK: - Tabs
+    /// A window from the saved session. Its selected tab is realized when the
+    /// window appears, not here.
+    init(restoring saved: SessionSnapshot.Window) {
+        id = saved.id
+        isPrivate = false
+        dataStore = .default()
+        sidebarWidth = saved.sidebarWidth
+        sidebarVisible = saved.sidebarVisible
+        frame = saved.frame.map { NSRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+        adoptsLegacyFrame = saved.frame == nil
+        var spaces = saved.spaces.map { saved in
+            let space = Space(
+                id: saved.id, name: saved.name, icon: saved.icon,
+                tint: saved.tint.flatMap(SidebarTint.init) ?? .default)
+            @MainActor func restore(_ tab: SessionSnapshot.Tab) -> Tab {
+                let restored = Tab(id: tab.id, url: tab.url, title: tab.title, pinnedURL: tab.pinnedURL)
+                restored.hasStateOnDisk = true
+                return restored
+            }
+            space.pinned = saved.pinned.map(restore)
+            space.tabs = saved.tabs.map(restore)
+            space.selectedID = saved.selected.flatMap { id in space.allTabs.first { $0.id == id }?.id } ?? space.tabs.first?.id
+            return space
+        }
+        if spaces.isEmpty {
+            spaces = [Space(name: SessionSnapshot.defaultSpaceName, icon: SessionSnapshot.defaultSpaceIcon, tint: .default)]
+        }
+        self.spaces = spaces
+        spaceID = saved.selectedSpace.flatMap { id in spaces.first { $0.id == id }?.id } ?? spaces[0].id
+        allTabs.forEach { $0.browser = self }
+    }
+
+    var snapshot: SessionSnapshot.Window {
+        SessionSnapshot.Window(
+            id: id,
+            frame: frame.map { .init(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height) },
+            sidebarWidth: sidebarWidth, sidebarVisible: sidebarVisible,
+            spaces: spaces.map { space in
+                SessionSnapshot.Space(
+                    id: space.id, name: space.name, icon: space.icon, tint: space.tint.rawValue,
+                    pinned: space.pinned.map(\.snapshotSource), tabs: space.tabs.map(\.snapshotSource),
+                    selected: space.selectedID)
+            },
+            selectedSpace: spaceID)
+    }
+
+    // MARK: - Selection
 
     func select(_ tab: Tab) {
-        guard selectedID != tab.id else { return }
+        if let owner = owner(of: tab), owner.id != spaceID { switchTo(owner) }
+        guard space.selectedID != tab.id else {
+            // Already selected but held back after a crash: the click loads it.
+            tab.realize()
+            return
+        }
         findBar.isPresented = false
-        selectedTab?.lastShown = .now
-        selectedID = tab.id
+        selectedTab?.didHide()
+        space.selectedID = tab.id
         tab.lastShown = .now
         tab.realize()
         scheduleSave()
-        trimLiveTabs()
+        Windows.shared.trimLiveTabs()
     }
 
-    // MARK: - Memory
-
-    /// Live web views kept beyond the one on screen. Each is a WebKit content
-    /// process — tens to hundreds of megabytes — so the rest are suspended:
-    /// a title, an icon and their saved state, restored where they left off.
-    static let maxLiveTabs = 6
-    /// A background tab untouched this long is suspended regardless.
-    static let idleLimit: Duration = .seconds(20 * 60)
-
-    @ObservationIgnored private var trimming = false
-
-    /// Suspend background tabs over the limit, or idle too long, least
-    /// recently shown first — skipping any that are playing or recording.
-    func trimLiveTabs(keeping limit: Int = Browser.maxLiveTabs) {
-        guard !trimming else { return }
-        trimming = true
-        let candidates = tabs
-            .filter { $0.isRealized && $0.id != selectedID }
-            .sorted { $0.lastShown > $1.lastShown }
-        Task {
-            defer { trimming = false }
-            var kept = 0
-            for tab in candidates {
-                let idle = Date.now.timeIntervalSince(tab.lastShown) > Double(Self.idleLimit.components.seconds)
-                if kept < limit && !idle {
-                    kept += 1
-                    continue
-                }
-                if await tab.isBusy() { continue }
-                guard tab.id != selectedID else { continue }
-                tab.suspend()
-            }
-        }
+    func selectTab(at index: Int) {
+        let visible = space.allTabs
+        guard !visible.isEmpty else { return }
+        // ⌘9 is always the last tab, as in Safari.
+        let i = index == 8 ? visible.count - 1 : index
+        if visible.indices.contains(i) { select(visible[i]) }
     }
 
-    private func watchMemory() {
-        // Under memory pressure keep only the page on screen.
-        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
-        source.setEventHandler { [weak self] in
-            MainActor.assumeIsolated { self?.trimLiveTabs(keeping: 0) }
-        }
-        source.resume()
-        memorySource = source
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.trimLiveTabs() }
-        }
-        idleTimer?.tolerance = 60
+    func selectNeighbour(_ offset: Int) {
+        let visible = space.allTabs
+        guard let current = visible.firstIndex(where: { $0.id == selectedID }), !visible.isEmpty else { return }
+        select(visible[(current + offset + visible.count) % visible.count])
     }
 
-    @ObservationIgnored private var memorySource: DispatchSourceMemoryPressure?
-    @ObservationIgnored private var idleTimer: Timer?
+    // MARK: - Spaces
+
+    func switchTo(_ target: Space) {
+        guard target.id != spaceID, spaces.contains(where: { $0 === target }) else { return }
+        findBar.isPresented = false
+        selectedTab?.didHide()
+        spaceID = target.id
+        if let tab = target.selected {
+            tab.lastShown = .now
+            tab.realize()
+        }
+        scheduleSave()
+        Windows.shared.trimLiveTabs()
+    }
+
+    /// The next or previous space, stopping at the ends rather than wrapping:
+    /// a swipe that wraps around feels like it went the wrong way.
+    func switchSpace(by offset: Int) {
+        guard let index = spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+        let target = index + offset
+        if spaces.indices.contains(target) { switchTo(spaces[target]) }
+    }
+
+    func addSpace(name: String, icon: String, tint: SidebarTint) {
+        guard !isPrivate else { return }
+        let space = Space(name: name, icon: icon, tint: tint)
+        spaces.append(space)
+        switchTo(space)
+    }
+
+    func spaceDidChange() { scheduleSave() }
+
+    func moveSpace(_ space: Space, by offset: Int) {
+        guard let from = spaces.firstIndex(where: { $0 === space }) else { return }
+        let to = from + offset
+        guard spaces.indices.contains(to) else { return }
+        spaces.swapAt(from, to)
+        scheduleSave()
+    }
+
+    /// Delete a space and close its tabs, pinned ones included.
+    func deleteSpace(_ space: Space) {
+        guard spaces.count > 1, let index = spaces.firstIndex(where: { $0 === space }) else { return }
+        if space.id == spaceID { switchTo(spaces[index == 0 ? 1 : index - 1]) }
+        for tab in space.allTabs { discard(tab) }
+        spaces.remove(at: index)
+        scheduleSave()
+    }
+
+    /// Move a tab to another space of this window, keeping its page.
+    func move(_ tab: Tab, to target: Space) {
+        guard let owner = owner(of: tab), owner !== target else { return }
+        detach(tab, from: owner)
+        tab.pinnedURL = nil
+        target.tabs.insert(tab, at: 0)
+        scheduleSave()
+    }
+
+    private func owner(of tab: Tab) -> Space? { spaces.first { $0.contains(tab) } }
+
+    // MARK: - Tabs
 
     @discardableResult
     func openTab(_ url: URL?, after anchor: Tab? = nil, select: Bool = true) -> Tab {
@@ -103,29 +210,45 @@ final class Browser {
         return tab
     }
 
+    /// New tabs go at the top of the list, or just below the tab that opened
+    /// them — in the opener's space, never among the pinned tabs.
     func insert(_ tab: Tab, after anchor: Tab?, select: Bool) {
         tab.browser = self
-        if let anchor, let index = tabs.firstIndex(where: { $0 === anchor }) {
-            tabs.insert(tab, at: index + 1)
+        let target = anchor.flatMap(owner(of:)) ?? space
+        if let anchor, let index = target.tabs.firstIndex(where: { $0 === anchor }) {
+            target.tabs.insert(tab, at: index + 1)
         } else {
-            tabs.insert(tab, at: 0)
+            target.tabs.insert(tab, at: 0)
         }
         if select { self.select(tab) }
         scheduleSave()
     }
 
+    /// ⌘W. An ordinary tab closes. A pinned tab is a place rather than a page,
+    /// so — as in Arc — it goes back to its pinned address, unloads, and the
+    /// window steps away from it.
     func close(_ tab: Tab) {
-        guard let index = tabs.firstIndex(where: { $0 === tab }) else { return }
+        guard let owner = owner(of: tab) else { return }
+        if tab.isPinned {
+            tab.resetToPin()
+            if owner.selectedID == tab.id {
+                let recent = owner.allTabs.filter { $0 !== tab }.max { $0.lastShown < $1.lastShown }
+                owner.selectedID = nil
+                if let recent { owner === space ? select(recent) : (owner.selectedID = recent.id) }
+            }
+            scheduleSave()
+            return
+        }
+        guard let index = owner.tabs.firstIndex(where: { $0 === tab }) else { return }
         if SiteKey.isWeb(tab.url) { closed.append(tab.snapshotSource) }
         if closed.count > 30 { closed.removeFirst() }
-        tab.design.reset()  // and cancel any model call in flight
-        tab.suspend()
-        tabs.remove(at: index)
-        if selectedID == tab.id {
+        discard(tab)
+        owner.tabs.remove(at: index)
+        if owner.selectedID == tab.id {
             // The tab below, as in every Mac app with a list; else the one above.
-            let next = tabs.indices.contains(index) ? tabs[index] : tabs.last
-            selectedID = nil
-            if let next { select(next) }
+            let next = owner.tabs.indices.contains(index) ? owner.tabs[index] : owner.tabs.last ?? owner.pinned.last
+            owner.selectedID = nil
+            if let next { owner === space ? select(next) : (owner.selectedID = next.id) }
         }
         scheduleSave()
     }
@@ -135,12 +258,12 @@ final class Browser {
     }
 
     func closeOthers(than keep: Tab) {
-        for tab in tabs where tab !== keep { close(tab) }
+        for tab in space.tabs where tab !== keep { close(tab) }
     }
 
     func closeBelow(_ anchor: Tab) {
-        guard let index = tabs.firstIndex(where: { $0 === anchor }) else { return }
-        for tab in tabs[(index + 1)...] { close(tab) }
+        guard let index = space.tabs.firstIndex(where: { $0 === anchor }) else { return }
+        for tab in space.tabs[(index + 1)...] { close(tab) }
     }
 
     func reopenClosed() {
@@ -155,33 +278,112 @@ final class Browser {
         openTab(tab.url, after: tab)
     }
 
-    func move(_ id: UUID, before target: UUID?) {
-        guard let from = tabs.firstIndex(where: { $0.id == id }) else { return }
-        let tab = tabs.remove(at: from)
-        if let target, let to = tabs.firstIndex(where: { $0.id == target }) {
-            tabs.insert(tab, at: to)
-        } else {
-            tabs.append(tab)
+    /// Release a tab for good: its page, its in-flight work, its saved state.
+    private func discard(_ tab: Tab) {
+        tab.design.reset()  // and cancel any model call in flight
+        tab.suspend()
+        tab.forgetSavedState()
+    }
+
+    /// Take a tab out of its space without releasing it, choosing a new
+    /// selection if it was the one shown.
+    private func detach(_ tab: Tab, from owner: Space) {
+        let wasSelected = owner.selectedID == tab.id
+        owner.pinned.removeAll { $0 === tab }
+        owner.tabs.removeAll { $0 === tab }
+        if wasSelected {
+            owner.selectedID = nil
+            if let next = owner.tabs.first ?? owner.pinned.first {
+                owner === space ? select(next) : (owner.selectedID = next.id)
+            }
         }
+    }
+
+    // MARK: - Pinned tabs
+
+    func pin(_ tab: Tab) {
+        guard !isPrivate, !tab.isPinned, let owner = owner(of: tab) else { return }
+        owner.tabs.removeAll { $0 === tab }
+        tab.pinnedURL = tab.url
+        owner.pinned.append(tab)
         scheduleSave()
     }
 
-    func selectTab(at index: Int) {
-        guard !tabs.isEmpty else { return }
-        // ⌘9 is always the last tab, as in Safari.
-        let i = index == 8 ? tabs.count - 1 : index
-        if tabs.indices.contains(i) { select(tabs[i]) }
+    func unpin(_ tab: Tab) {
+        guard tab.isPinned, let owner = owner(of: tab) else { return }
+        owner.pinned.removeAll { $0 === tab }
+        tab.pinnedURL = nil
+        owner.tabs.insert(tab, at: 0)
+        scheduleSave()
     }
 
-    func selectNeighbour(_ offset: Int) {
-        guard let current = tabs.firstIndex(where: { $0.id == selectedID }), !tabs.isEmpty else { return }
-        select(tabs[(current + offset + tabs.count) % tabs.count])
+    /// Drag-reordering. Dropping onto a row in the other section pins or
+    /// unpins the dragged tab.
+    func move(_ id: UUID, onto targetID: UUID) {
+        let current = space
+        guard id != targetID,
+            let tab = current.allTabs.first(where: { $0.id == id }),
+            let target = current.allTabs.first(where: { $0.id == targetID })
+        else { return }
+        let toPinned = target.isPinned
+        if toPinned && isPrivate { return }
+        var list = toPinned ? current.pinned : current.tabs
+        let from = list.firstIndex { $0 === tab }
+        list.removeAll { $0 === tab }
+        guard var to = list.firstIndex(where: { $0 === target }) else { return }
+        // Moving down lands after the target; moving up lands before it.
+        if let from, from <= to { to += 1 }
+        list.insert(tab, at: to)
+        if tab.isPinned != toPinned {
+            if toPinned {
+                current.tabs.removeAll { $0 === tab }
+                tab.pinnedURL = tab.url
+            } else {
+                current.pinned.removeAll { $0 === tab }
+                tab.pinnedURL = nil
+            }
+        }
+        if toPinned { current.pinned = list } else { current.tabs = list }
+        scheduleSave()
     }
 
-    /// Open a favourite: switch to a tab already on that site, or open one.
+    /// Dropped on the space's header: pin at the end.
+    func pinByDrop(_ id: UUID) {
+        guard let tab = space.tabs.first(where: { $0.id == id }) else { return }
+        pin(tab)
+    }
+
+    // MARK: - Windows
+
+    func moveToNewWindow(_ tab: Tab) {
+        guard let owner = owner(of: tab) else { return }
+        detach(tab, from: owner)
+        tab.pinnedURL = nil
+        scheduleSave()
+        Windows.shared.openWindow(adopting: tab, from: self)
+    }
+
+    /// Adopt a tab moved here from another window, as this window's only tab.
+    func adopt(_ tab: Tab) {
+        tab.browser = self
+        space.tabs = [tab]
+        space.selectedID = tab.id
+    }
+
+    /// The window closed for good: release every page.
+    func closeAllTabs(forgettingState: Bool) {
+        for tab in allTabs {
+            tab.design.reset()
+            tab.suspend()
+            if forgettingState { tab.forgetSavedState() }
+        }
+    }
+
+    /// Open a favourite: switch to a tab in this space already on that site,
+    /// or open one.
     func open(_ favorite: Favorite) {
         let key = SiteKey.for(favorite.url)
-        if let existing = tabs.first(where: { $0.siteKey == key }) {
+        if let existing = space.allTabs.first(where: { $0.siteKey == key }) {
             select(existing)
         } else {
             openTab(favorite.url)
@@ -202,29 +404,79 @@ final class Browser {
         }
     }
 
-    // MARK: - Modes
+    func showCommandBar(newTab: Bool) {
+        commandBar.opensNewTab = newTab
+        commandBar.text = newTab ? "" : (selectedTab?.url?.absoluteString ?? "")
+        commandBar.isPresented = true
+    }
+
+    // MARK: - Site choices
+
+    /// A private window's own changes to sites, laid over the shared book and
+    /// forgotten with the window. A nil value is a site this window reset.
+    private var privateSites: [String: SiteSettings?] = [:]
+
+    /// What this window's pages follow: the user's choices, plus — in a
+    /// private window — whatever was changed here.
+    var book: SiteBook { overlay(AppModel.shared.book) }
+
+    private func overlay(_ shared: SiteBook) -> SiteBook {
+        isPrivate ? shared.overlaying(privateSites) : shared
+    }
+
+    func mode(for url: URL?) -> SiteMode {
+        SiteKey.isWeb(url) ? book.mode(for: SiteKey.for(url)) : .original
+    }
+
+    func custom(for url: URL?) -> CustomVersion? { book.custom(for: SiteKey.for(url)) }
+
+    func setMode(_ mode: SiteMode, for url: URL?) {
+        guard let key = SiteKey.for(url) else { return }
+        guard isPrivate else { return AppModel.shared.setMode(mode, for: url) }
+        changePrivately(key) { $0.setMode(mode, for: key) }
+    }
+
+    func saveCustom(_ version: CustomVersion, for url: URL?) {
+        guard let key = SiteKey.for(url) else { return }
+        guard isPrivate else { return AppModel.shared.saveCustom(version, for: url) }
+        changePrivately(key) { $0.saveCustom(version, for: key) }
+    }
+
+    func removeCustom(forKey key: String) {
+        guard isPrivate else { return AppModel.shared.removeCustom(forKey: key) }
+        changePrivately(key) { $0.removeCustom(for: key) }
+    }
+
+    private func changePrivately(_ key: String, _ change: (inout SiteBook) -> Void) {
+        let old = book
+        privateSites[key] = .some(old.override(key, change))
+        sitesChanged(from: old, to: book)
+    }
+
+    /// The user's choices changed, in any window.
+    func sharedSitesChanged(from old: SiteBook, to new: SiteBook) {
+        sitesChanged(from: overlay(old), to: overlay(new))
+    }
 
     /// The user picked a mode for the current page's site.
     func choose(_ mode: SiteMode) {
         guard let tab = selectedTab, SiteKey.isWeb(tab.url) else { return }
-        if mode == .custom && AppModel.shared.custom(for: tab.url) == nil {
+        if mode == .custom && custom(for: tab.url) == nil {
             // Nothing to show yet: start one.
             modePickerPresented = false
             tab.design.present()
             return
         }
         tab.design.reset()
-        AppModel.shared.setMode(mode, for: tab.url)
+        setMode(mode, for: tab.url)
         // Also correct when the choice equals what is stored already (e.g. a
         // preview is on screen): put the page back to what the user chose.
         tab.applyMode()
     }
 
     private func sitesChanged(from old: SiteBook, to new: SiteBook) {
-        let oldConfig = old.inPageConfig()
-        let newConfig = new.inPageConfig()
-        guard oldConfig != newConfig else { return }
-        for tab in tabs where tab.isRealized {
+        guard old.inPageConfig() != new.inPageConfig() else { return }
+        for tab in allTabs where tab.isRealized {
             let key = tab.siteKey
             let changed =
                 old.mode(for: key) != new.mode(for: key) || old.custom(for: key) != new.custom(for: key)
@@ -234,38 +486,9 @@ final class Browser {
 
     // MARK: - Persistence
 
-    private func restore() {
-        let session = AppModel.shared.sessionFile.load()
-        sidebarWidth = session?.sidebarWidth ?? 260
-        sidebarVisible = session?.sidebarVisible ?? true
-        let saved = session?.tabs ?? []
-        if saved.isEmpty {
-            let tab = Tab(url: URL(string: "https://en.wikipedia.org/wiki/Special:Random"))
-            tab.browser = self
-            tabs = [tab]
-            selectedID = tab.id
-        } else {
-            tabs = saved.map { Tab(id: $0.id, url: $0.url, title: $0.title) }
-            tabs.forEach { $0.browser = self }
-            selectedID = session?.selected.flatMap { id in tabs.first { $0.id == id }?.id } ?? tabs.first?.id
-        }
-        selectedTab?.realize()
-    }
-
     private func scheduleSave() {
-        saveTask?.cancel()
-        saveTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(600))
-            guard !Task.isCancelled else { return }
-            self?.saveNow()
-        }
-    }
-
-    func saveNow() {
-        let session = SavedSession(
-            tabs: tabs.map(\.snapshotSource), selected: selectedID,
-            sidebarWidth: sidebarWidth, sidebarVisible: sidebarVisible)
-        AppModel.shared.sessionFile.save(session)
+        guard !isPrivate else { return }
+        Windows.shared.scheduleSave()
     }
 }
 

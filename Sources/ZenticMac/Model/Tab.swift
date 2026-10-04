@@ -47,7 +47,17 @@ final class Tab: Identifiable {
     let design = DesignSession()
 
     /// Set by the browser so the tab can open new tabs and report changes.
-    @ObservationIgnored weak var browser: Browser?
+    /// The tab's window decides its sites' modes (a private window keeps its
+    /// own), so the mode shown before the page loads is re-read on arrival.
+    @ObservationIgnored weak var browser: Browser? {
+        didSet { if !isRealized { mode = siteMode(for: url ?? pendingURL) } }
+    }
+    /// Where a pinned tab goes back to when closed; nil for an ordinary tab.
+    var pinnedURL: URL?
+    var isPinned: Bool { pinnedURL != nil }
+    /// Restored from a session: its back/forward list may be on disk.
+    @ObservationIgnored var hasStateOnDisk = false
+    private var isPrivate: Bool { browser?.isPrivate == true }
     @ObservationIgnored private(set) var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var delegate: TabDelegate?
@@ -69,12 +79,13 @@ final class Tab: Identifiable {
     var displayHost: String { URLGuess.displayHost(url ?? pendingURL) }
     var siteKey: String? { SiteKey.for(url ?? pendingURL) }
 
-    init(id: UUID = UUID(), url: URL?, title: String = "") {
+    init(id: UUID = UUID(), url: URL?, title: String = "", pinnedURL: URL? = nil) {
         self.id = id
         defer { design.tab = self }
         self.pendingURL = url
         self.url = url
         self.title = title
+        self.pinnedURL = pinnedURL
         self.icon = Favicons.shared.cached(for: url)
         self.mode = AppModel.shared.mode(for: url)
     }
@@ -93,7 +104,7 @@ final class Tab: Identifiable {
     func realize() -> WKWebView {
         if let webView { return webView }
 
-        let configuration = openerConfiguration ?? Self.makeConfiguration()
+        let configuration = openerConfiguration ?? Self.makeConfiguration(dataStore: browser?.dataStore ?? .default())
         if openerConfiguration != nil {
             // A popup's configuration arrives carrying its opener's content
             // controller. Shared, the two tabs would steal each other's message
@@ -128,18 +139,77 @@ final class Tab: Identifiable {
             pendingURL = nil
             let state = savedState
             savedState = nil
+            let readsDisk = state == nil && hasStateOnDisk
+            hasStateOnDisk = false
             // Load only once the blockers are attached; otherwise the first
             // page of a new tab would go out unblocked.
-            prepareBlocking(for: target) {
-                if let state {
-                    // Back where the user left it: history, scroll position, form state.
-                    webView.interactionState = state
-                } else {
-                    webView.load(URLRequest(url: target))
+            prepareBlocking(for: target) { [id] in
+                guard readsDisk else { return Self.restore(state, or: target, in: webView) }
+                Task {
+                    let saved = await Windows.tabStates.read(id)
+                    // The user may have gone somewhere else while it was read.
+                    guard webView.url == nil, !webView.isLoading else { return }
+                    Self.restore(saved, or: target, in: webView)
                 }
             }
         }
         return webView
+    }
+
+    /// Back where the user left it — history, scroll position, form state —
+    /// or, with nothing saved, a fresh load.
+    private static func restore(_ state: Any?, or url: URL, in webView: WKWebView) {
+        if let state {
+            webView.interactionState = state
+        } else {
+            webView.load(URLRequest(url: url))
+        }
+    }
+
+    // MARK: - Saved state
+
+    /// Write the page's back/forward list and scroll position to disk, so a
+    /// relaunch — even after a crash — comes back to the same place. Never for
+    /// a private window.
+    func persistState() {
+        guard !isPrivate, let state = webView?.interactionState as? Data else { return }
+        Task { [id] in await Windows.tabStates.write(state, for: id) }
+    }
+
+    /// Synchronous, for app termination.
+    func persistStateNow() {
+        guard !isPrivate, let state = (webView?.interactionState ?? savedState) as? Data else { return }
+        Windows.tabStates.writeNow(state, for: id)
+    }
+
+    func forgetSavedState() {
+        hasStateOnDisk = false
+        guard !isPrivate else { return }
+        Task { [id] in await Windows.tabStates.remove(id) }
+    }
+
+    /// Another tab took the window: remember where this one was scrolled to.
+    func didHide() {
+        lastShown = .now
+        persistState()
+    }
+
+    /// ⌘W on a pinned tab: unload it and put it back on its pinned page.
+    func resetToPin() {
+        guard let pinnedURL else { return }
+        design.reset()
+        suspend()
+        savedState = nil
+        forgetSavedState()
+        failure = nil
+        if url != pinnedURL {
+            if SiteKey.for(url) != SiteKey.for(pinnedURL) { icon = Favicons.shared.cached(for: pinnedURL) }
+            url = pinnedURL
+            // The page's own title arrives when it next loads.
+            title = ""
+        }
+        pendingURL = pinnedURL
+        mode = siteMode(for: pinnedURL)
     }
 
     /// Drop the web view, keeping the URL and title. Used when a tab is closed
@@ -174,9 +244,9 @@ final class Tab: Identifiable {
         return await webView.requestMediaPlaybackState() == .playing
     }
 
-    private static func makeConfiguration() -> WKWebViewConfiguration {
+    private static func makeConfiguration(dataStore: WKWebsiteDataStore) -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .default()
+        configuration.websiteDataStore = dataStore
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.isTextInteractionEnabled = true
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
@@ -187,13 +257,22 @@ final class Tab: Identifiable {
         return configuration
     }
 
+    /// The mode `url` opens in, as this tab's window sees it.
+    private func siteMode(for url: URL?) -> SiteMode {
+        browser?.mode(for: url) ?? AppModel.shared.mode(for: url)
+    }
+
+    private func siteCustom(for url: URL?) -> CustomVersion? {
+        browser.map { $0.custom(for: url) } ?? AppModel.shared.custom(for: url)
+    }
+
     /// Re-install the document-start scripts with the current site table. Takes
     /// effect from the next document; the live one is updated by ``applyMode()``.
     func installScripts(on controller: WKUserContentController? = nil) {
         guard let controller = controller ?? webView?.configuration.userContentController else { return }
         controller.removeAllUserScripts()
-        let consent = blockingAttached ?? AppModel.shared.mode(for: url ?? pendingURL).blocks
-        for script in InPageScript.userScripts(AppModel.shared.book.inPageConfig(), consent: consent) {
+        let consent = blockingAttached ?? siteMode(for: url ?? pendingURL).blocks
+        for script in InPageScript.userScripts((browser?.book ?? AppModel.shared.book).inPageConfig(), consent: consent) {
             controller.addUserScript(script)
         }
     }
@@ -247,7 +326,7 @@ final class Tab: Identifiable {
         } else {
             pendingURL = url
             self.url = url
-            mode = AppModel.shared.mode(for: url)
+            mode = siteMode(for: url)
             icon = Favicons.shared.cached(for: url)
             if browser?.selectedTab === self { realize() }
         }
@@ -272,7 +351,7 @@ final class Tab: Identifiable {
     /// Bring the document on screen in line with what the user chose for its
     /// site. Live where possible; a reload only when blocking has to change.
     func applyMode() {
-        let target = AppModel.shared.mode(for: url)
+        let target = siteMode(for: url)
         if previewing != nil {
             previewing = nil
             design.previewDropped()
@@ -288,7 +367,7 @@ final class Tab: Identifiable {
             return
         }
         mode = target
-        apply(InPageConfig.pageConfig(mode: target, custom: AppModel.shared.custom(for: url)))
+        apply(InPageConfig.pageConfig(mode: target, custom: siteCustom(for: url)))
     }
 
     /// Show a custom version on the live page without keeping it.
@@ -350,7 +429,7 @@ final class Tab: Identifiable {
 
     /// Attach or detach the content blockers before `url` starts loading.
     fileprivate func prepareBlocking(for url: URL?, then proceed: @escaping () -> Void) {
-        let blocks = AppModel.shared.mode(for: url).blocks
+        let blocks = siteMode(for: url).blocks
         guard blocks != blockingAttached else { return proceed() }
         setBlocking(blocks, then: proceed)
     }
@@ -380,7 +459,7 @@ final class Tab: Identifiable {
 
     fileprivate func didCommit() {
         failure = nil
-        mode = AppModel.shared.mode(for: webView?.url)
+        mode = siteMode(for: webView?.url)
         if previewing != nil {
             // A new document: the preview lived on the old one.
             previewing = nil
@@ -396,9 +475,10 @@ final class Tab: Identifiable {
         // cached, perhaps under a mode the user has since changed. `apply` is
         // idempotent and leaves the DOM alone when nothing changed.
         if SiteKey.isWeb(url), previewing == nil {
-            apply(InPageConfig.pageConfig(mode: mode, custom: AppModel.shared.custom(for: url)))
+            apply(InPageConfig.pageConfig(mode: mode, custom: siteCustom(for: url)))
         }
-        AppModel.shared.recordVisit(url: url, title: title)
+        if !isPrivate { AppModel.shared.recordVisit(url: url, title: title) }
+        persistState()
         if icon == nil || declaredIcon == nil { refreshIcon() }
         browser?.tabDidChange(self)
     }
@@ -450,7 +530,7 @@ final class Tab: Identifiable {
         guard let url = webView?.url, SiteKey.isWeb(url) else { return }
         let declared = declaredIcon
         Task {
-            if let image = await Favicons.shared.icon(for: url, declared: declared),
+            if let image = await Favicons.shared.icon(for: url, declared: declared, persist: !isPrivate),
                 SiteKey.for(self.url) == SiteKey.for(url)
             {
                 self.icon = image
@@ -483,8 +563,8 @@ final class Tab: Identifiable {
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
-    var snapshotSource: Saved { Saved(id: id, url: url ?? pendingURL, title: title) }
-    typealias Saved = SavedSession.SavedTab
+    var snapshotSource: Saved { Saved(id: id, url: url ?? pendingURL, title: title, pinnedURL: pinnedURL) }
+    typealias Saved = SessionSnapshot.Tab
 }
 
 struct LoadFailure: Equatable {

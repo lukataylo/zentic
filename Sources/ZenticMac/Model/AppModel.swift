@@ -162,9 +162,6 @@ final class AppModel {
     var searchEngine: URLGuess.SearchEngine {
         didSet { defaults.set(searchEngine.rawValue, forKey: "searchEngine") }
     }
-    var tint: SidebarTint {
-        didSet { defaults.set(tint.rawValue, forKey: "sidebarTint") }
-    }
     var model: String {
         didSet { defaults.set(model, forKey: "openAIModel") }
     }
@@ -197,10 +194,6 @@ final class AppModel {
         return OpenAIDesigner(apiKey: key, model: model)
     }
 
-    // MARK: Session
-
-    let sessionFile = JSONFile<SavedSession>(name: "session.json")
-
     // MARK: -
 
     @ObservationIgnored private let defaults = UserDefaults.standard
@@ -219,7 +212,6 @@ final class AppModel {
             ]
         history = [:]
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(URLGuess.SearchEngine.init) ?? .duckDuckGo
-        tint = defaults.string(forKey: "sidebarTint").flatMap(SidebarTint.init) ?? .indigo
         model = defaults.string(forKey: "openAIModel") ?? OpenAIDesigner.defaultModel
         hasAPIKey = APIKeyStore.has(.openAI)
         translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
@@ -281,22 +273,16 @@ struct HistoryEntry: Codable, Hashable, Sendable {
     }
 }
 
-struct SavedSession: Codable {
-    struct SavedTab: Codable {
-        var id: UUID
-        var url: URL?
-        var title: String
-    }
-    var tabs: [SavedTab]
-    var selected: UUID?
-    var sidebarWidth: Double?
-    var sidebarVisible: Bool?
-}
-
-/// The colour the window frame and sidebar are washed with.
+/// The colour the window frame and sidebar are washed with — each space has one.
 enum SidebarTint: String, CaseIterable, Identifiable {
     case indigo, graphite, rose, forest, ocean, ember
     var id: String { rawValue }
+
+    /// For a space with no tint of its own: the one window tint Zentic had
+    /// before spaces, if the user picked one.
+    static var `default`: SidebarTint {
+        UserDefaults.standard.string(forKey: "sidebarTint").flatMap(SidebarTint.init) ?? .indigo
+    }
 
     var title: String { rawValue.capitalized }
 

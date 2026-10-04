@@ -11,9 +11,16 @@ public struct JSONFile<Value: Codable & Sendable>: Sendable {
         self.url = directory.appendingPathComponent(name)
     }
 
+    /// Application Support/Zentic, or `ZENTIC_DATA_DIR` when set — so a build
+    /// under test never reads or writes the user's real tabs and sites.
     public static var defaultDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("Zentic", isDirectory: true)
+        let dir: URL
+        if let override = ProcessInfo.processInfo.environment["ZENTIC_DATA_DIR"], !override.isEmpty {
+            dir = URL(fileURLWithPath: override, isDirectory: true)
+        } else {
+            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            dir = base.appendingPathComponent("Zentic", isDirectory: true)
+        }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

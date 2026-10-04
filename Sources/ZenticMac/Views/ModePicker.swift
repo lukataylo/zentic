@@ -9,7 +9,7 @@ struct ModePicker: View {
     let tab: Tab
 
     var body: some View {
-        let custom = app.custom(for: tab.url)
+        let custom = browser.custom(for: tab.url)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 SiteIcon(image: tab.icon, size: 22)
@@ -57,7 +57,7 @@ struct ModePicker: View {
                     }
                     Spacer()
                     Button("Remove", role: .destructive) {
-                        if let key = tab.siteKey { app.removeCustom(forKey: key) }
+                        if let key = tab.siteKey { browser.removeCustom(forKey: key) }
                     }
                     .foregroundStyle(.red)
                 }

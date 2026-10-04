@@ -103,11 +103,16 @@ private struct AddressPill: View {
             }
 
             Button {
-                browser.commandBar.opensNewTab = false
-                browser.commandBar.text = tab?.url?.absoluteString ?? ""
-                browser.commandBar.isPresented = true
+                browser.showCommandBar(newTab: false)
             } label: {
                 HStack(spacing: 5) {
+                    if browser.isPrivate {
+                        Image(systemName: "eye.slash")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.55, green: 0.5, blue: 1))
+                            .help("Private window")
+                            .accessibilityLabel("Private")
+                    }
                     if let tab, tab.url?.scheme == "http" {
                         Image(systemName: "lock.slash")
                             .font(.system(size: 10, weight: .semibold))

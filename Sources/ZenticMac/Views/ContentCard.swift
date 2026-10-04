@@ -28,8 +28,10 @@ struct ContentCard: View {
             if let tab, let failure = tab.failure {
                 LoadFailureView(failure: failure) { tab.reload() }
                     .transition(.opacity)
+            } else if let tab, !tab.isRealized {
+                HeldTabView(tab: tab)
             } else if tab == nil {
-                EmptyStateView()
+                if browser.isPrivate { PrivateEmptyState() } else { EmptyStateView() }
             }
 
             Group {
@@ -145,11 +147,7 @@ private struct EmptyStateView: View {
             Image(systemName: "circle.lefthalf.filled")
                 .font(.system(size: 34, weight: .light))
                 .foregroundStyle(.tertiary)
-            Button("Open a Page…") {
-                browser.commandBar.opensNewTab = true
-                browser.commandBar.text = ""
-                browser.commandBar.isPresented = true
-            }
+            Button("Open a Page…") { browser.showCommandBar(newTab: true) }
             .buttonStyle(.link)
             Text("⌘T").font(.caption).foregroundStyle(.tertiary)
         }

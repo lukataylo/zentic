@@ -52,6 +52,23 @@ public struct SiteBook: Codable, Sendable, Hashable {
 
     public mutating func forget(_ key: String) { sites[key] = nil }
 
+    /// This book with a private window's own changes laid over it. A nil
+    /// value is a site the window put back to the default, which must win
+    /// over the shared choice too.
+    public func overlaying(_ overrides: [String: SiteSettings?]) -> SiteBook {
+        var book = self
+        for (key, settings) in overrides { book.sites[key] = settings }
+        return book
+    }
+
+    /// What to record in a private window's overrides after `change` is made
+    /// to `key` on top of `self`. The shared book itself is never touched.
+    public func override(_ key: String, _ change: (inout SiteBook) -> Void) -> SiteSettings? {
+        var book = self
+        change(&book)
+        return book.sites[key]
+    }
+
     /// A site that matches the default and has no custom version carries no
     /// information; keeping it would pin it against a later change of default.
     private mutating func prune(_ key: String) {

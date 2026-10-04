@@ -2,26 +2,31 @@ import SwiftUI
 import ZenticKit
 
 /// The menu bar. Every action in the app is reachable from here, with the key
-/// equivalents Safari users already have in their hands.
+/// equivalents Safari users already have in their hands. Each acts on the
+/// focused window.
 struct BrowserCommands: Commands {
-    let browser: Browser
-    @Environment(\.openSettings) private var openSettings
+    @FocusedValue(Browser.self) private var browser
 
-    private var tab: Tab? { browser.selectedTab }
+    private var tab: Tab? { browser?.selectedTab }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            Button("New Window") { Windows.shared.newWindow(private: false) }
+                .keyboardShortcut("n")
+            Button("New Private Window") { Windows.shared.newWindow(private: true) }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             Button("New Tab") { showCommandBar(newTab: true) }
                 .keyboardShortcut("t")
             Button("Open Location…") { showCommandBar(newTab: false) }
                 .keyboardShortcut("l")
-            Button("Reopen Closed Tab") { browser.reopenClosed() }
+                .disabled(browser == nil)
+            Button("Reopen Closed Tab") { browser?.reopenClosed() }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
-                .disabled(!browser.canReopen)
+                .disabled(browser?.canReopen != true)
         }
 
         CommandGroup(replacing: .saveItem) {
-            Button("Close Tab") { browser.closeSelected() }
+            Button(tab?.isPinned == true ? "Close Pinned Tab" : "Close Tab") { browser?.closeSelected() }
                 .keyboardShortcut("w")
                 .disabled(tab == nil)
             Button("Close Window") { NSApp.keyWindow?.performClose(nil) }
@@ -36,43 +41,49 @@ struct BrowserCommands: Commands {
 
         CommandGroup(after: .pasteboard) {
             Divider()
-            Button("Copy Link") { copyLink() }
+            Button("Copy Link") { if let url = tab?.url { copy(url) } }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
                 .disabled(tab?.url == nil)
         }
 
         CommandGroup(replacing: .textEditing) {
             Button("Find…") {
-                browser.findBar.isPresented = true
-                browser.findBar.notFound = false
+                browser?.findBar.isPresented = true
+                browser?.findBar.notFound = false
             }
             .keyboardShortcut("f")
+            .disabled(tab == nil)
             Button("Find Next") { find(backwards: false) }
                 .keyboardShortcut("g")
-                .disabled(browser.findBar.text.isEmpty)
+                .disabled(browser?.findBar.text.isEmpty != false)
             Button("Find Previous") { find(backwards: true) }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
-                .disabled(browser.findBar.text.isEmpty)
+                .disabled(browser?.findBar.text.isEmpty != false)
         }
 
         CommandGroup(replacing: .sidebar) {
-            Button(browser.sidebarVisible ? "Hide Sidebar" : "Show Sidebar") {
-                withAnimation(.smooth(duration: 0.32)) { browser.sidebarVisible.toggle() }
+            Button(browser?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar") {
+                withAnimation(.smooth(duration: 0.32)) { browser?.sidebarVisible.toggle() }
             }
             .keyboardShortcut("s", modifiers: [.command, .control])
+            .disabled(browser == nil)
             Divider()
             Button("Reload Page") { tab?.reload() }
                 .keyboardShortcut("r")
+                .disabled(tab == nil)
             Button("Stop") { tab?.stop() }
                 .keyboardShortcut(".")
                 .disabled(tab?.isLoading != true)
             Divider()
             Button("Actual Size") { tab?.zoom = 1 }
                 .keyboardShortcut("0")
+                .disabled(tab == nil)
             Button("Zoom In") { zoom(by: 1) }
                 .keyboardShortcut("=")
+                .disabled(tab == nil)
             Button("Zoom Out") { zoom(by: -1) }
                 .keyboardShortcut("-")
+                .disabled(tab == nil)
             Divider()
         }
 
@@ -80,7 +91,7 @@ struct BrowserCommands: Commands {
             ForEach(Array(SiteMode.allCases.enumerated()), id: \.element) { index, mode in
                 Toggle(
                     mode.title,
-                    isOn: Binding(get: { tab?.mode == mode }, set: { _ in browser.choose(mode) }))
+                    isOn: Binding(get: { tab?.mode == mode }, set: { _ in browser?.choose(mode) }))
                 .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command, .option])
                 .disabled(!SiteKey.isWeb(tab?.url))
             }
@@ -90,17 +101,18 @@ struct BrowserCommands: Commands {
                 .keyboardShortcut("e", modifiers: [.command, .option])
                 .disabled(!SiteKey.isWeb(tab?.url))
             Button("Remove Custom Version") {
-                if let key = tab?.siteKey { AppModel.shared.removeCustom(forKey: key) }
+                if let key = tab?.siteKey { browser?.removeCustom(forKey: key) }
             }
-            .disabled(AppModel.shared.custom(for: tab?.url) == nil)
+            .disabled(browser?.custom(for: tab?.url) == nil)
             Divider()
             Button("Page Settings…") {
                 // A transient popover opened while the menu is still tracking is
                 // dismissed by the menu closing. Present on the next turn.
+                let browser = browser
                 Task {
                     try? await Task.sleep(for: .milliseconds(60))
-                    browser.selectedTab?.chromeCollapsed = false
-                    browser.modePickerPresented = true
+                    browser?.selectedTab?.chromeCollapsed = false
+                    browser?.modePickerPresented = true
                 }
             }
                 // Not ⌥⌘D, which shows and hides the Dock system-wide.
@@ -120,42 +132,72 @@ struct BrowserCommands: Commands {
         }
 
         CommandMenu("Tabs") {
-            Button("Show Next Tab") { browser.selectNeighbour(1) }
+            Button("Show Next Tab") { browser?.selectNeighbour(1) }
                 .keyboardShortcut("]", modifiers: [.command, .shift])
-            Button("Show Previous Tab") { browser.selectNeighbour(-1) }
-                .keyboardShortcut("[", modifiers: [.command, .shift])
-            Divider()
-            Button("Duplicate Tab") { if let tab { browser.duplicate(tab) } }
                 .disabled(tab == nil)
+            Button("Show Previous Tab") { browser?.selectNeighbour(-1) }
+                .keyboardShortcut("[", modifiers: [.command, .shift])
+                .disabled(tab == nil)
+            Divider()
+            Button("Duplicate Tab") { if let tab { browser?.duplicate(tab) } }
+                .disabled(tab == nil)
+            Button(tab?.isPinned == true ? "Unpin Tab" : "Pin Tab") {
+                guard let tab else { return }
+                tab.isPinned ? browser?.unpin(tab) : browser?.pin(tab)
+            }
+            .disabled(tab == nil || browser?.isPrivate == true)
             Button(AppModel.shared.isFavorite(tab?.url) ? "Remove from Favorites" : "Add to Favorites") {
                 toggleFavorite()
             }
             .keyboardShortcut("d")
             .disabled(!SiteKey.isWeb(tab?.url))
             Divider()
+            Button("Move Tab to New Window") { if let tab { browser?.moveToNewWindow(tab) } }
+                .disabled(tab == nil)
+            if let browser, browser.spaces.count > 1, let tab {
+                Menu("Move Tab to Space") {
+                    ForEach(browser.spaces.filter { $0 !== browser.space }) { space in
+                        Button(space.name) { browser.move(tab, to: space) }
+                    }
+                }
+            }
+            Divider()
             ForEach(0..<9) { index in
-                Button(index == 8 ? "Last Tab" : "Tab \(index + 1)") { browser.selectTab(at: index) }
+                Button(index == 8 ? "Last Tab" : "Tab \(index + 1)") { browser?.selectTab(at: index) }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")))
+                    .disabled(tab == nil && browser?.space.allTabs.isEmpty != false)
+            }
+        }
+
+        CommandMenu("Spaces") {
+            Button("New Space…") { browser?.spaceDraft = SpaceDraft(newIn: browser!) }
+                .disabled(browser == nil || browser?.isPrivate == true)
+            Button("Edit Space…") { if let browser { browser.spaceDraft = SpaceDraft(editing: browser.space) } }
+                .disabled(browser == nil || browser?.isPrivate == true)
+            Divider()
+            if let browser {
+                // ⌃1…⌃9, as Arc. Off by default in macOS, where they would
+                // otherwise switch desktops.
+                ForEach(Array(browser.spaces.prefix(9).enumerated()), id: \.element.id) { index, space in
+                    Toggle(space.name, isOn: Binding(get: { browser.space === space }, set: { _ in browser.switchTo(space) }))
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .control)
+                }
             }
         }
     }
 
     private func showCommandBar(newTab: Bool) {
-        browser.commandBar.opensNewTab = newTab
-        browser.commandBar.text = newTab ? "" : (tab?.url?.absoluteString ?? "")
-        browser.commandBar.isPresented = true
-    }
-
-    private func copyLink() {
-        guard let url = tab?.url else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([url as NSURL])
-        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        guard let browser else {
+            // No window open: ⌘T opens one, as in Safari.
+            return Windows.shared.newWindow(private: false)
+        }
+        browser.showCommandBar(newTab: newTab)
     }
 
     private func find(backwards: Bool) {
+        guard let browser, let tab else { return }
         let text = browser.findBar.text
-        Task { browser.findBar.notFound = !(await tab?.find(text, backwards: backwards) ?? false) }
+        Task { browser.findBar.notFound = !(await tab.find(text, backwards: backwards)) }
     }
 
     private static let zoomSteps: [Double] = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]

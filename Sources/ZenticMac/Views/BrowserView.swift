@@ -9,7 +9,7 @@ struct BrowserView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            WindowBackground(tint: app.tint)
+            WindowBackground(tint: browser.space.tint, isPrivate: browser.isPrivate)
 
             HStack(spacing: 0) {
                 if browser.sidebarVisible {
@@ -30,18 +30,31 @@ struct BrowserView: View {
                 SidebarPeek()
             }
         }
+        .overlay(alignment: .bottom) {
+            if let outcome = browser.recoveryNotice {
+                RecoveryToast(outcome: outcome) { browser.recoveryNotice = nil }
+                    .padding(.bottom, 22)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .ignoresSafeArea()
-        .background(WindowConfigurator())
+        .background(WindowConfigurator { browser.attach(to: $0) })
         .animation(.smooth(duration: 0.32), value: browser.sidebarVisible)
+        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: browser.recoveryNotice)
         .onChange(of: browser.sidebarVisible || browser.sidebarPeeking, initial: true) { _, shown in
-            TrafficLights.setHidden(!shown)
+            TrafficLights.setHidden(!shown, in: browser.window)
+        }
+        .sheet(item: Bindable(browser).spaceDraft) { draft in
+            SpaceEditor(draft: draft)
         }
     }
 }
 
-/// Behind-window blur washed with the user's tint, like Arc's space colour.
+/// Behind-window blur washed with the space's tint, like Arc's space colour.
+/// Private windows wear their own deep graphite-indigo whatever the space.
 struct WindowBackground: View {
     var tint: SidebarTint
+    var isPrivate = false
     @Environment(AppModel.self) private var app
     @Environment(\.colorScheme) private var scheme
 
@@ -51,15 +64,24 @@ struct WindowBackground: View {
             // `.fullScreenUI`: the sidebar materials are nearly opaque in light
             // mode and hide the desktop entirely, which is not glass.
             VisualEffect(material: .fullScreenUI)
-            LinearGradient(
-                colors: tint.colors(dark: scheme == .dark),
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            // Translucency 0 is a fairly dense wash, 1 nearly clear glass; the
-            // whole range shows the desktop through. Never fully clear: the
-            // sidebar's text needs something to sit on.
-            .opacity(0.6 - app.translucency * 0.48)
+            if isPrivate {
+                PrivateWash()
+            } else {
+                // Crossfaded rather than interpolated: a gradient's colours
+                // do not animate, and switching spaces should wash, not snap.
+                LinearGradient(
+                    colors: tint.colors(dark: scheme == .dark),
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                // Translucency 0 is a fairly dense wash, 1 nearly clear glass; the
+                // whole range shows the desktop through. Never fully clear: the
+                // sidebar's text needs something to sit on.
+                .opacity(0.6 - app.translucency * 0.48)
+                .id(tint)
+                .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.45), value: tint)
         .ignoresSafeArea()
     }
 }
@@ -117,7 +139,7 @@ private struct SidebarPeek: View {
                     .background {
                         ZStack {
                             VisualEffect(material: .sidebar, blending: .behindWindow)
-                            WindowBackground(tint: app.tint)
+                            WindowBackground(tint: browser.space.tint, isPrivate: browser.isPrivate)
                         }
                         .clipShape(shape)
                     }

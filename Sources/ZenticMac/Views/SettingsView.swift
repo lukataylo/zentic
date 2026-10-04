@@ -52,27 +52,9 @@ private struct GeneralSettings: View {
                     }
                     .frame(width: 200)
                 }
-                LabeledContent("Window tint") {
-                    HStack(spacing: 8) {
-                        ForEach(SidebarTint.allCases) { tint in
-                            Button {
-                                app.tint = tint
-                            } label: {
-                                Circle()
-                                    .fill(LinearGradient(colors: tint.colors(dark: true), startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .frame(width: 20, height: 20)
-                                    .overlay {
-                                        Circle().strokeBorder(Color.primary.opacity(app.tint == tint ? 0.9 : 0.1), lineWidth: app.tint == tint ? 2 : 1)
-                                            .padding(-3)
-                                            .opacity(app.tint == tint ? 1 : 0)
-                                    }
-                            }
-                            .buttonStyle(.plain)
-                            .help(tint.title)
-                            .accessibilityLabel(tint.title)
-                        }
-                    }
-                }
+                Text("Each space has its own colour. Right-click a space at the bottom of the sidebar to change it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Content Blocking") {
