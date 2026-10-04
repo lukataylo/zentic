@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyLists-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Xcode sandboxes the UI-test runner. It serves the fixture pages on
+	     127.0.0.1, and gives each launch of Zentic a data directory in
+	     /private/tmp, outside the runner's container, where an unsandboxed
+	     app reaching in would raise a privacy prompt. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+	<array>
+		<string>/private/tmp/</string>
+	</array>
+</dict>
+</plist>
