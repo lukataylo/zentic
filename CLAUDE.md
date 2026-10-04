@@ -10,12 +10,15 @@ their own key; previewed, verified, kept, replayed with no further calls).
 
 | Path | What |
 |---|---|
-| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile` |
+| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess` |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Blocking/` | Filter lists → `WKContentRuleList` compiler and cache |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (tabs), `Tab` (one web view), `DesignSession` |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
+| `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
+| `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
+| `scripts/` | `build-app.sh` (→ `build/Zentic.app`), `release.sh` (archive, notarize, staple, zip) |
 | `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `scroll.ts` |
 
 ## Build
@@ -24,6 +27,18 @@ their own key; previewed, verified, kept, replayed with no further calls).
 swift build && swift test
 cd web && npm run check     # typecheck + tests + build into Sources/ZenticKit/Resources/zentic.js
 ```
+
+```sh
+scripts/build-app.sh          # the signed app → build/Zentic.app (needs xcodegen)
+```
+
+`swift run ZenticMac` stays the edit loop; the app compiles the same sources. Add
+files under `Sources/ZenticMac` and both pick them up — never list sources in
+`project.yml`. Build settings, Info.plist keys and entitlements go in `project.yml`
+and `App/`.
+
+When launching any build to try something, set `ZENTIC_DATA_DIR` to a fresh
+directory so the user's real data is never read or written.
 
 `zentic.js` is committed. Rebuild and commit it after changing `web/src`.
 
@@ -56,4 +71,8 @@ Each one has a test.
 - Don't use system shortcuts: ⌘E (Use Selection for Find) and ⌥⌘D (Dock) are taken.
 - Liquid Glass cannot sample a web view. Surfaces over a page use `GlassSurface`
   (see `WindowChrome.swift`).
+- Everything Zentic writes goes under `DataDirectory.root`; preferences go through
+  `DataDirectory.defaults`, never `UserDefaults.standard`, web views use
+  `WKWebsiteDataStore.zentic`, and stores that live elsewhere (Keychain) are keyed
+  by `DataDirectory.isolationID` when isolated. Otherwise `ZENTIC_DATA_DIR` stops isolating.
 - Tests are written against real failure modes. If a test can't fail, delete it.

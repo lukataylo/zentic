@@ -1,8 +1,10 @@
 import AppKit
 import Observation
 import WebKit
+import ZenticKit
 
-/// Saves downloads to ~/Downloads, the way Safari does, and says so.
+/// Saves downloads to ~/Downloads (or the isolated data directory), the way
+/// Safari does, and says so.
 @MainActor
 @Observable
 final class Downloads {
@@ -22,7 +24,8 @@ final class Downloads {
     @ObservationIgnored private var dismissTask: Task<Void, Never>?
 
     func destination(for suggested: String, download: WKDownload) -> URL {
-        let folder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let folder = DataDirectory.downloads
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let name = suggested.isEmpty ? "download" : suggested
         var url = folder.appendingPathComponent(name)
         let base = url.deletingPathExtension().lastPathComponent

@@ -23,7 +23,11 @@ public enum APIKeyStore {
         }
     }
 
-    private static let service = "com.zentic.apikeys"
+    /// An isolated run (`ZENTIC_DATA_DIR`) gets a service of its own, so it can
+    /// neither spend nor delete the user's real key, and a differently signed
+    /// build never triggers a Keychain prompt for it on the user's screen.
+    private static let service =
+        DataDirectory.isIsolated ? "com.zentic.apikeys.\(DataDirectory.isolationID)" : "com.zentic.apikeys"
 
     /// What the Keychain last told us, per provider, for this process.
     ///

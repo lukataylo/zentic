@@ -176,7 +176,7 @@ final class Tab: Identifiable {
 
     private static func makeConfiguration() -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .default()
+        configuration.websiteDataStore = .zentic
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.isTextInteractionEnabled = true
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
