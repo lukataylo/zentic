@@ -52,8 +52,10 @@ this site's layout*). From there:
 
 Nothing is ever sent to a model unless you choose Repair, and a check never holds up a
 page. A front page that has no article sidebar is not taken as a sign of a redesign.
-A selector missing on a different *kind* of page counts only once it has been missing
-on three different pages, and finding it anywhere clears it.
+A selector counts as broken once it has been missing on two checks of the kind of page
+you kept the version on, or on three different pages of other kinds; finding it
+anywhere clears it. Error pages and bot challenges are never evidence, and private
+windows are not checked.
 
 Versions kept before re-checking existed are measured on their next visit, as long as
 the page is a real one with something on it the version acts on. Turn it all off in

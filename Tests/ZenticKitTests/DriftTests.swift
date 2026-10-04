@@ -24,9 +24,13 @@ import Testing
         #expect(t.record(Self.check([".rail": 1, ".promo": 2, ".comments": 1]), path: "/a") == nil)
     }
 
-    @Test func missingOnTheSameKindOfPageIsLostAtOnce() {
+    @Test func missingOnTheSameKindOfPageIsLostOnTheSecondCheck() {
         var t = tracker()
-        let drift = t.record(Self.check([".rail": 0, ".promo": 0, ".comments": 1]), path: "/b")
+        let missing = Self.check([".rail": 0, ".promo": 0, ".comments": 1])
+        // Once could be a popup that has not opened yet, or a banner already dismissed.
+        #expect(t.record(missing, path: "/b") == nil)
+        // A site with one page is judged too: the same page twice is evidence.
+        let drift = t.record(missing, path: "/b")
         #expect(drift?.lost == [".rail", ".promo"])
         // A selector that found nothing even when kept is never held against the version.
         #expect(drift?.changes == 3)
@@ -55,7 +59,9 @@ import Testing
         #expect(t.record(empty, path: "/sport") == nil)
 
         // And a lost selector recovers when the site brings it back.
-        _ = t.record(Self.check([".rail": 0, ".promo": 1, ".comments": 1]), path: "/x")
+        let railless = Self.check([".rail": 0, ".promo": 1, ".comments": 1])
+        _ = t.record(railless, path: "/x")
+        #expect(t.record(railless, path: "/x")?.lost == [".rail"])
         #expect(t.record(Self.check([".rail": 1, ".promo": 1, ".comments": 1]), path: "/y") == nil)
     }
 
@@ -69,9 +75,20 @@ import Testing
         #expect(drift?.problem.contains("only 20% of the page's text is visible, against 60%") == true)
     }
 
-    @Test func aSparsePageIsNotJudgedByShare() {
+    @Test func aSparsePageIsNoEvidence() {
         var t = tracker()
-        #expect(t.record(Self.check([".rail": 1, ".promo": 1, ".comments": 1], visible: 10, total: 300), path: "/") == nil)
+        // An error page or a bot challenge: nothing matches, nothing is visible, and it says nothing.
+        let challenge = Self.check([:], visible: 10, total: 300, overflows: true)
+        #expect(t.record(challenge, path: "/") == nil)
+        #expect(t.record(challenge, path: "/") == nil)
+        #expect(t.record(challenge, path: "/") == nil)
+    }
+
+    @Test func textShareIsOnlyComparedOnTheSameKindOfPage() {
+        var t = tracker()
+        // A front page of headlines whose promo cards the version hides keeps less of its text visible.
+        let cards = Self.check([".rail": 1, ".promo": 1, ".comments": 1], visible: 2_000, landmarks: Self.frontPage)
+        #expect(t.record(cards, path: "/") == nil)
     }
 
     @Test func newSidewaysScrollingIsDriftButOldIsNot() {

@@ -76,9 +76,10 @@ Each one has a test.
 10. **Re-checking never calls a model and never runs on the hot path.** `Rechecks`
     asks for `zentic.recheck()` after a Custom page's `didFinish`, in an idle callback,
     at most once per site per `Drift.checkInterval`. What it finds is only shown; the
-    model is reached only through `DesignSession.repair`, from a button. A selector
-    missing on a different kind of page (`CustomBaseline.isSameKind`) is not drift until
-    `Drift.missesOnOtherPages` distinct pages agree. A legacy version's baseline is adopted
+    model is reached only through `DesignSession.repair`, from a button. A selector is
+    lost after `Drift.missesOnSameKind` misses on the kept kind of page
+    (`CustomBaseline.isSameKind`) or `Drift.missesOnOtherPages` distinct other pages.
+    Private windows are never checked (what is found outlives the window). A legacy version's baseline is adopted
     only from a page that `canBeBaseline` (never an error page).
 
 ## Conventions

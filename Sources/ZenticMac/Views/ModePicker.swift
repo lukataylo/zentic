@@ -6,6 +6,7 @@ import ZenticKit
 struct ModePicker: View {
     @Environment(Browser.self) private var browser
     @Environment(AppModel.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let tab: Tab
 
     var body: some View {
@@ -91,7 +92,7 @@ struct ModePicker: View {
         }
         .padding(12)
         .frame(width: 340)
-        .animation(.smooth(duration: 0.25), value: drift)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: drift)
     }
 }
 

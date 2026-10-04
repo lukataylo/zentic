@@ -112,6 +112,10 @@ public struct Drift: Sendable, Hashable {
     public static let minimumText = 500
     /// Visible text falling below this fraction of what it was is a drop.
     public static let textDrop = 0.5
+    /// Checks of the same kind of page a selector must miss on before it
+    /// counts as lost. Not one: a newsletter popup that has not opened yet, a
+    /// cookie banner already dismissed or an A/B test would each cry wolf.
+    public static let missesOnSameKind = 2
     /// Pages of a different kind a selector must miss on, all of them distinct,
     /// before it counts as lost. One kind of page lacking a sidebar says
     /// nothing; three different pages lacking it is a redesign.
@@ -151,15 +155,21 @@ public struct Drift: Sendable, Hashable {
 
 /// One kept version's checks over time, for one site.
 ///
-/// A selector found missing on the same kind of page the version was kept on
-/// is lost at once. Missing on other kinds of page, it is lost only once it
-/// has been missed on several distinct pages without being found on any in
-/// between. Text and overflow are judged on each check alone.
+/// A selector is lost once it has missed on `Drift.missesOnSameKind` checks of
+/// the kind of page the version was kept on, or on `Drift.missesOnOtherPages`
+/// distinct pages of other kinds, without being found on any in between. Text
+/// and overflow are judged on each check alone. A page with too little text
+/// to be a real one — an error page, a bot challenge — is no evidence at all.
 public struct DriftTracker: Sendable {
     public let baseline: CustomBaseline
     private let judged: [String]
     private var lost: Set<String> = []
-    private var missedOn: [String: Set<String>] = [:]
+    private var misses: [String: Misses] = [:]
+
+    private struct Misses: Sendable {
+        var sameKind = 0
+        var otherPages: Set<String> = []
+    }
 
     public init(hide: [String], baseline: CustomBaseline) {
         self.baseline = baseline
@@ -168,24 +178,33 @@ public struct DriftTracker: Sendable {
 
     /// Fold in a check of the page at `path`. Nil while the version holds up.
     public mutating func record(_ check: PageCheck, path: String) -> Drift? {
-        let sameKind = baseline.isSameKind(as: check.landmarks)
-        for selector in judged {
-            if (check.matches[selector] ?? 0) > 0 {
-                lost.remove(selector)
-                missedOn[selector] = nil
-            } else if sameKind {
-                lost.insert(selector)
-            } else {
-                missedOn[selector, default: []].insert(path)
-                if missedOn[selector]!.count >= Drift.missesOnOtherPages { lost.insert(selector) }
+        var drift = Drift(lost: [], changes: judged.count)
+        if check.totalText >= Drift.minimumText {
+            let sameKind = baseline.isSameKind(as: check.landmarks)
+            for selector in judged {
+                if (check.matches[selector] ?? 0) > 0 {
+                    lost.remove(selector)
+                    misses[selector] = nil
+                } else if !lost.contains(selector) {
+                    // Counted only until lost, so evidence never grows past the thresholds.
+                    var missed = misses[selector] ?? Misses()
+                    if sameKind { missed.sameKind += 1 } else { missed.otherPages.insert(path) }
+                    if missed.sameKind >= Drift.missesOnSameKind || missed.otherPages.count >= Drift.missesOnOtherPages {
+                        lost.insert(selector)
+                        misses[selector] = nil
+                    } else {
+                        misses[selector] = missed
+                    }
+                }
             }
+            // Text share only compares like with like: a front page of cards
+            // and an article never left the same share of their text visible.
+            if sameKind, let kept = baseline.textShare, let now = check.textShare, now < kept * Drift.textDrop {
+                drift.hiddenText = .init(kept: kept, now: now)
+            }
+            drift.scrollsSideways = check.overflowsX && !baseline.overflowsX
         }
-
-        var drift = Drift(lost: judged.filter(lost.contains), changes: judged.count)
-        if let kept = baseline.textShare, let now = check.textShare, now < kept * Drift.textDrop {
-            drift.hiddenText = .init(kept: kept, now: now)
-        }
-        drift.scrollsSideways = check.overflowsX && !baseline.overflowsX
+        drift.lost = judged.filter(lost.contains)
         return drift.reasons.isEmpty ? nil : drift
     }
 }

@@ -51,7 +51,9 @@ final class Rechecks {
 
     /// A page in Custom mode finished loading.
     func pageDidLoad(_ tab: Tab) {
-        guard isEnabled, let url = tab.url, let key = SiteKey.for(url) else { return }
+        // Not in a private window: what is found here outlives it and shows in
+        // every window, which would say the site was visited privately.
+        guard isEnabled, tab.browser?.isPrivate == false, let url = tab.url, let key = SiteKey.for(url) else { return }
         if let last = lastChecked[key], Date.now.timeIntervalSince(last) < Drift.checkInterval { return }
         lastChecked[key] = .now
         Task { await check(tab, key: key, path: url.path()) }
@@ -90,16 +92,12 @@ final class Rechecks {
     }
 
     /// A version kept before re-checking existed has no baseline: what it does
-    /// to the site today becomes what it should keep doing. Stored with the
-    /// version — except from a private window, which writes nothing.
+    /// to the site today becomes what it should keep doing, stored with it.
     private func adopt(_ observed: PageCheck, for version: CustomVersion, on tab: Tab) -> CustomBaseline {
-        let baseline = CustomBaseline(observed)
-        if let browser = tab.browser, !browser.isPrivate {
-            var measured = version
-            measured.baseline = baseline
-            browser.saveCustom(measured, for: tab.url)
-        }
-        return baseline
+        var measured = version
+        measured.baseline = CustomBaseline(observed)
+        tab.browser?.saveCustom(measured, for: tab.url)
+        return measured.baseline!
     }
 }
 
