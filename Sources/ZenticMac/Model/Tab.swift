@@ -74,6 +74,9 @@ final class Tab: Identifiable {
     @ObservationIgnored private var delegate: TabDelegate?
     @ObservationIgnored private var blockingAttached: Bool?
     @ObservationIgnored private var blockingChange: Task<Void, Never>?
+    /// Changes of blocking started and not yet attached. `blockingAttached`
+    /// says what was asked for, not what is in place.
+    @ObservationIgnored private var blockingChangesInFlight = 0
     @ObservationIgnored private var pendingURL: URL?
     @ObservationIgnored private var declaredIcon: URL?
     /// A configuration handed to us by WebKit for a `window.open` — it must be
@@ -158,24 +161,29 @@ final class Tab: Identifiable {
         isRealized = true
         if let target = pendingURL {
             pendingURL = nil
-            let state = savedState
-            savedState = nil
-            let readsDisk = state == nil && hasStateOnDisk
-            hasStateOnDisk = false
             let next = loadAfterRestore
-            loadAfterRestore = nil
             // Load only once the blockers are attached; otherwise the first
-            // page of a new tab would go out unblocked.
-            prepareBlocking(for: next ?? target) { [id] in
-                guard readsDisk else {
+            // page of a new tab would go out unblocked. What was saved is
+            // taken only then: a tab suspended before this runs keeps it for
+            // its next web view, rather than saving an empty one over it.
+            prepareBlocking(for: next ?? target) { [weak self] in
+                guard let self, self.webView === webView else { return }
+                let state = savedState
+                savedState = nil
+                loadAfterRestore = nil
+                guard state == nil, hasStateOnDisk else {
+                    hasStateOnDisk = false
+                    // The user may have gone somewhere else while the lists compiled.
+                    guard webView.url == nil, !webView.isLoading else { return }
                     Self.restore(state, or: target, in: webView)
                     if let next { webView.load(URLRequest(url: next)) }
                     return
                 }
                 Task {
-                    let saved = await Windows.tabStates.read(id)
+                    let saved = await Windows.tabStates.read(self.id)
                     // The user may have gone somewhere else while it was read.
-                    guard webView.url == nil, !webView.isLoading else { return }
+                    guard self.webView === webView, webView.url == nil, !webView.isLoading else { return }
+                    self.hasStateOnDisk = false
                     Self.restore(saved, or: target, in: webView)
                 }
             }
@@ -199,14 +207,22 @@ final class Tab: Identifiable {
     /// relaunch — even after a crash — comes back to the same place. Never for
     /// a private window.
     func persistState() {
-        guard !isPrivate, let state = webView?.interactionState as? Data else { return }
+        guard !isPrivate, let state = liveState as? Data else { return }
         Windows.tabStates.write(state, for: id)
     }
 
     /// Synchronous, for app termination.
     func persistStateNow() {
-        guard !isPrivate, let state = (webView?.interactionState ?? savedState) as? Data else { return }
+        guard !isPrivate, let state = (liveState ?? savedState) as? Data else { return }
         Windows.tabStates.writeNow(state, for: id)
+    }
+
+    /// The web view's history — nil while it has loaded nothing (its saved
+    /// history not restored yet, waiting on the lists), whose empty history
+    /// must never be written over the real one.
+    private var liveState: Any? {
+        guard let webView, webView.url != nil || webView.isLoading else { return nil }
+        return webView.interactionState
     }
 
     func forgetSavedState() {
@@ -248,8 +264,12 @@ final class Tab: Identifiable {
     func suspend(persisting: Bool = true) {
         guard let webView else { return }
         pendingURL = webView.url ?? url
-        savedState = webView.interactionState
-        if persisting, !isPrivate, let state = savedState as? Data { Windows.tabStates.write(state, for: id) }
+        // What was saved stays as it is, for the next web view, unless this
+        // one loaded something (see `liveState`).
+        if let state = liveState {
+            savedState = state
+            if persisting, !isPrivate, let state = state as? Data { Windows.tabStates.write(state, for: id) }
+        }
         webView.stopLoading()
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
         observations.removeAll()
@@ -264,6 +284,7 @@ final class Tab: Identifiable {
         // The next web view gets a fresh controller with nothing attached.
         blockingAttached = nil
         blockingChange = nil
+        blockingChangesInFlight = 0
     }
 
     /// Whether suspending would interrupt something the user would notice:
@@ -486,7 +507,16 @@ final class Tab: Identifiable {
     /// Attach or detach the content blockers before `url` starts loading.
     fileprivate func prepareBlocking(for url: URL?, then proceed: @escaping () -> Void) {
         let blocks = siteMode(for: url).blocks
-        guard blocks != blockingAttached else { return proceed() }
+        guard blocks != blockingAttached else {
+            // Asked for already, but perhaps still compiling (a first launch,
+            // a list update): a load now would go out with no blockers.
+            guard blockingChangesInFlight > 0, let pending = blockingChange else { return proceed() }
+            Task {
+                await pending.value
+                proceed()
+            }
+            return
+        }
         setBlocking(blocks, then: proceed)
     }
 
@@ -499,9 +529,12 @@ final class Tab: Identifiable {
         // Cookie-wall dismissal travels with blocking (both off on Original).
         installScripts(on: controller)
         let previous = blockingChange
+        blockingChangesInFlight += 1
         blockingChange = Task {
             await previous?.value
             await Blocking.reattach(to: controller, blocking: on)
+            // Not for a web view suspended meanwhile: its successor counts afresh.
+            if webView?.configuration.userContentController === controller { blockingChangesInFlight -= 1 }
             proceed()
         }
     }
@@ -539,6 +572,7 @@ final class Tab: Identifiable {
         if current == nil {
             // Nothing to carry over: just load the page.
             savedState = nil
+            hasStateOnDisk = false
             pendingURL = target
         } else if current != target {
             loadAfterRestore = target
@@ -912,8 +946,13 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         return response == .OK ? panel.urls : nil
     }
 
+    /// A sheet on the page's window. A page not on screen (a background tab,
+    /// whose web view is out of the window) is answered at once — alert
+    /// dismissed, confirm "no", prompt nothing — as other browsers do: an
+    /// app-modal alert would let any background page block every window, on
+    /// a timer, over and over.
     private func present(_ alert: NSAlert, in webView: WKWebView) async -> NSApplication.ModalResponse {
-        guard let window = webView.window else { return alert.runModal() }
+        guard let window = webView.window else { return .cancel }
         return await alert.beginSheetModal(for: window)
     }
 
