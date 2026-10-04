@@ -101,6 +101,7 @@ private struct AddressPill: View {
     @Environment(Browser.self) private var browser
     let tab: Tab?
     @State private var hovering = false
+    private var drifted: Bool { Rechecks.shared.drift(for: tab) != nil }
 
     var body: some View {
         @Bindable var browser = browser
@@ -108,12 +109,14 @@ private struct AddressPill: View {
             Button {
                 browser.modePickerPresented.toggle()
             } label: {
-                ModeGlyph(mode: tab?.mode ?? .clean, previewing: tab?.previewing != nil)
+                ModeGlyph(mode: tab?.mode ?? .clean, previewing: tab?.previewing != nil, drifted: drifted)
                     .frame(width: 34, height: 34)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Choose how this site looks (⌥⌘0)")
+            .help(drifted ? "This site has changed since you kept your version (⌥⌘0)" : "Choose how this site looks (⌥⌘0)")
+            .accessibilityLabel("Site version")
+            .accessibilityValue((tab?.mode ?? .clean).title + (drifted ? ", needs repair" : ""))
             .disabled(!SiteKey.isWeb(tab?.url))
             .anchorPreference(key: SiteControlAnchor.self, value: .bounds) { $0 }
             .popover(isPresented: $browser.modePickerPresented, arrowEdge: .bottom) {
@@ -211,7 +214,7 @@ private struct CompactPill: View {
             tab?.chromeCollapsed = false
         } label: {
             HStack(spacing: 6) {
-                ModeGlyph(mode: tab?.mode ?? .clean, previewing: false, size: 10)
+                ModeGlyph(mode: tab?.mode ?? .clean, previewing: false, drifted: Rechecks.shared.drift(for: tab) != nil, size: 10)
                 Text(tab?.displayHost ?? "")
                     .font(.system(size: 11.5, weight: .semibold))
                     .lineLimit(1)
@@ -234,7 +237,10 @@ private struct CompactPill: View {
 struct ModeGlyph: View {
     let mode: SiteMode
     var previewing: Bool
+    /// The site changed under its kept version: a small amber dot, nothing louder.
+    var drifted = false
     var size: CGFloat = 12.5
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Image(systemName: previewing ? "wand.and.sparkles" : mode == .clean ? "slider.horizontal.3" : mode.symbol)
@@ -242,6 +248,14 @@ struct ModeGlyph: View {
             .foregroundStyle(tint)
             .contentTransition(.symbolEffect(.replace))
             .symbolEffect(.pulse, options: .repeating, isActive: previewing)
+            .overlay(alignment: .topTrailing) {
+                if drifted {
+                    DriftDot(size: size * 0.46)
+                        .offset(x: size * 0.42, y: -size * 0.32)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.2).combined(with: .opacity))
+                }
+            }
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.6), value: drifted)
     }
 
     private var tint: AnyShapeStyle {

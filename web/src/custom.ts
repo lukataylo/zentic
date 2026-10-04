@@ -36,6 +36,11 @@ export function applyCustom(version: CustomVersion): ApplyResult {
   return result;
 }
 
+/** The version on the page now, if any. */
+export function appliedCustom(): CustomVersion | null {
+  return current;
+}
+
 export function clearCustom(): void {
   current = null;
   result = { hidden: [], rejected: [] };

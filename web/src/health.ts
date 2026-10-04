@@ -12,21 +12,29 @@
 export interface Health {
   /** Characters of visible text. */
   visibleText: number;
+  /**
+   * Characters of text in the document, shown or not. Visible text as a share
+   * of it compares pages of different lengths — what a re-check needs, since
+   * the page a version was kept on is rarely the page it is checked on.
+   */
+  totalText: number;
   /** The page scrolls sideways, beyond a small tolerance. */
   overflowsX: boolean;
 }
 
 export function health(): Health {
   const body = document.body;
-  if (!body) return { visibleText: 0, overflowsX: false };
+  if (!body) return { visibleText: 0, totalText: 0, overflowsX: false };
   const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   const seen = new Map<Element, boolean>();
   let visibleText = 0;
+  let totalText = 0;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const length = node.nodeValue?.trim().length ?? 0;
     if (length === 0) continue;
     const parent = node.parentElement;
-    if (!parent) continue;
+    if (!parent || NOT_TEXT.has(parent.localName)) continue;
+    totalText += length;
     let visible = seen.get(parent);
     if (visible === undefined) {
       visible = isVisible(parent);
@@ -36,8 +44,11 @@ export function health(): Health {
   }
   const root = document.scrollingElement ?? document.documentElement;
   const overflowsX = root.scrollWidth > window.innerWidth * 1.04 + 8;
-  return { visibleText, overflowsX };
+  return { visibleText, totalText, overflowsX };
 }
+
+/** Elements whose text nodes are code or markup, never words on the page. */
+const NOT_TEXT = new Set(["script", "style", "noscript", "template"]);
 
 function isVisible(el: Element): boolean {
   const check = (el as Element & { checkVisibility?: (o: object) => boolean }).checkVisibility;

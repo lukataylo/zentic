@@ -77,6 +77,10 @@ public struct CustomVersion: Codable, Sendable, Hashable {
     /// its history so the model revises rather than starts over.
     public var prompts: [String]
     public var updatedAt: Date
+    /// What the version did to the page it was kept on, for noticing when the
+    /// site changes under it (``DriftTracker``). Nil until first measured —
+    /// versions kept before re-checking existed are measured on next visit.
+    public var baseline: CustomBaseline?
 
     public init(
         base: CustomBase,
@@ -84,7 +88,8 @@ public struct CustomVersion: Codable, Sendable, Hashable {
         hide: [String],
         summary: String,
         prompts: [String],
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        baseline: CustomBaseline? = nil
     ) {
         self.base = base
         self.css = CSSSanitizer.sanitize(css)
@@ -92,11 +97,12 @@ public struct CustomVersion: Codable, Sendable, Hashable {
         self.summary = summary
         self.prompts = prompts
         self.updatedAt = updatedAt
+        self.baseline = baseline
     }
 }
 
 extension CustomVersion {
-    private enum CodingKeys: String, CodingKey { case base, css, hide, summary, prompts, updatedAt }
+    private enum CodingKeys: String, CodingKey { case base, css, hide, summary, prompts, updatedAt, baseline }
 
     /// Decoding goes through the sanitizing initializer, so a version stored by
     /// an older, weaker sanitizer is cleaned on load rather than replayed.
@@ -108,7 +114,10 @@ extension CustomVersion {
             hide: try c.decodeIfPresent([String].self, forKey: .hide) ?? [],
             summary: try c.decodeIfPresent(String.self, forKey: .summary) ?? "",
             prompts: try c.decodeIfPresent([String].self, forKey: .prompts) ?? [],
-            updatedAt: try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date())
+            updatedAt: try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date(),
+            // A baseline that no longer decodes is re-measured, never a reason
+            // to lose the version it belongs to.
+            baseline: (try? c.decodeIfPresent(CustomBaseline.self, forKey: .baseline)) ?? nil)
     }
 }
 

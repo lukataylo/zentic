@@ -53,11 +53,24 @@ final class DesignSession {
 
     func submit(on tab: Tab) {
         let instruction = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !instruction.isEmpty, !isWorking, let url = tab.url else { return }
+        guard !instruction.isEmpty else { return }
+        run(on: tab, instruction: instruction, drift: nil)
+    }
+
+    /// Rewrite the kept version for the site as it is now, and preview it for
+    /// keeping or discarding like any other answer. Only ever started by the
+    /// user — see `Rechecks`.
+    func repair(on tab: Tab, drift: Drift) {
+        present()
+        run(on: tab, instruction: "Make this version work on the site's current layout.", drift: drift)
+    }
+
+    private func run(on tab: Tab, instruction: String, drift: Drift?) {
+        guard !isWorking, let url = tab.url else { return }
         // Refine what is on screen: the preview if there is one, else the kept version.
         let current = tab.previewing ?? tab.browser?.custom(for: url)
         let started = Date()
-        phase = .working(started: started, note: nil)
+        phase = .working(started: started, note: drift == nil ? nil : "Fitting your version to the new layout…")
         rejected = []
 
         task = Task { [weak self, weak tab] in
@@ -70,8 +83,10 @@ final class DesignSession {
                 let before = await tab.health()
                 var request = OpenAIDesigner.Request(
                     url: url, title: tab.title, outline: outline, instruction: instruction, current: current,
-                    screenshot: await tab.screenshot())
-                let prompts = (current?.prompts ?? []) + [instruction]
+                    screenshot: await tab.screenshot(), drift: drift?.problem)
+                // A repair is not something the user asked for in words, so
+                // it is not added to what later refinements are told they said.
+                let prompts = (current?.prompts ?? []) + (drift == nil ? [instruction] : [])
 
                 var version = try await self.answer(designer, request, prompts: prompts)
                 self.rejected = await tab.preview(version)
@@ -100,7 +115,7 @@ final class DesignSession {
                             "That design broke the page (\(still)), so it wasn't applied. Try describing it differently.")
                     }
                 }
-                self.draft = ""
+                if drift == nil { self.draft = "" }
                 self.phase = .preview(version)
             } catch is CancellationError {
                 return
@@ -149,11 +164,21 @@ final class DesignSession {
         if case .preview = phase { phase = .idle }
     }
 
-    /// Make the preview the site's version from now on.
+    /// Make the preview the site's version from now on — with a measurement
+    /// of what it does to this page, so a later visit can tell when the site
+    /// has changed under it.
     func keep(on tab: Tab) {
-        guard let version = tab.previewing else { return }
-        tab.browser?.saveCustom(version, for: tab.url)
+        guard var version = tab.previewing, let browser = tab.browser, let url = tab.url else { return }
         reset()
+        Task {
+            // A few milliseconds, on the page the user just approved. Gone
+            // elsewhere meanwhile, the version is kept unmeasured and measured
+            // on the next visit instead.
+            if let check = await tab.measureCustomVersion(idle: false), tab.previewing == version {
+                version.baseline = CustomBaseline(check)
+            }
+            browser.saveCustom(version, for: url)
+        }
     }
 
     /// Throw the preview away and show the page as the saved choice says.

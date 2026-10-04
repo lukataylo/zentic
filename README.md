@@ -31,6 +31,36 @@ Settings › Sites.
 
 Your key lives in the macOS Keychain and is sent only to OpenAI, only when you design.
 
+### When the site changes
+
+Sites redesign; a kept version doesn't. So when you keep one, Zentic notes what it did
+to the page: how many elements each hidden selector found, how much of the text stayed
+visible, whether the page scrolled sideways, and the page's rough shape (its header,
+nav, main, article, sidebar and footer counts).
+
+On later visits, once the page has loaded and the browser is idle, and at most once
+per site every three minutes, it measures again on your Mac. If a hidden selector now
+finds nothing, much more of the text is hidden, or the page has started scrolling
+sideways, the version has *drifted*. A small amber dot appears on the site's mode
+glyph, and the picker's Custom row says what changed (*2 of 3 changes no longer match
+this site's layout*). From there:
+
+- **Repair…** (`⇧⌥⌘E`) sends the model your current stylesheet, what broke and a
+  screenshot, then previews the fix. Keep or Discard it, as with any other design.
+- **Turn Off** shows the site in your version's base (Clean or Minimal) and keeps the
+  version for later.
+
+Nothing is ever sent to a model unless you choose Repair, and a check never holds up a
+page. A front page that has no article sidebar is not taken as a sign of a redesign.
+A selector counts as broken once it has been missing on two checks of the kind of page
+you kept the version on, or on three different pages of other kinds; finding it
+anywhere clears it. Error pages and bot challenges are never evidence, and private
+windows are not checked.
+
+Versions kept before re-checking existed are measured on their next visit, as long as
+the page is a real one with something on it the version acts on. Turn it all off in
+Settings › Intelligence.
+
 ## The window
 
 Arc-style tinted glass sidebar (translucency in Settings), favourites grid,
@@ -251,6 +281,7 @@ features that depend on it don't work here.
 | `⌥⌘1`–`⌥⌘4` | Original, Clean, Minimal, Custom |
 | `⌥⌘0` | the site's version picker |
 | `⌥⌘E` | design or refine your version of this site |
+| `⇧⌥⌘E` | repair a version the site has changed under |
 | `⌘[` `⌘]` | back, forward |
 | `⇧⌘[` `⇧⌘]`, `⌘1`–`⌘9` | switch tabs |
 | `⌘F` `⌘G` | find |

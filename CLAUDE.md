@@ -10,7 +10,7 @@ their own key; previewed, verified, kept, replayed with no further calls).
 
 | Path | What |
 |---|---|
-| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `PermissionBook` (per-site permissions), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
+| `Sources/ZenticKit/Sites/` | `SiteMode`, `CustomVersion`, `SiteBook` (per-site choices), `PermissionBook` (per-site permissions), `Drift` (re-checking kept versions), `CSSSanitizer`, `JSONFile`, `DataDirectory` |
 | `Sources/ZenticKit/Web/` | `InPageScript` (bootstrap + bundle injection), `URLGuess`, `IncomingURL` (links and files from other apps) |
 | `Sources/ZenticKit/Intelligence/` | `OpenAIDesigner` (prompt, schema, parsing), `APIKeyStore` (Keychain) |
 | `Sources/ZenticKit/Passwords/` | `LoginOrigin`, `PasswordPolicy` (what to offer, where to fill), `PasswordKeychain`, the sign-in script |
@@ -20,12 +20,12 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticKit/Extensions/` | `ExtensionRecord` (what the user allowed, persisted), `SiteAccess`, `SitePattern`, `ExtensionDiscovery`, `KeyChord`, `TabMoves` |
 | `Sources/ZenticKit/Session/` | `SessionSnapshot` (versioned), `LaunchGuard` (unclean-exit marker), `TabStateStore` (per-tab interaction state), `SpaceSwipe` |
 | `Sources/ZenticMac/Model/` | `AppModel` (global state, persistence), `Browser` (one window: spaces, tabs), `Tab` (one web view), `DesignSession` |
-| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour), `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings) |
+| `Sources/ZenticMac/Features/` | `Windows/` (`Windows`: every browser, the session, crash recovery, app-wide tab suspension), `Spaces/`, `PrivateBrowsing/`, `Sessions/`, `Passwords/` (`Passwords`: accounts, never-save list, Touch ID; `TabPasswords`: one tab's menu and save prompt), `Permissions/` (store, per-tab requests, prompt, capture light, Settings pane), `Safety/` (Safe Browsing, certificate and threat warning pages, the address bar's Not Secure badge), `History/` (window, Recently Closed, Clear History), `Downloads/` (model, toolbar button, list), `Bookmarks/` (hidden unless turned on), `Library/` (command bar entries), `DefaultBrowser/` (status, links from other apps), `Onboarding/` (welcome tour), `Extensions/` (Safari Web Extensions: `Extensions` model, `ExtensionEvents` bridge, toolbar, Settings), `Recheck/` (`Rechecks`: drift of kept versions, its dot and picker actions) |
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
 | `scripts/` | `build-app.sh` (→ `build/Zentic.app`), `release.sh` (archive, notarize, staple, zip) |
-| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `scroll.ts`; `passwords.ts` (its own bundle, `zentic-passwords.js`) |
+| `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `recheck.ts`, `scroll.ts`; `passwords.ts` (its own bundle, `zentic-passwords.js`) |
 
 ## Build
 
@@ -102,6 +102,14 @@ Each one has a test.
     is for one certificate (SHA-256 of the leaf) on one host: a different certificate
     on the same host asks again. Revoked certificates get no exception.
     (`CertificateExceptions`, `CertificateTrust.respond`.)
+13. **Re-checking never calls a model and never runs on the hot path.** `Rechecks`
+    asks for `zentic.recheck()` after a Custom page's `didFinish`, in an idle callback,
+    at most once per site per `Drift.checkInterval`. What it finds is only shown; the
+    model is reached only through `DesignSession.repair`, from a button. A selector is
+    lost after `Drift.missesOnSameKind` misses on the kept kind of page
+    (`CustomBaseline.isSameKind`) or `Drift.missesOnOtherPages` distinct other pages.
+    Private windows are never checked (what is found outlives the window). A legacy version's baseline is adopted
+    only from a page that `canBeBaseline` (never an error page).
 
 ## Conventions
 
