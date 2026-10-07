@@ -120,9 +120,12 @@ describe("the page side of AutoFill", () => {
   // the first test keeps the real check.
   const trusted = <E extends Event>(event: E): E => event;
   const start = (save: boolean, doc: Document) => startPasswords(save, doc, () => true);
-  /** The person typing into a field (its value is already set). */
-  const typeInto = (doc: Document, id: string) =>
-    doc.getElementById(id)!.dispatchEvent(trusted(new Event("input", { bubbles: true })));
+  /** The person typing into a field (its value is already set): a key, then its input. */
+  const typeInto = (doc: Document, id: string) => {
+    const field = doc.getElementById(id)!;
+    field.dispatchEvent(trusted(new KeyboardEvent("keydown", { key: "a", bubbles: true })));
+    field.dispatchEvent(trusted(new Event("input", { bubbles: true })));
+  };
 
   it("ignores events the page made up", () => {
     const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"></form>`);
@@ -147,6 +150,27 @@ describe("the page side of AutoFill", () => {
     start(true, doc);
     doc.querySelector("form")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
     expect(posted).toEqual([]);
+  });
+
+  it("ignores a password the page typed through the editor", () => {
+    // `execCommand("insertText")` fires an input WebKit marks trusted, with no
+    // key press behind it (WebKit itself is checked in ZenticMacTests).
+    const doc = freshDocument(`<form><input id="u" value="attacker"><input id="p" type="password" value="chosen"></form>`);
+    start(true, doc);
+    doc.getElementById("u")!.dispatchEvent(trusted(new KeyboardEvent("keydown", { key: "a", bubbles: true })));
+    doc.getElementById("p")!.dispatchEvent(trusted(new Event("input", { bubbles: true })));
+    doc.querySelector("form")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
+    expect(posted).toEqual([]);
+  });
+
+  it("counts a pasted password as the person's", () => {
+    const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"></form>`);
+    start(true, doc);
+    const field = doc.getElementById("p")!;
+    field.dispatchEvent(trusted(new Event("paste", { bubbles: true })));
+    field.dispatchEvent(trusted(new Event("input", { bubbles: true })));
+    doc.querySelector("form")!.dispatchEvent(trusted(new Event("submit", { bubbles: true })));
+    expect(posted).toEqual([{ type: "login-submit", username: "ada", password: "pw" }]);
   });
 
   it("does not take the show-password button for a sign-in", () => {

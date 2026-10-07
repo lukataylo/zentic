@@ -21,6 +21,18 @@ import Testing
         #expect(home == NSHomeDirectory() + "/zentic-b")
     }
 
+    /// `swift test` with nothing set must not open the user's real history,
+    /// session and passwords: the tests drive the real app model.
+    @Test func aTestRunNeverFallsThroughToTheRealData() {
+        let real = DataDirectory.resolve([:])
+        #expect(DataDirectory.resolve([:], testRun: true) != real)
+        #expect(DataDirectory.resolve(["ZENTIC_DATA_DIR": "/tmp/zentic-a"], testRun: true).path == "/tmp/zentic-a")
+        // And this process is one.
+        #expect(TestRun.isActive)
+        #expect(DataDirectory.isIsolated)
+        #expect(DataDirectory.root != real)
+    }
+
     @Test func eachDirectoryGetsItsOwnStableCookieStore() {
         let a = URL(filePath: "/tmp/zentic-a")
         // Stable across launches, or every relaunch would sign the user out.

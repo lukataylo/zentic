@@ -238,13 +238,14 @@ final class AppModel {
 
     private init() {
         book = bookFile.load() ?? SiteBook()
+        // A test run starts with none: each would fetch its icon.
         favorites =
-            favoritesFile.load() ?? [
+            favoritesFile.load() ?? (TestRun.isActive ? [] : [
                 Favorite(id: UUID(), url: URL(string: "https://en.wikipedia.org")!, title: "Wikipedia"),
                 Favorite(id: UUID(), url: URL(string: "https://news.ycombinator.com")!, title: "Hacker News"),
                 Favorite(id: UUID(), url: URL(string: "https://www.theguardian.com")!, title: "The Guardian"),
                 Favorite(id: UUID(), url: URL(string: "https://github.com")!, title: "GitHub"),
-            ]
+            ])
         history = [:]
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(URLGuess.SearchEngine.init) ?? .duckDuckGo
         model = defaults.string(forKey: "openAIModel") ?? OpenAIDesigner.defaultModel

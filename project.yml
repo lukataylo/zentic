@@ -49,8 +49,10 @@ targets:
         product: ZenticKit
       - package: Sparkle
     # A shared scheme, so xcodebuild need not invent one (it warns when it does)
-    # and the UI-test target has a scheme to join.
-    scheme: {}
+    # and the UI tests run with `xcodebuild test -scheme Zentic`.
+    scheme:
+      testTargets:
+        - ZenticUITests
     settings:
       base:
         PRODUCT_NAME: Zentic
@@ -76,3 +78,23 @@ targets:
           CODE_SIGN_IDENTITY: Developer ID Application
           OTHER_CODE_SIGN_FLAGS: --timestamp
           ZENTIC_APS_ENVIRONMENT: production
+
+  # XCUITest journeys through the real app (Tests/ZenticUITests). Each test
+  # launches Zentic on a fresh ZENTIC_DATA_DIR with --ui-testing, and serves
+  # its pages from FixtureServer on 127.0.0.1: no internet, no user data.
+  ZenticUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: Tests/ZenticUITests
+      - path: Tests/ZenticMacTests/Support/FixtureServer.swift
+    dependencies:
+      - target: Zentic
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lukadadiani.ZenticUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Zentic
+        CODE_SIGN_ENTITLEMENTS: Tests/ZenticUITests/ZenticUITests.entitlements
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development

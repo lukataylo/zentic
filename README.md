@@ -430,6 +430,33 @@ cookies and site storage (a WebKit store of its own). API keys go to a Keychain
 entry of their own, so a test run never sees or deletes your real one. The one
 exception is AppKit's own window position, which goes to the app's normal preferences.
 
+### Tests
+
+```sh
+scripts/test.sh            # everything, with a summary: Swift, web, UI
+scripts/test.sh --no-ui    # all but the UI tests
+```
+
+| | What | Where |
+|---|---|---|
+| **Unit** | Core logic: site book, sanitizers, permissions, sessions, sync, blocking | `Tests/ZenticKitTests`, `web/test` |
+| **Integration** | The app's own objects with real web views, offscreen: the in-page bundle's apply/revert round trip, content blocking on and off Original, tab suspension and restore from disk, session restore and crash recovery, permission questions and `permissions.json`, sign-in detection with real key presses | `Tests/ZenticMacTests` (`swift test`) |
+| **UI** | XCUITest journeys through `Zentic.app`: address bar, mode picker, the folding toolbar, tabs, find, windows, private windows, spaces and pins across a relaunch, History, a download, every Settings pane, the welcome tour | `Tests/ZenticUITests` (`xcodebuild test -scheme Zentic`) |
+
+No test touches your data or the internet. A test process (`swift test`, or the
+app launched with `--ui-testing`) keeps everything in a directory of its own even
+without `ZENTIC_DATA_DIR`, compiles only the bundled seed filter list, skips Safe
+Browsing's download, and opens on the address bar instead of a page. Pages come
+from `Tests/Fixtures/Pages`, served on 127.0.0.1 by `FixtureServer`. The article
+fixture reports what it sees Zentic do to it (*Styling: Zentic*, *Ad: hidden*),
+which is how the UI tests know a mode really changed the page.
+
+The UI tests take over the keyboard and pointer for about four minutes; leave the
+Mac alone while they run. The first run asks for your password to turn on
+Automation Mode. They quit any running `Zentic.app` (a `swift run` copy is safe),
+so `scripts/test.sh` refuses to start while one is open. Failures leave screenshots
+in `build/test-results/UI.xcresult`.
+
 ## Privacy
 
 - No telemetry. Nothing about browsing leaves the Mac except the pages themselves —

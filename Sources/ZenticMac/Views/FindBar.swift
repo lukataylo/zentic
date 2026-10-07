@@ -17,6 +17,7 @@ struct FindBar: View {
                 .font(.system(size: 13))
                 .frame(width: 180)
                 .focused($focused)
+                .accessibilityIdentifier("find")
                 .onSubmit { find(backwards: false) }
                 .onChange(of: browser.findBar.text) { find(backwards: false) }
             if browser.findBar.notFound && !browser.findBar.text.isEmpty {
@@ -38,7 +39,10 @@ struct FindBar: View {
         .padding(.horizontal, 12)
         .frame(height: 34)
         .panelGlass(in: .capsule)
-        .onAppear { focused = true }
+        // Focused a turn after appearing. Asked for while the field is
+        // still being put on screen, SwiftUI hands the keyboard to the page's
+        // web view instead, and typing goes to the page.
+        .onAppear { Task { focused = true } }
         .onExitCommand { close() }
         .animation(.easeOut(duration: 0.15), value: browser.findBar.notFound)
     }

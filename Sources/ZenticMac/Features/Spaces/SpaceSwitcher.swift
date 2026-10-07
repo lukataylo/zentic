@@ -31,6 +31,7 @@ struct SpaceSwitcher: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("New Space…")
+                .accessibilityLabel("New Space")
                 .transition(.scale(scale: 0.5).combined(with: .opacity))
             }
         }

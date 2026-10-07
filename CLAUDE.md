@@ -26,7 +26,8 @@ their own key; previewed, verified, kept, replayed with no further calls).
 | `Sources/ZenticMac/Views/` | SwiftUI: sidebar, card, floating toolbar, mode picker, composer, command bar, settings |
 | `App/` | The app bundle's `Info.plist`, entitlements and icon (rendered by `scripts/render-icon.swift`) |
 | `project.yml` | XcodeGen spec for `Zentic.app`; `Zentic.xcodeproj` is generated, never committed |
-| `scripts/` | `build-app.sh` (→ `build/Zentic.app`), `release.sh` (archive, notarize, staple, zip) |
+| `scripts/` | `build-app.sh` (→ `build/Zentic.app`), `release.sh` (archive, notarize, staple, zip), `test.sh` (every test, with a summary) |
+| `Tests/` | `ZenticKitTests` (core logic), `ZenticMacTests` (integration: `@testable import ZenticMac`, real web views, `FixtureServer`), `ZenticUITests` (XCUITest, in `project.yml`), `Fixtures/Pages` (the pages both serve) |
 | `web/src/` | The in-page script: `modes.ts` (the one switch), `minimal*.ts`, `custom.ts`, `sanitize.ts`, `snapshot.ts`, `health.ts`, `recheck.ts`, `scroll.ts`; `passwords.ts` (its own bundle, `zentic-passwords.js`) |
 
 ## Build
@@ -38,6 +39,7 @@ cd web && npm run check     # typecheck + tests + build into Sources/ZenticKit/R
 
 ```sh
 scripts/build-app.sh          # the signed app → build/Zentic.app (needs xcodegen)
+scripts/test.sh [--no-ui]     # swift test + web check + UI tests (xcodebuild test -scheme Zentic)
 ```
 
 `swift run ZenticMac` stays the edit loop; the app compiles the same sources. Add
@@ -162,3 +164,11 @@ Each one has a test.
 - A new app-level action worth knowing about after a crash gets a
   `Breadcrumbs.note("…", in: browser)` — a fixed phrase, never page data.
 - Tests are written against real failure modes. If a test can't fail, delete it.
+- A test run is isolated and offline by itself (`TestRun`: XCTest loaded, or the app
+  launched with `--ui-testing`): its own data directory even without `ZENTIC_DATA_DIR`,
+  the seed filter list only, no Safe Browsing download, no first page or default
+  favourites. Anything new that fetches at launch must check `TestRun.isActive`.
+  Pages for tests come from `Tests/Fixtures/Pages` via `FixtureServer`, never the web.
+- Tests wait for conditions (`eventually`, `waitForExistence`, predicates), never a
+  fixed time. `ZenticMacTests` suites nest under `AppIntegration`, which is
+  `.serialized`: they share the app's singletons.

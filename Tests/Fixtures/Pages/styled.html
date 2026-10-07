@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture Styled</title>
+  <!-- Every way a site styles itself, for the apply/revert round trip:
+       a linked sheet, a <style>, one with its own media query, inline
+       styles, a constructed (adopted) sheet, and a rule that hides. -->
+  <link rel="stylesheet" href="/site.css">
+  <style>
+    nav a { color: rgb(0, 90, 160); text-decoration: none; }
+    .sidebar { float: right; width: 30%; background: rgb(230, 230, 255); }
+  </style>
+  <style media="print">
+    nav { display: none; }
+  </style>
+</head>
+<body>
+  <nav><a href="/">Home</a> <a href="/second.html">Second</a></nav>
+  <aside class="sidebar" style="border-left: 4px solid rgb(0, 128, 0)">Related reading</aside>
+  <main>
+    <h1 style="color: rgb(10, 20, 30)">A styled page</h1>
+    <p class="lede">Every element here is styled by the site, one way or another.</p>
+    <p class="site-only">The site hides this; Minimal must keep it hidden.</p>
+    <img alt="A square" width="40" height="40" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">
+  </main>
+  <footer class="adopted">Footer, styled by a constructed sheet.</footer>
+  <script>
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(".adopted { color: rgb(200, 100, 0); font-weight: 700; }");
+    document.adoptedStyleSheets = [sheet];
+  </script>
+</body>
+</html>

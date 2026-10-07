@@ -11,10 +11,10 @@ public enum DataDirectory {
     public static let environmentKey = "ZENTIC_DATA_DIR"
 
     /// Resolved once: every store must agree on it for the life of the process.
-    public static let root: URL = resolve(ProcessInfo.processInfo.environment)
+    public static let root: URL = resolve(ProcessInfo.processInfo.environment, testRun: TestRun.isActive)
 
-    /// Whether `ZENTIC_DATA_DIR` redirected the data.
-    public static let isIsolated = override(in: ProcessInfo.processInfo.environment) != nil
+    /// Whether `ZENTIC_DATA_DIR`, or being a test run, redirected the data.
+    public static let isIsolated = override(in: ProcessInfo.processInfo.environment, testRun: TestRun.isActive) != nil
 
     /// Preferences. `UserDefaults.standard` would write to the user's real
     /// domain even when isolated, so code reads and writes this instead. An
@@ -38,16 +38,21 @@ public enum DataDirectory {
     /// the same cookies and key.
     public static var isolationID: UUID { storeID(for: root) }
 
-    static func resolve(_ environment: [String: String]) -> URL {
-        if let path = override(in: environment) {
+    static func resolve(_ environment: [String: String], testRun: Bool = false) -> URL {
+        if let path = override(in: environment, testRun: testRun) {
             return URL(filePath: path, directoryHint: .isDirectory).standardizedFileURL
         }
         return URL.applicationSupportDirectory.appending(path: "Zentic", directoryHint: .isDirectory)
     }
 
-    static func override(in environment: [String: String]) -> String? {
-        guard let raw = environment[environmentKey]?.trimmingCharacters(in: .whitespaces), !raw.isEmpty
-        else { return nil }
+    static func override(in environment: [String: String], testRun: Bool = false) -> String? {
+        guard let raw = environment[environmentKey]?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
+            // A plain `swift test` sets nothing, and must still never read or
+            // write the data of the copy someone is browsing with. One
+            // directory per process: test runs in other checkouts may be going
+            // at the same time.
+            return testRun ? FileManager.default.temporaryDirectory.appending(path: "zentic-tests-\(getpid())").path : nil
+        }
         return (raw as NSString).expandingTildeInPath
     }
 

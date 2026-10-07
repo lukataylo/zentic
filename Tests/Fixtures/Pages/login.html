@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture Sign In</title>
+</head>
+<body>
+  <form id="search" action="/second.html">
+    <input id="query" type="search" name="q" placeholder="Search">
+  </form>
+
+  <form id="login" action="/second.html">
+    <input id="username" type="text" name="user" autocomplete="username">
+    <input id="password" type="password" name="pass" autocomplete="current-password">
+    <button id="sign-in" type="submit">Sign In</button>
+  </form>
+
+  <form id="signup" action="/second.html">
+    <input id="new-email" type="email" name="email">
+    <input id="new-password" type="password" name="new" autocomplete="new-password">
+  </form>
+
+  <script>
+    // Stay on the page: the tests watch what was reported, not where it went.
+    for (const form of document.forms) form.addEventListener("submit", (event) => event.preventDefault());
+  </script>
+</body>
+</html>
