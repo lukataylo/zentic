@@ -38,3 +38,11 @@ export type OutboundMessage =
 
 /** Marks every element Zentic itself inserted, so we never disable our own sheets. */
 export const OWN = "data-zentic";
+
+/** The id of the custom version's stylesheet. */
+export const CUSTOM_ID = "zentic-custom";
+
+/** Whether Zentic put `el` there: never page structure, never the page's to be judged by. */
+export function isOwn(el: Element): boolean {
+  return el.hasAttribute(OWN) || el.id === CUSTOM_ID;
+}

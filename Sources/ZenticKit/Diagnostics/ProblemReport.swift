@@ -46,12 +46,18 @@ public struct ProblemReport: Codable, Identifiable, Equatable, Sendable {
         self.processID = processID
     }
 
-    /// Whether this says nothing `existing` does not: the same problem in the
-    /// same process, or a crash that an unexpected-quit report already covers
-    /// with macOS's own (symbolicated) log and what Zentic was doing.
+    /// Whether this says nothing `existing` does not: the crash of the same
+    /// process (a process ends once), a crash that an unexpected-quit report
+    /// already covers with macOS's own (symbolicated) log and what Zentic was
+    /// doing, or the very same hang or exception delivered again. One run can
+    /// hang many times, so those match only on their whole text.
     public func isCovered(by existing: ProblemReport) -> Bool {
         guard let processID, processID == existing.processID else { return false }
-        return kind == existing.kind || (kind == .crash && existing.kind == .unexpectedQuit)
+        switch kind {
+        case .crash: return existing.kind == .crash || existing.kind == .unexpectedQuit
+        case .unexpectedQuit: return existing.kind == .unexpectedQuit
+        case .hang, .cpuUsage, .diskWrites: return kind == existing.kind && text == existing.text
+        }
     }
 
     /// A name for the report as a file: "Zentic Crash 2026-10-04 10.41.txt".

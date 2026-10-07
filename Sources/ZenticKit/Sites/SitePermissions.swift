@@ -2,11 +2,12 @@ import Foundation
 
 /// Something a site can ask to do that the user decides, per site.
 ///
-/// The first three are WebKit's to enforce and Zentic's to answer. The last
-/// three are Zentic's own policies: WebKit would otherwise open every pop-up,
-/// start every download and apply one autoplay rule to every site.
+/// The first three are WebKit's to enforce and Zentic's to answer. The rest
+/// are Zentic's own policies: WebKit would otherwise open every pop-up, start
+/// every download, apply one autoplay rule to every site and leave handing a
+/// link to another app (`mailto:`, `zoommtg:`, `smb:`) to the browser.
 public enum SitePermission: String, CaseIterable, Codable, CodingKeyRepresentable, Sendable, Identifiable {
-    case camera, microphone, location, popups, autoplay, downloads
+    case camera, microphone, location, popups, autoplay, downloads, otherApps
     public var id: String { rawValue }
 }
 

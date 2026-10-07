@@ -73,8 +73,11 @@ Each one has a test.
 6. **Each tab has its own `WKUserContentController`**, popups included, because
    blockers and the message handler live on it.
 7. **No telemetry.** The only outbound calls are the pages, favicons, filter lists
-   (Safe Browsing's threat lists among them), (on request) OpenAI, and (while tab sync
-   is on) the user's own private CloudKit database. Safe Browsing downloads whole lists
+   (Safe Browsing's threat lists among them), (on request) OpenAI, (while tab sync
+   is on) the user's own private CloudKit database, and (when update checks are on
+   or requested) Sparkle's signed appcast and update archive from this repository's
+   GitHub releases — never with a system profile (`SUEnableSystemProfiling`) and
+   never from an isolated run. Safe Browsing downloads whole lists
    and matches on the Mac; never add a lookup service, which would send it every
    address. Tab sync sends only what `SyncedDevice.spaces(from:)` takes from the
    session — titles and addresses of ordinary windows' tabs — and other Macs' tabs
@@ -88,7 +91,8 @@ Each one has a test.
    a newer `SessionSnapshot.version` refuses to decode, and tab-state files are pruned
    only against a session that was actually read.
 10. **A page never gets a permission it was not given.** Every WebKit permission
-    request and every Zentic-side gate (pop-ups, downloads) goes through
+    request and every Zentic-side gate (pop-ups, downloads, links that open another app)
+    goes through
     `TabPermissions`, which answers from `PermissionBook` or asks. Queued questions are
     answered "no" when their document goes (`documentChanged`, `detach`), so a "yes"
     meant for one page never reaches the next. The prompt's Allow button arms only
@@ -113,7 +117,8 @@ Each one has a test.
     asks for `zentic.recheck()` after a Custom page's `didFinish`, in an idle callback,
     at most once per site per `Drift.checkInterval`. What it finds is only shown; the
     model is reached only through `DesignSession.repair`, from a button. A selector is
-    lost after `Drift.missesOnSameKind` misses on the kept kind of page
+    judged only once a check has found it (the baseline is taken at Keep, later in the
+    page's life than any check), and lost after `Drift.missesOnSameKind` misses on the kept kind of page
     (`CustomBaseline.isSameKind`) or `Drift.missesOnOtherPages` distinct other pages.
     Private windows are never checked (what is found outlives the window). A legacy version's baseline is adopted
     only from a page that `canBeBaseline` (never an error page).

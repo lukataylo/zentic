@@ -74,8 +74,9 @@ final class Rechecks {
         } else if observed.canBeBaseline(for: version.hide) {
             tracker = DriftTracker(hide: version.hide, baseline: adopt(observed, for: version, on: tab))
         } else {
-            // Not a page to measure the version by; the next visit may be.
-            lastChecked[key] = nil
+            // Not a page to measure the version by; a visit after the next
+            // interval may be. Not sooner: on a site where no page qualifies,
+            // every load would pay for a measurement.
             return
         }
         let drift = tracker.record(observed, path: path)

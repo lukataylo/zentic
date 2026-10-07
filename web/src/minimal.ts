@@ -1,5 +1,5 @@
 import { MINIMAL_CSS } from "./minimal-css";
-import { OWN } from "./types";
+import { CUSTOM_ID, OWN, isOwn } from "./types";
 
 // Minimal mode: the page's own live DOM, under Zentic's stylesheet instead of
 // the site's.
@@ -342,13 +342,9 @@ function install(): void {
     style.textContent = MINIMAL_CSS;
   }
   const parent = document.head ?? document.documentElement;
-  const custom = document.getElementById("zentic-custom");
+  const custom = document.getElementById(CUSTOM_ID);
   if (custom && custom.parentNode) custom.parentNode.insertBefore(style, custom);
   else parent.appendChild(style);
-}
-
-function isOwn(el: Element): boolean {
-  return el.hasAttribute(OWN) || el.id === "zentic-custom";
 }
 
 function insideSVG(el: Element): boolean {

@@ -3,11 +3,9 @@ import Foundation
 
 /// What the blocker remembers between launches.
 ///
-/// Three kinds of state, all derived and all disposable: a manifest naming the
-/// compiled lists WebKit is holding for us, the filter-list text those lists were
-/// built from, and the user's per-origin shields. Only the shields matter — losing
-/// them loses a decision the user made, so they are written on every change; the
-/// rest can be thrown away and rebuilt.
+/// Two kinds of state, both derived and disposable: a manifest naming the
+/// compiled lists WebKit is holding for us, and the filter-list text those lists
+/// were built from. Either can be thrown away and rebuilt.
 struct BlockerStorage: Sendable {
     let directory: URL
 
@@ -107,7 +105,6 @@ struct BlockerManifest: Codable, Sendable, Hashable {
 
     struct CompiledRef: Codable, Sendable, Hashable {
         var identifier: String
-        var ruleClass: RuleClass
         var entryCount: Int
     }
 

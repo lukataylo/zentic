@@ -56,7 +56,15 @@ public struct OpenAIDesigner: Sendable {
     public var model: String
     public var session: URLSession
 
-    public init(apiKey: String, model: String = OpenAIDesigner.defaultModel, session: URLSession = .shared) {
+    /// Ephemeral, never `.shared`: that keeps cookies and a disk cache in the
+    /// user's own ~/Library, outside `DataDirectory.root`, even for a private
+    /// window or an isolated run.
+    public static let ephemeralSession = URLSession(configuration: .ephemeral)
+
+    public init(
+        apiKey: String, model: String = OpenAIDesigner.defaultModel,
+        session: URLSession = OpenAIDesigner.ephemeralSession
+    ) {
         self.apiKey = apiKey
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
         self.model = trimmed.isEmpty ? Self.defaultModel : trimmed

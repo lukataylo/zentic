@@ -26,7 +26,7 @@ enum Blocking {
     static func warm() {
         Task {
             do {
-                let lists = try await engine.installedRuleLists()
+                let lists = try await engine.ruleLists()
                 trace("blocking", "installed \(lists.count) rule lists")
             } catch {
                 // A browser without blocking is still a browser. Say so and move on.
@@ -35,41 +35,35 @@ enum Blocking {
         }
     }
 
-    /// Swap a live controller onto a different shield.
+    /// Turn blocking on or off for a live controller.
     ///
-    /// Removes first: rule lists are additive, so re-adding a narrower set over a
-    /// wider one leaves the wider one attached and the change does nothing.
+    /// Removes first: rule lists are additive, so turning blocking off by
+    /// attaching nothing would leave the lists in place.
     ///
     /// Callers that are *raising* protection must reload afterwards. WebKit bakes
     /// `css-display-none` into a document at load and never re-evaluates it, and a
     /// request already on the wire cannot be recalled — so this call changes the
     /// next document, not the one on screen.
-    static func reattach(to controller: WKUserContentController, shield: ShieldState) async {
-        register(controller, shield: shield)
-        await apply(shield, to: controller, removingFirst: true)
+    static func reattach(to controller: WKUserContentController, blocking: Bool) async {
+        register(controller, blocking: blocking)
+        await apply(blocking, to: controller, removingFirst: true)
     }
 
     private static func apply(
-        _ shield: ShieldState,
+        _ blocking: Bool,
         to controller: WKUserContentController,
         removingFirst: Bool = false
     ) async {
-        // `ruleLists(for:)`, not `installedRuleLists()` — the latter is defined as
-        // `ruleLists(for: .standard)`, so routing through it made `.blockingOnly`
-        // attach the cosmetic lists too and silently collapsed two shield states
-        // into one.
-        //
         // Fetched *before* anything is detached, deliberately. Compilation can fail
         // — a corrupt store, a rule list evicted under memory pressure — and a
-        // remove-then-fail ordering would leave the tab with no protection at all
-        // while the user believes they only moved one notch.
+        // remove-then-fail ordering would leave the tab with no protection at all.
         let lists: [WKContentRuleList]
-        if shield == .off {
+        if !blocking {
             lists = []
-        } else if let compiled = try? await engine.ruleLists(for: shield) {
+        } else if let compiled = try? await engine.ruleLists() {
             lists = compiled
         } else {
-            trace("blocking", "no lists for \(shield.rawValue) · leaving the tab as it is")
+            trace("blocking", "no lists · leaving the tab as it is")
             return
         }
 
@@ -84,7 +78,7 @@ enum Blocking {
 
     // MARK: - Re-attaching when the full set lands
 
-    /// Live controllers, weakly held, with the shield each was attached under.
+    /// Live controllers, weakly held, with whether each blocks.
     ///
     /// The seed list compiles in milliseconds and EasyList takes seconds, so the
     /// first tabs of a first launch attach seed-only protection. `engine.updates()`
@@ -92,24 +86,24 @@ enum Blocking {
     /// to it — those tabs kept seed-only protection until they happened to reload.
     private final class Attached {
         weak var controller: WKUserContentController?
-        var shield: ShieldState
-        init(_ controller: WKUserContentController, _ shield: ShieldState) {
+        var blocking: Bool
+        init(_ controller: WKUserContentController, _ blocking: Bool) {
             self.controller = controller
-            self.shield = shield
+            self.blocking = blocking
         }
     }
 
     private static var attached: [Attached] = []
     private static var isWatching = false
 
-    /// Remember the shield a controller is running under, so a later refresh
-    /// re-attaches the same subset rather than promoting every tab to `.standard`.
-    private static func register(_ controller: WKUserContentController, shield: ShieldState) {
+    /// Remember whether a controller blocks, so a later refresh never turns
+    /// blocking back on for a site in Original.
+    private static func register(_ controller: WKUserContentController, blocking: Bool) {
         attached.removeAll { $0.controller == nil }
         if let existing = attached.first(where: { $0.controller === controller }) {
-            existing.shield = shield
+            existing.blocking = blocking
         } else {
-            attached.append(Attached(controller, shield))
+            attached.append(Attached(controller, blocking))
         }
         startWatching()
     }
@@ -135,7 +129,7 @@ enum Blocking {
         attached.removeAll { $0.controller == nil }
         for entry in attached {
             guard let controller = entry.controller else { continue }
-            await apply(entry.shield, to: controller, removingFirst: true)
+            await apply(entry.blocking, to: controller, removingFirst: true)
         }
     }
 }

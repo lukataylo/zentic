@@ -139,10 +139,21 @@ public enum SiteKey {
     /// The in-page script derives the same key from `location.hostname`, so the
     /// two must agree — see `InPageScript.bootstrap`.
     public static func `for`(_ url: URL?) -> String? {
-        guard let host = url?.host(percentEncoded: false)?.lowercased(), !host.isEmpty else {
-            return nil
-        }
+        guard let host = url?.host(percentEncoded: false), !host.isEmpty else { return nil }
+        return self.for(host: host)
+    }
+
+    /// The same key, from a host alone. Everything that names a site by its
+    /// host — a saved password's origin, the address bar, an extension's site
+    /// pattern — goes through here, so they all agree on what one site is.
+    public static func `for`(host: String) -> String {
+        let host = host.lowercased()
         return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    /// A web page with a host: what may come in from a link or a saved bookmark.
+    public static func isWebPage(_ url: URL?) -> Bool {
+        isWeb(url) && url?.host?.isEmpty == false
     }
 
     /// Only web pages have a mode. `about:blank`, `file:` and friends are shown

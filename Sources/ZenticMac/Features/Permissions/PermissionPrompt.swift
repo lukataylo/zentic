@@ -151,6 +151,7 @@ private struct PermissionPrompt: View {
         case .popup: "tried to open a pop-up window"
         case .download(let name) where name.isEmpty: "wants to download a file"
         case .download(let name): "wants to download “\(name)”"
+        case .openApp(let app): "wants to open “\(app)”"
         }
     }
 

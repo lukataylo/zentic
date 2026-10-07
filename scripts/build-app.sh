@@ -32,6 +32,14 @@ if ! command -v xcodegen >/dev/null; then
   exit 69
 fi
 
+# Xcode writes the app's resolved packages, Sparkle among them, into the root
+# Package.resolved — which belongs to Package.swift, where Sparkle is not a
+# dependency, so the next `swift build` writes it back. Put it back after the
+# build, so switching between the two build paths leaves no diff.
+resolved=$(mktemp)
+cp Package.resolved "$resolved"
+trap 'cp "$resolved" Package.resolved; rm -f "$resolved"' EXIT
+
 xcodegen generate --quiet
 
 # -quiet keeps the output to warnings and errors, so a failure is readable.

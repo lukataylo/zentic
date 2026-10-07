@@ -10,6 +10,7 @@ extension SitePermission {
         case .popups: "Pop-up Windows"
         case .autoplay: "Auto-Play"
         case .downloads: "Downloads"
+        case .otherApps: "Opening Other Apps"
         }
     }
 
@@ -18,6 +19,7 @@ extension SitePermission {
         switch self {
         case .microphone: "Mic"
         case .popups: "Pop-ups"
+        case .otherApps: "Apps"
         default: title
         }
     }
@@ -30,6 +32,7 @@ extension SitePermission {
         case .popups: "macwindow.on.rectangle"
         case .autoplay: "play.rectangle.fill"
         case .downloads: "arrow.down.circle.fill"
+        case .otherApps: "arrow.up.forward.app.fill"
         }
     }
 
@@ -43,6 +46,7 @@ extension SitePermission {
         case .popups: .indigo
         case .autoplay: .pink
         case .downloads: .green
+        case .otherApps: .teal
         }
     }
 
@@ -55,6 +59,7 @@ extension SitePermission {
         case .popups: "A pop-up opened by a click always opens. This decides the ones a page opens on its own."
         case .autoplay: "Whether video and sound may start before you click. Takes effect when a page loads."
         case .downloads: "Whether a site may save files to your Downloads folder."
+        case .otherApps: "Links that open another app, such as Mail, FaceTime or a meeting app. Only ever after a click on the page."
         }
     }
 

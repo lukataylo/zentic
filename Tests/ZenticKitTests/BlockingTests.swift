@@ -10,7 +10,7 @@ struct RuleConversionTests {
     /// Exact counts, deliberately. SafariConverterLib is an upstream dependency that
     /// merges, reorders and rejects rules on its own judgement; a test that only
     /// asserted "more than zero" would not notice a version bump changing any of it.
-    @Test func convertsTheFixtureIntoBothClasses() throws {
+    @Test func convertsTheFixture() throws {
         let converted = try RuleConverter.convert(
             rules: try RuleFixture.rules("tiny"), listID: "tiny")
 
@@ -21,29 +21,18 @@ struct RuleConversionTests {
         // The six rules under "inexpressible" in the fixture, and only those.
         #expect(converted.droppedRuleCount == 6)
 
-        let network = try #require(converted.chunks.first { $0.ruleClass == .network })
-        let cosmetic = try #require(converted.chunks.first { $0.ruleClass == .cosmetic })
-        #expect(converted.chunks.count == 2)
-
-        let networkEntries = try Entry.decode(network.json)
-        let cosmeticEntries = try Entry.decode(cosmetic.json)
-
-        #expect(networkEntries.filter(\.isBlock).count == 8)
-        #expect(cosmeticEntries.filter(\.isHide).count == 3)
-        // Neither class may carry the other's actions, or detaching the cosmetic
-        // lists for a `.blockingOnly` origin would take network blocking with it.
-        #expect(networkEntries.filter(\.isHide).isEmpty)
-        #expect(cosmeticEntries.filter(\.isBlock).isEmpty)
-
-        // Exceptions belong to both, so neither class can over-block on its own.
-        #expect(networkEntries.filter(\.isException).count == 2)
-        #expect(cosmeticEntries.filter(\.isException).count == 2)
+        #expect(converted.chunks.count == 1)
+        let entries = try Entry.decode(try #require(converted.chunks.first).json)
+        #expect(entries.filter(\.isBlock).count == 8)
+        #expect(entries.filter(\.isHide).count == 3)
+        #expect(entries.filter(\.isException).count == 2)
     }
 
     @Test func splitsAtTheCapKeepingEveryExceptionInEveryChunk() throws {
         let rules = try RuleFixture.rules("tiny")
         let whole = try RuleConverter.convert(rules: rules, listID: "tiny")
         let split = try RuleConverter.convert(rules: rules, listID: "tiny", entriesPerList: 4)
+        let wholeEntries = try Entry.decode(try #require(whole.chunks.first).json)
 
         #expect(split.chunks.count > whole.chunks.count)
         // Reported before splitting, so duplicating exceptions must not inflate it.
@@ -58,26 +47,30 @@ struct RuleConversionTests {
             #expect(entries.filter(\.isException).count == 2)
             // Entries stay in the converter's order. `$important` block rules are
             // emitted after ordinary exceptions precisely so they win.
-            #expect(entries.map(\.sortKey) == entries.map(\.sortKey).sorted())
+            #expect(isSubsequence(entries, of: wholeEntries))
         }
 
-        for ruleClass in RuleClass.allCases {
-            let expected = try Entry.decode(
-                try #require(whole.chunks.first { $0.ruleClass == ruleClass }).json
-            ).filter { !$0.isException }
-            let actual = try split.chunks.filter { $0.ruleClass == ruleClass }
-                .flatMap { try Entry.decode($0.json) }
-                .filter { !$0.isException }
-            #expect(actual == expected)
+        let expected = wholeEntries.filter { !$0.isException }
+        let actual = try split.chunks.flatMap { try Entry.decode($0.json) }.filter { !$0.isException }
+        #expect(actual == expected)
+    }
+
+    private func isSubsequence(_ part: [Entry], of whole: [Entry]) -> Bool {
+        var rest = whole[...]
+        for entry in part {
+            guard let found = rest.firstIndex(of: entry) else { return false }
+            rest = rest[rest.index(after: found)...]
         }
+        return true
     }
 
     @Test func exceptionsExceedingTheCapAreUnrecoverable() throws {
         // The fixture's two exceptions have to appear in every chunk, so a two-entry
         // ceiling leaves no room for a single block rule. No split can fix that,
-        // which is the one case `ruleLimitExceeded` is for.
+        // which is the one case `ruleLimitExceeded` is for. The count is every
+        // entry the list converts to — network and cosmetic are one list now.
         let rules = try RuleFixture.rules("tiny")
-        #expect(throws: BlockerError.ruleLimitExceeded(list: "tiny", count: 10)) {
+        #expect(throws: BlockerError.ruleLimitExceeded(list: "tiny", count: 13)) {
             try RuleConverter.convert(rules: rules, listID: "tiny", entriesPerList: 2)
         }
     }
@@ -144,11 +137,9 @@ struct RuleConversionTests {
 
         let converted = try RuleConverter.convert(rules: rules, listID: FilterListCatalog.seedID)
         #expect(converted.droppedRuleCount == 0)
-        #expect(converted.chunks.contains { $0.ruleClass == .network })
-        #expect(converted.chunks.contains { $0.ruleClass == .cosmetic })
-        // Whole point of the seed: it fits in one compiled list per class, so first
-        // run is two cheap compilations.
-        #expect(converted.chunks.count == 2)
+        // Whole point of the seed: it fits in one compiled list, so first run is
+        // one cheap compilation.
+        #expect(converted.chunks.count == 1)
     }
 }
 
@@ -158,7 +149,7 @@ struct RuleConversionTests {
 struct BlockerCacheTests {
     @Test func firstRunInstallsTheSeedWithoutTouchingTheNetwork() async throws {
         let harness = try Harness(offline: true)
-        let lists = try await harness.engine.ruleLists(for: .standard)
+        let lists = try await harness.engine.ruleLists()
 
         #expect(!lists.isEmpty)
         // Seed only — nothing else could have been installed.
@@ -172,8 +163,8 @@ struct BlockerCacheTests {
         let after = await harness.compiler.compileCount
         #expect(after > 0)
 
-        _ = try await harness.engine.ruleLists(for: .standard)
-        _ = try await harness.engine.ruleLists(for: .standard)
+        _ = try await harness.engine.ruleLists()
+        _ = try await harness.engine.ruleLists()
         #expect(await harness.compiler.compileCount == after)
     }
 
@@ -183,12 +174,12 @@ struct BlockerCacheTests {
     @Test func theFullSetArrivesInTheBackgroundAndRetiresTheSeed() async throws {
         let harness = try Harness(refreshesInBackground: true)
 
-        let atFirstPaint = try await harness.engine.ruleLists(for: .standard)
+        let atFirstPaint = try await harness.engine.ruleLists()
         #expect(atFirstPaint.allSatisfy { $0.contains(FilterListCatalog.seedID) })
 
         await harness.engine.pendingRefresh()
 
-        let afterRefresh = try await harness.engine.ruleLists(for: .standard)
+        let afterRefresh = try await harness.engine.ruleLists()
         #expect(!afterRefresh.isEmpty)
         #expect(afterRefresh.allSatisfy { !$0.contains(FilterListCatalog.seedID) })
     }
@@ -206,13 +197,13 @@ struct BlockerCacheTests {
     /// together. Compiling once per caller would be the worst possible first run.
     @Test func concurrentCallersShareOneCompilation() async throws {
         let harness = try Harness()
-        async let first = harness.engine.ruleLists(for: .standard)
-        async let second = harness.engine.ruleLists(for: .standard)
-        async let third = harness.engine.ruleLists(for: .blockingOnly)
+        async let first = harness.engine.ruleLists()
+        async let second = harness.engine.ruleLists()
+        async let third = harness.engine.ruleLists()
         _ = try await (first, second, third)
 
-        // The seed's two lists, once.
-        #expect(await harness.compiler.compileCount == 2)
+        // The seed's one list, once.
+        #expect(await harness.compiler.compileCount == 1)
     }
 
     @Test func concurrentRefreshesFetchOnce() async throws {
@@ -233,7 +224,7 @@ struct BlockerCacheTests {
         let after = await harness.compiler.compileCount
 
         let relaunched = harness.makeEngine()
-        let lists = try await relaunched.ruleLists(for: .standard)
+        let lists = try await relaunched.ruleLists()
         #expect(!lists.isEmpty)
         #expect(lists.allSatisfy { !$0.contains(FilterListCatalog.seedID) })
         #expect(await harness.compiler.compileCount == after)
@@ -248,7 +239,7 @@ struct BlockerCacheTests {
         await harness.compiler.removeAll()
 
         let relaunched = harness.makeEngine()
-        let lists = try await relaunched.ruleLists(for: .standard)
+        let lists = try await relaunched.ruleLists()
         #expect(lists.allSatisfy { $0.contains(FilterListCatalog.seedID) })
     }
 
@@ -297,9 +288,7 @@ struct BlockerCacheTests {
 
         #expect(report.listsUpdated == [Harness.listID])
         #expect(await harness.compiler.compileCount > after)
-        // Superseded lists are removed, or the store grows without bound. The cosmetic
-        // chunk is untouched by a new network rule, so it keeps its identifier — which
-        // is the point of hashing each chunk rather than the list as a whole.
+        // Superseded lists are removed, or the store grows without bound.
         let now = await harness.compiler.identifiers()
         #expect(now.count == before.count)
         #expect(!before.subtracting(now).isEmpty)
@@ -325,27 +314,6 @@ struct BlockerCacheTests {
         #expect(report.rulesCompiled == 13)
         #expect(report.duration > .zero)
     }
-}
-
-// MARK: - Shields
-
-@Suite("Per-origin shields")
-struct ShieldTests {
-    @Test func shieldSelectsWhichListsAttach() async throws {
-        let harness = try Harness()
-        _ = try await harness.engine.refresh(force: false)
-
-        let standard = try await harness.engine.ruleLists(for: .standard)
-        let blockingOnly = try await harness.engine.ruleLists(for: .blockingOnly)
-        let off = try await harness.engine.ruleLists(for: .off)
-
-        #expect(off.isEmpty)
-        #expect(blockingOnly.allSatisfy { $0.contains(RuleClass.network.rawValue) })
-        #expect(!blockingOnly.contains { $0.contains(RuleClass.cosmetic.rawValue) })
-        #expect(Set(blockingOnly).isSubset(of: Set(standard)))
-        #expect(standard.count > blockingOnly.count)
-    }
-
 }
 
 // MARK: - Measurement
@@ -376,7 +344,7 @@ struct MeasurementTests {
                 MEASURE \(source.id): bytes=\(text.utf8.count) rules=\(rules.count) \
                 safari=\(converted.safariRuleCount) dropped=\(converted.droppedRuleCount) \
                 convert=\(elapsed) \
-                chunks=\(converted.chunks.map { "\($0.ruleClass.rawValue):\($0.entryCount)" })
+                chunks=\(converted.chunks.map(\.entryCount))
                 """
             )
         }
@@ -385,12 +353,10 @@ struct MeasurementTests {
             path: "zentic-measure-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        // Also the only place the conditional conformance to the frozen protocol is
-        // exercised: `installedRuleLists()` exists only when the compiler is WebKit's.
-        let blocker: any ContentBlockerService = WebKitContentBlocker(directory: directory)
+        let blocker = WebKitContentBlocker(directory: directory)
 
         let coldStart = ContinuousClock.now
-        let seeded = try await blocker.installedRuleLists()
+        let seeded = try await blocker.ruleLists()
         print("MEASURE cold first-paint lists=\(seeded.count) in \(coldStart.duration(to: .now))")
 
         let refreshStart = ContinuousClock.now
@@ -405,7 +371,7 @@ struct MeasurementTests {
 
         let warmStart = ContinuousClock.now
         let warm = WebKitContentBlocker(directory: directory)
-        let warmLists = try await warm.installedRuleLists()
+        let warmLists = try await warm.ruleLists()
         print("MEASURE warm launch lists=\(warmLists.count) in \(warmStart.duration(to: .now))")
 
         let noopStart = ContinuousClock.now
@@ -588,10 +554,6 @@ private struct Entry: Decodable, Equatable {
     var isBlock: Bool { action.type == "block" || action.type == "block-cookies" }
     var isHide: Bool { action.type == "css-display-none" }
     var isException: Bool { action.type == "ignore-previous-rules" }
-
-    /// Exceptions sort after the rules they override, which is the ordering the
-    /// chunker has to preserve.
-    var sortKey: Int { isException ? 1 : 0 }
 
     static func decode(_ json: String) throws -> [Entry] {
         try JSONDecoder().decode([Entry].self, from: Data(json.utf8))

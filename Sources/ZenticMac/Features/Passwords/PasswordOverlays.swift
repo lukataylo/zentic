@@ -28,6 +28,9 @@ struct PasswordOverlays: View {
 
                 if let prompt = passwords.prompt {
                     SavePrompt(prompt: prompt, passwords: passwords)
+                        // A new view per offer: an account picked for one
+                        // offer must never carry over to the next.
+                        .id(prompt.offer)
                         .frame(width: 340)
                         .padding(.top, Metrics.toolbarInset + 8)
                         .padding(.trailing, 12)
@@ -274,11 +277,7 @@ private struct SavePrompt: View {
         }
     }
 
-    private var offer: PasswordOffer {
-        switch prompt {
-        case .offer(let offer), .saved(let offer), .failed(let offer, _): offer
-        }
-    }
+    private var offer: PasswordOffer { prompt.offer }
 
     private var isSaved: Bool {
         if case .saved = prompt { return true }

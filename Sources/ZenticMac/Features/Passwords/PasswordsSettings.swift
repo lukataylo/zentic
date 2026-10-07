@@ -28,6 +28,13 @@ struct PasswordsSettings: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let error = passwords.loadError {
+                Section {
+                    Label("Couldn’t read saved passwords: \(error.localizedDescription)", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if passwords.logins.isEmpty && passwords.neverSave.isEmpty {
                 Section {
                     ContentUnavailableView {

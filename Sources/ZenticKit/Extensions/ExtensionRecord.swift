@@ -116,9 +116,9 @@ public enum SitePattern {
         guard !text.isEmpty, !text.contains(" ") else { return nil }
         let withScheme = text.contains("://") ? text : "https://\(text)"
         guard let url = URL(string: withScheme), ["http", "https"].contains(url.scheme ?? ""),
-            var host = url.host(), !host.isEmpty
+            let found = url.host(), !found.isEmpty
         else { return nil }
-        if host.hasPrefix("www.") { host.removeFirst(4) }
+        let host = SiteKey.for(host: found)
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789.-")
         guard host.unicodeScalars.allSatisfy(allowed.contains), !host.hasPrefix("."), !host.hasSuffix("."),
             !host.contains("..")

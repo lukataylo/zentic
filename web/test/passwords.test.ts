@@ -181,6 +181,57 @@ describe("the page side of AutoFill", () => {
     expect(posted).toEqual([]);
   });
 
+  it("does not take a control beside the sign-in for sending it", () => {
+    const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="hunt">
+      <button type="button" id="eye"><svg></svg></button>
+      <button type="button" id="forgot">Forgot password?</button>
+      <a role="button" id="sso">Sign in with Google</a></form>`);
+    start(true, doc);
+    typeInto(doc, "p");
+    for (const id of ["eye", "forgot", "sso"]) {
+      doc.getElementById(id)!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
+    }
+    expect(posted).toEqual([]);
+  });
+
+  it("carries the username across a form-less two-step sign-in sent by clicks", () => {
+    const doc = freshDocument(`<div id="step"><input id="u" type="email" value="bob@x.com"><div role="button" id="next">Next</div></div>`);
+    start(true, doc);
+    typeInto(doc, "u");
+    doc.getElementById("next")!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
+    doc.getElementById("step")!.innerHTML = `<input id="p" type="password" value="bobs"><div role="button" id="go">Next</div>`;
+    typeInto(doc, "p");
+    doc.getElementById("go")!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
+    expect(posted.filter((m) => (m as { type: string }).type === "login-submit")).toEqual([
+      { type: "login-submit", username: "bob@x.com", password: "bobs" },
+    ]);
+  });
+
+  it("forgets a filled username once another is typed", () => {
+    const doc = freshDocument(`<form id="one"><input id="u" autocomplete="username"><input id="p" type="password"></form>`);
+    const passwords = start(true, doc);
+    passwords.fill(window.location.origin, "alice", "old");
+    doc.body.innerHTML = `<div id="step"><input id="u2" type="email" value=""><div role="button" id="next">Next</div></div>`;
+    // The person types a name and leaves it empty again before going on.
+    typeInto(doc, "u2");
+    doc.getElementById("next")!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
+    doc.getElementById("step")!.innerHTML = `<input id="p2" type="password" value="bobs"><div role="button" id="go">Sign in</div>`;
+    typeInto(doc, "p2");
+    doc.getElementById("go")!.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })));
+    expect(posted).toEqual([{ type: "login-submit", username: "", password: "bobs" }]);
+  });
+
+  it("keeps the menu open while something else on the page scrolls itself", () => {
+    const doc = freshDocument(`<div id="carousel"></div><form><input id="u"><input id="p" type="password"></form>`);
+    start(true, doc);
+    doc.getElementById("u")!.dispatchEvent(trusted(new FocusEvent("focusin", { bubbles: true })));
+    posted = [];
+    doc.getElementById("carousel")!.dispatchEvent(new Event("scroll"));
+    expect(posted).toEqual([]);
+    doc.dispatchEvent(new Event("scroll"));
+    expect(posted).toEqual([{ type: "login-dismiss" }]);
+  });
+
   it("never reports a sign-in when saving is off (a private window)", () => {
     const doc = freshDocument(`<form><input id="u" value="ada"><input id="p" type="password" value="pw"></form>`);
     start(false, doc);

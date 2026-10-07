@@ -12,6 +12,8 @@ struct PermissionRequest: Identifiable {
         /// A pop-up the page tried to open by itself, held back.
         case popup(URL?, count: Int)
         case download(String)
+        /// A link that opens another app, by the app's name.
+        case openApp(String)
 
         /// The permissions an answer is remembered for.
         var permissions: [SitePermission] {
@@ -20,6 +22,7 @@ struct PermissionRequest: Identifiable {
             case .location: [.location]
             case .popup: [.popups]
             case .download: [.downloads]
+            case .openApp: [.otherApps]
             }
         }
     }
@@ -127,6 +130,17 @@ final class TabPermissions {
     func allowsDownload(named name: String, site: String?) async -> Bool {
         guard let site else { return scope.book.outcome(.downloads, for: nil) == .grant }
         return await ask(.download(name), site: site, embeddedHost: nil)
+    }
+
+    /// Whether the page may hand a link to another app. Only right after the
+    /// person clicked or typed in the page — a page or an ad opening Finder
+    /// onto a server, or a meeting app, at load or on a timer gets nothing —
+    /// and then only once the site is allowed to, as in every browser.
+    func allowsOpeningApp(named app: String, from page: URL?) async -> Bool {
+        guard LastInput.wasRecent(in: webView, since: documentStart), let site = SiteKey.for(page) else { return false }
+        // One click, one app.
+        LastInput.consume()
+        return await ask(.openApp(app), site: site, embeddedHost: nil)
     }
 
     /// Whether a `window.open` may open, decided before WebKit needs an

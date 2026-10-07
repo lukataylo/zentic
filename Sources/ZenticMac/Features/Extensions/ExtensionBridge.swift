@@ -95,7 +95,9 @@ final class ExtensionEvents {
 
     func windowClosed(_ browser: Browser) {
         guard isWatching, let adapter = windowAdapters[browser.id] else { return }
-        for (id, tab) in reported where tab.window == browser.id {
+        // Not a tab on its way to a new window (moving a window's last tab out).
+        let moving = Set(Windows.shared.waitingToOpen.flatMap(\.allTabs).map(\.id))
+        for (id, tab) in reported where tab.window == browser.id && !moving.contains(id) {
             if let tabAdapter = tabAdapters.removeValue(forKey: id) {
                 controller.didCloseTab(tabAdapter, windowIsClosing: true)
             }
@@ -112,8 +114,12 @@ final class ExtensionEvents {
     func sync() {
         guard isWatching else { return }
         let now = current()
+        // A tab moved to a new window waits in it until the window appears:
+        // still open, and told as a move once it does — not closed and
+        // reopened under a new identity, losing the extension's state for it.
+        let moving = Set(Windows.shared.waitingToOpen.flatMap(\.allTabs).map(\.id))
 
-        for id in reported.keys where now[id] == nil {
+        for id in reported.keys where now[id] == nil && !moving.contains(id) {
             if let adapter = tabAdapters.removeValue(forKey: id) {
                 controller.didCloseTab(adapter, windowIsClosing: false)
             }
@@ -142,7 +148,7 @@ final class ExtensionEvents {
                 if !changed.isEmpty { controller.didChangeTabProperties(changed, for: adapter) }
             }
         }
-        reported = now
+        reported = now.merging(reported.filter { moving.contains($0.key) }) { current, _ in current }
 
         let selected = selections()
         for (windowID, tabID) in selected where reportedSelection[windowID] != tabID {

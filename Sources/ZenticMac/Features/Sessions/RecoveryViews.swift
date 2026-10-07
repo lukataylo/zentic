@@ -62,6 +62,9 @@ struct RecoveryToast: View {
 /// and one click to load it.
 struct HeldTabView: View {
     let tab: Tab
+    /// False while a field over the page has the keyboard: Return typed to go
+    /// somewhere else must not load the very page held back.
+    let takesReturn: Bool
 
     var body: some View {
         VStack(spacing: 12) {
@@ -78,7 +81,7 @@ struct HeldTabView: View {
             Button("Load Page") { tab.realize() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(takesReturn ? .defaultAction : nil)
                 .padding(.top, 6)
         }
         .padding(40)

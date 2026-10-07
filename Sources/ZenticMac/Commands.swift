@@ -190,7 +190,8 @@ struct BrowserCommands: Commands {
                 toggleFavorite()
             }
             .keyboardShortcut("d")
-            .disabled(!SiteKey.isWeb(tab?.url))
+            // A private window keeps nothing — favourites included.
+            .disabled(!SiteKey.isWeb(tab?.url) || browser?.isPrivate == true)
             Divider()
             Button("Move Tab to New Window") { if let tab { browser?.moveToNewWindow(tab) } }
                 .disabled(tab == nil || browser?.allTabs.count == 1)
@@ -273,12 +274,12 @@ struct BrowserCommands: Commands {
     }
 
     private func toggleFavorite() {
-        guard let tab, let url = tab.url else { return }
+        guard let tab, let url = tab.url, let browser else { return }
         let app = AppModel.shared
         if let existing = app.favorites.first(where: { SiteKey.for($0.url) == tab.siteKey }) {
             app.removeFavorite(existing.id)
         } else {
-            app.addFavorite(url: url, title: tab.title)
+            app.addFavorite(url: url, title: tab.title, from: browser)
         }
     }
 }

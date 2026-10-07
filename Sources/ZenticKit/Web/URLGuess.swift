@@ -62,7 +62,7 @@ public enum URLGuess {
         guard let host = url.host(percentEncoded: false), !host.isEmpty else {
             return url.absoluteString == "about:blank" ? "" : url.absoluteString
         }
-        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        return SiteKey.for(host: host)
     }
 
     private static func isLocal(_ text: String) -> Bool {

@@ -59,22 +59,14 @@ final class AppModel {
         return favorites.contains { SiteKey.for($0.url) == key }
     }
 
-    func addFavorite(url: URL, title: String) {
-        guard !isFavorite(url) else { return }
+    /// From a tab in `browser`. Never a private window's page: favourites are
+    /// written to disk and shown in every window.
+    func addFavorite(url: URL, title: String, from browser: Browser) {
+        guard !browser.isPrivate, !isFavorite(url) else { return }
         favorites.append(Favorite(id: UUID(), url: url, title: title))
     }
 
     func removeFavorite(_ id: UUID) { favorites.removeAll { $0.id == id } }
-
-    func moveFavorite(_ id: UUID, before target: UUID?) {
-        guard let from = favorites.firstIndex(where: { $0.id == id }) else { return }
-        let item = favorites.remove(at: from)
-        if let target, let to = favorites.firstIndex(where: { $0.id == target }) {
-            favorites.insert(item, at: to)
-        } else {
-            favorites.append(item)
-        }
-    }
 
     // MARK: History
 
@@ -138,6 +130,13 @@ final class AppModel {
         history = Dictionary(kept.map { ($0.url.absoluteString, $0) }, uniquingKeysWith: { a, _ in a })
         historyRevision += 1
         saveHistorySoon()
+        // Site icons too, but those of what is still in use: open tabs,
+        // favourites, saved passwords and the history that is left.
+        let tabs = (Windows.shared.open + Windows.shared.waitingToOpen).flatMap(\.allTabs)
+        let urls = kept.map(\.url) + favorites.map(\.url) + tabs.compactMap(\.url) + tabs.compactMap(\.pinnedURL)
+        var sites = Set(urls.compactMap(SiteKey.for))
+        sites.formUnion(Passwords.shared.logins.map(\.origin.siteKey))
+        Favicons.shared.forget(keeping: sites)
     }
 
     /// After the user deleted something: now, not in two seconds, so a crash
@@ -306,8 +305,6 @@ enum SidebarTint: String, CaseIterable, Identifiable {
         case (.ember, false): [Color(red: 0.99, green: 0.88, blue: 0.80), Color(red: 0.98, green: 0.92, blue: 0.86)]
         }
     }
-
-    var swatch: Color { colors(dark: true)[0] }
 }
 
 enum AppAppearance: String, CaseIterable, Identifiable {

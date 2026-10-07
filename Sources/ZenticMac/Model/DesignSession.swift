@@ -168,16 +168,23 @@ final class DesignSession {
     /// of what it does to this page, so a later visit can tell when the site
     /// has changed under it.
     func keep(on tab: Tab) {
-        guard var version = tab.previewing, let browser = tab.browser, let url = tab.url else { return }
+        guard let version = tab.previewing, let browser = tab.browser, let url = tab.url else { return }
         reset()
+        // Kept at once, measured after: saving sets the site to Custom, so a
+        // save that waited on the measurement would undo a mode the user
+        // picked in the meantime.
+        browser.saveCustom(version, for: url)
         Task {
             // A few milliseconds, on the page the user just approved. Gone
-            // elsewhere meanwhile, the version is kept unmeasured and measured
-            // on the next visit instead.
-            if let check = await tab.measureCustomVersion(idle: false), tab.previewing == version {
-                version.baseline = CustomBaseline(check)
-            }
-            browser.saveCustom(version, for: url)
+            // elsewhere meanwhile, or the site no longer on this version, the
+            // version stays unmeasured and is measured on the next visit.
+            guard let check = await tab.measureCustomVersion(idle: false),
+                tab.url == url, tab.mode == .custom, tab.previewing == nil,
+                browser.mode(for: url) == .custom,
+                var kept = browser.custom(for: url), kept.updatedAt == version.updatedAt
+            else { return }
+            kept.baseline = CustomBaseline(check)
+            browser.saveCustom(kept, for: url)
         }
     }
 

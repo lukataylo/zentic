@@ -13,7 +13,7 @@ public enum BlockerLimits {
         SafariVersion.autodetect().rulesLimit
     }
 
-    /// How long a downloaded filter list is trusted before ``ContentBlockerService``
+    /// How long a downloaded filter list is trusted before ``BlockerEngine``
     /// bothers to re-ask upstream. EasyList publishes several times a day; daily is
     /// the interval every blocker settled on.
     public static let listMaxAge: TimeInterval = 24 * 60 * 60

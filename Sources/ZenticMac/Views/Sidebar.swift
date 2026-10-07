@@ -255,7 +255,7 @@ private struct FavoritesGrid: View {
                 guard let string = object as? String, let id = UUID(uuidString: string) else { return }
                 Task { @MainActor in
                     guard let tab = browser.allTabs.first(where: { $0.id == id }), let url = tab.url else { return }
-                    app.addFavorite(url: url, title: tab.title)
+                    app.addFavorite(url: url, title: tab.title, from: browser)
                 }
             }
             return true
@@ -454,10 +454,10 @@ private struct TabRow: View {
             if let existing = app.favorites.first(where: { SiteKey.for($0.url) == tab.siteKey }) {
                 app.removeFavorite(existing.id)
             } else if let url = tab.url {
-                app.addFavorite(url: url, title: tab.title)
+                app.addFavorite(url: url, title: tab.title, from: browser)
             }
         }
-        .disabled(!SiteKey.isWeb(tab.url))
+        .disabled(!SiteKey.isWeb(tab.url) || browser.isPrivate)
         Divider()
         if !browser.isPrivate {
             if tab.isPinned {

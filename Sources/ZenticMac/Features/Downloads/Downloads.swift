@@ -67,9 +67,16 @@ final class Downloads {
         guard let item = byTask[ObjectIdentifier(task)] else { return nil }
         // A retry goes back to the file it was always going to be. Starting
         // over replaces the partial file; carrying on must leave it alone.
+        // But only our own partial: whatever else is at that name now is the
+        // user's, and the restart gets a name of its own instead.
         if let file = item.file {
-            if !item.isResuming { try? FileManager.default.removeItem(at: file) }
-            return file
+            if item.isResuming { return file }
+            if holdsOwnPartial(item) {
+                try? FileManager.default.removeItem(at: file)
+                return file
+            }
+            if !FileManager.default.fileExists(atPath: file.path) { return file }
+            item.file = nil
         }
         let folder = DataDirectory.downloads
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -81,6 +88,7 @@ final class Downloads {
         }
         item.file = url
         item.name = url.lastPathComponent
+        item.wroteFile = true
         // Saved now, as interrupted until it ends: quitting mid-download
         // must still leave it in the list, ready to try again.
         save()
@@ -100,6 +108,7 @@ final class Downloads {
 
     fileprivate func failed(_ task: WKDownload, error: Error, resumeData: Data?) {
         guard let item = byTask.removeValue(forKey: ObjectIdentifier(task)) else { return }
+        item.stopped = .now
         item.fail(error, resumeData: resumeData)
         forgetPrivateIfClosed(item)
         save()
@@ -117,6 +126,7 @@ final class Downloads {
                 // outcome stands.
                 guard let self, let item, item.state == .pausing else { return }
                 self.byTask[ObjectIdentifier(task)] = nil
+                item.stopped = .now
                 item.paused(resumeData: data)
                 self.save()
             }
@@ -147,9 +157,21 @@ final class Downloads {
         }
     }
 
-    /// Stop for good, and remove what had arrived.
+    /// Whether the file at `item.file` is still what this download wrote: it
+    /// chose that path this session and the file has not changed since the
+    /// download stopped. After a relaunch, or once anything else has written
+    /// there (the user saving a file of the same name from Mail), it is not.
+    private func holdsOwnPartial(_ item: Download) -> Bool {
+        guard item.wroteFile, let file = item.file, let stopped = item.stopped,
+            let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        else { return false }
+        return modified <= stopped.addingTimeInterval(2)
+    }
+
+    /// Stop for good, and remove what had arrived — if it is still ours.
     func cancel(_ item: Download) {
-        let partial = item.state == .finished ? nil : item.file
+        let underway = item.task != nil
+        let partial = item.state == .finished || !(underway || holdsOwnPartial(item)) ? nil : item.file
         if let task = item.task {
             byTask[ObjectIdentifier(task)] = nil
             task.cancel()
@@ -262,6 +284,10 @@ final class Download: Identifiable {
     @ObservationIgnored fileprivate(set) var task: WKDownload?
     @ObservationIgnored fileprivate var resumeData: Data?
     @ObservationIgnored fileprivate var isResuming = false
+    /// This session chose `file` for it — see `Downloads.holdsOwnPartial`.
+    @ObservationIgnored fileprivate var wroteFile = false
+    /// When its transfer last stopped (failed or paused).
+    @ObservationIgnored fileprivate var stopped: Date?
     @ObservationIgnored fileprivate var host: WKWebView?
     @ObservationIgnored fileprivate var dataStore: WKWebsiteDataStore?
     @ObservationIgnored private var progressObservation: NSKeyValueObservation?

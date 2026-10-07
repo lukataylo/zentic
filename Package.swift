@@ -10,8 +10,7 @@ let package = Package(
     ],
     dependencies: [
         // Converts Adblock-Plus-syntax filter rules to WKContentRuleList JSON.
-        // Swift, so the whole filter pipeline stays in-process — see the plan's
-        // "No Rust" note.
+        // Swift, so the whole filter pipeline stays in-process.
         .package(
             url: "https://github.com/AdguardTeam/SafariConverterLib",
             exact: "4.3.0"

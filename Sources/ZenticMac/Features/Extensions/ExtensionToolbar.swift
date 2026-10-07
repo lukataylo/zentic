@@ -311,6 +311,10 @@ private enum PromptBinding {
 struct ExtensionPromptView: View {
     let prompt: ExtensionPrompt
     @Environment(Browser.self) private var browser
+    /// As in `PermissionPrompt`: a question the extension raised by itself
+    /// takes the key focus while the person may be typing in the page, so its
+    /// Allow buttons wake after half a second and none answers Return.
+    @State private var armed = false
 
     private var name: String { Extensions.shared.name(prompt.extensionID) }
 
@@ -360,12 +364,13 @@ struct ExtensionPromptView: View {
                     Text(browser.isPrivate && !sites.isEmpty ? "Allow" : "Always Allow").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+                .disabled(!armed)
                 Button {
                     Extensions.shared.answer(prompt, .oneDay)
                 } label: {
                     Text("Allow for One Day").frame(maxWidth: .infinity)
                 }
+                .disabled(!armed)
                 Button {
                     Extensions.shared.answer(prompt, .deny)
                 } label: {
@@ -384,6 +389,11 @@ struct ExtensionPromptView: View {
         }
         .padding(18)
         .frame(width: 320)
+        .task {
+            // Asked from the toolbar button, the click was the person's own.
+            if !prompt.isClick { try? await Task.sleep(for: .milliseconds(500)) }
+            armed = true
+        }
     }
 
     private var title: String {

@@ -1,7 +1,13 @@
 import Foundation
 import WebKit
 
-/// The ``ContentBlockerService`` implementation.
+/// Compiles filter lists into `WKContentRuleList`s.
+///
+/// WebKit's content-blocking API is *declarative*: rules are compiled ahead of
+/// time and enforced inside the network process. Matching costs nothing at
+/// request time, and **it reports nothing back** — no callback, no count. So
+/// Zentic never shows a "127 trackers blocked" number, which would be invented.
+/// Cookie-wall dismissal happens in the injected bundle, not here.
 ///
 /// Generic over ``RuleListCompiling`` only so the tests can substitute a compiler
 /// that counts calls instead of driving WebKit; production always uses
@@ -65,38 +71,16 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
         self.now = now
     }
 
-    /// Compiled lists split by class, in attach order.
-    struct Installed: Sendable {
-        var network: [Compiler.CompiledList] = []
-        var cosmetic: [Compiler.CompiledList] = []
-
-        mutating func add(_ lists: [(RuleClass, Compiler.CompiledList)]) {
-            for (ruleClass, list) in lists {
-                switch ruleClass {
-                case .network: network.append(list)
-                case .cosmetic: cosmetic.append(list)
-                }
-            }
-        }
-    }
+    /// Compiled lists, in attach order.
+    typealias Installed = [Compiler.CompiledList]
 
     // MARK: - Rule lists
 
-    /// Lists to attach to a tab whose origin has the given shield.
-    ///
-    /// This is the API ``ContentBlockerService/installedRuleLists()`` cannot be:
-    /// the protocol has no origin parameter, and per-origin shields cannot be
-    /// implemented any other way. WebKit evaluates each `WKContentRuleList`
-    /// independently, so an allowlist entry in a fourth list cannot cancel a rule in
-    /// the other three — the only per-origin lever is which lists a tab attaches.
-    public func ruleLists(for shield: ShieldState) async throws -> [Compiler.CompiledList] {
-        guard shield != .off else { return [] }
-        let installed = try await loaded()
-        switch shield {
-        case .standard: return installed.network + installed.cosmetic
-        case .blockingOnly: return installed.network
-        case .off: return []
-        }
+    /// The lists to attach to a tab that blocks. Which tabs block at all is the
+    /// site's mode (Original turns blocking off); a tab that doesn't attaches none.
+    /// Cached on disk by WebKit, so this is cheap after the first run.
+    public func ruleLists() async throws -> [Compiler.CompiledList] {
+        try await loaded()
     }
 
     /// Fires after a refresh changes the installed set, so a shell that attached
@@ -234,11 +218,11 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
                     complete = false
                 case .reused(let entry, let lists):
                     manifest.lists.append(entry)
-                    installed.add(lists)
+                    installed += lists
                 case .rebuilt(let entry, let lists):
                     updated.append(source.id)
                     manifest.lists.append(entry)
-                    installed.add(lists)
+                    installed += lists
                 }
             } catch {
                 // One list failing upstream must not cost us the other two.
@@ -260,11 +244,11 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
                 break
             case .reused(let entry, let lists):
                 manifest.lists.insert(entry, at: 0)
-                installed.add(lists)
+                installed += lists
             case .rebuilt(let entry, let lists):
                 updated.append(FilterListCatalog.seedID)
                 manifest.lists.insert(entry, at: 0)
-                installed.add(lists)
+                installed += lists
             }
         }
 
@@ -280,7 +264,7 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
 
         // Nothing installed at all is a hard failure: silently browsing unprotected
         // when the user believes otherwise is worse than an error the shell can show.
-        if installed.network.isEmpty && installed.cosmetic.isEmpty {
+        if installed.isEmpty {
             throw firstFailure
                 ?? BlockerError.compilationFailed(
                     list: "all",
@@ -305,8 +289,8 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
 
     private enum Materialised {
         case unavailable
-        case reused(BlockerManifest.Entry, [(RuleClass, Compiler.CompiledList)])
-        case rebuilt(BlockerManifest.Entry, [(RuleClass, Compiler.CompiledList)])
+        case reused(BlockerManifest.Entry, [Compiler.CompiledList])
+        case rebuilt(BlockerManifest.Entry, [Compiler.CompiledList])
     }
 
     private func materialise(
@@ -419,15 +403,11 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
         etag: String?,
         fetchedAt: Date,
         force: Bool
-    ) async throws -> (BlockerManifest.Entry, [(RuleClass, Compiler.CompiledList)]) {
+    ) async throws -> (BlockerManifest.Entry, [Compiler.CompiledList]) {
         let converted = try await convertOffActor(text: text, listID: listID)
         let identifiers = converted.chunks.map { Self.identifier(listID: listID, chunk: $0) }
         let refs = zip(identifiers, converted.chunks).map { identifier, chunk in
-            BlockerManifest.CompiledRef(
-                identifier: identifier,
-                ruleClass: chunk.ruleClass,
-                entryCount: chunk.entryCount
-            )
+            BlockerManifest.CompiledRef(identifier: identifier, entryCount: chunk.entryCount)
         }
 
         // All or nothing. Reusing some chunks and compiling others would work only if
@@ -444,19 +424,14 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
             }
         }
 
-        var lists: [(RuleClass, Compiler.CompiledList)] = []
+        var lists: [Compiler.CompiledList] = []
         if reused.count == converted.chunks.count {
             // Same bytes as last time, so WebKit's copies are still correct even
             // though the manifest went missing.
-            lists = zip(converted.chunks.map(\.ruleClass), reused).map { ($0, $1) }
+            lists = reused
         } else {
             for (identifier, chunk) in zip(identifiers, converted.chunks) {
-                lists.append(
-                    (
-                        chunk.ruleClass,
-                        try await compiler.compile(identifier: identifier, json: chunk.json)
-                    )
-                )
+                lists.append(try await compiler.compile(identifier: identifier, json: chunk.json))
             }
         }
 
@@ -476,8 +451,7 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
     }
 
     /// Conversion is seconds of straight-line CPU for a list the size of EasyList, and
-    /// running it on the actor would block every `installedRuleLists()` and `ruleLists(for:)`
-    /// call behind it — a hung toolbar during the first-run background refresh. It has
+    /// running it on the actor would block every `ruleLists()` call behind it — a hung toolbar during the first-run background refresh. It has
     /// no need for actor state, so it goes to a detached task instead.
     private nonisolated func convertOffActor(
         text: String,
@@ -497,12 +471,12 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
     /// a partial set would silently under-block.
     private func resolve(
         _ entry: BlockerManifest.Entry
-    ) async -> [(RuleClass, Compiler.CompiledList)]? {
+    ) async -> [Compiler.CompiledList]? {
         guard !entry.ruleLists.isEmpty else { return nil }
-        var lists: [(RuleClass, Compiler.CompiledList)] = []
+        var lists: [Compiler.CompiledList] = []
         for ref in entry.ruleLists {
             guard let list = await compiler.existing(identifier: ref.identifier) else { return nil }
-            lists.append((ref.ruleClass, list))
+            lists.append(list)
         }
         return lists
     }
@@ -524,15 +498,7 @@ public actor BlockerEngine<Compiler: RuleListCompiling> {
     /// existing compilation, and changed JSON can never collide with it.
     static func identifier(listID: String, chunk: RuleListChunk) -> String {
         let hash = ContentHash.of(chunk.json).prefix(12)
-        return "\(identifierPrefix)\(listID).\(chunk.ruleClass.rawValue).\(chunk.index).\(hash)"
-    }
-}
-
-extension BlockerEngine: ContentBlockerService where Compiler.CompiledList == WKContentRuleList {
-    /// The set for a normal tab. Origins with a non-standard shield need
-    /// ``ruleLists(for:)`` instead.
-    public func installedRuleLists() async throws -> [WKContentRuleList] {
-        try await ruleLists(for: .standard)
+        return "\(identifierPrefix)\(listID).\(chunk.index).\(hash)"
     }
 }
 

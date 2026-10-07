@@ -39,7 +39,7 @@ public struct LoginOrigin: Hashable, Sendable, Comparable, CustomStringConvertib
 
     /// The key "Never Save for This Site" is remembered under: the same as a
     /// site's mode, so `www.` and the bare host are one site to the person.
-    public var siteKey: String { host.hasPrefix("www.") ? String(host.dropFirst(4)) : host }
+    public var siteKey: String { SiteKey.for(host: host) }
 
     /// As the page's own `location.origin` spells it — the in-page script
     /// refuses to fill unless the two agree.
