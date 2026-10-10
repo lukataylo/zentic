@@ -46,7 +46,20 @@ final class Tab: Identifiable {
     private(set) var previewing: CustomVersion?
 
     /// Scrolled down past the top: the toolbar folds into a pill.
-    var chromeCollapsed = false
+    var chromeCollapsed = false {
+        didSet {
+            guard chromeCollapsed != oldValue else { return }
+            applyToolbarInset()
+        }
+    }
+
+    /// The page keeps a band clear for the full toolbar, but not for the
+    /// pill: folded, the band goes, so a site's sticky header rises to the
+    /// very top of the card and the pill floats over it.
+    private func applyToolbarInset() {
+        let top = chromeCollapsed ? 0 : Metrics.toolbarInset
+        webView?.obscuredContentInsets = NSEdgeInsets(top: top, left: 0, bottom: 0, right: 0)
+    }
     var zoom: Double = 1 {
         didSet { webView?.pageZoom = zoom }
     }
@@ -149,12 +162,12 @@ final class Tab: Identifiable {
         webView.allowsMagnification = true
         webView.isInspectable = true
         webView.pageZoom = zoom
+        self.webView = webView
         // The page lays out below the toolbar, so nothing at its very top is
         // unreachable under the glass (a site's header has nowhere to scroll
         // to at offset zero). WebKit fills the band with the page's own colour
         // and content scrolls up beneath it.
-        webView.obscuredContentInsets = NSEdgeInsets(top: Metrics.toolbarInset, left: 0, bottom: 0, right: 0)
-        self.webView = webView
+        applyToolbarInset()
 
         observe(webView)
         permissions.attach(webView)
