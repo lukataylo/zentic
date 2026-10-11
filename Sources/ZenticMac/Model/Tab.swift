@@ -155,7 +155,7 @@ final class Tab: Identifiable {
         controller.add(delegate, contentWorld: InPageScript.world, name: InPageScript.handlerName)
         installScripts(on: controller)
 
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = PageWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = delegate
         webView.uiDelegate = delegate
         webView.allowsBackForwardNavigationGestures = true
@@ -888,11 +888,22 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
         for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        guard let tab, let browser = tab.browser,
-            tab.permissions.allowsPopup(to: navigationAction.request.url, from: webView.url)
+        guard let tab, let browser = tab.browser else { return nil }
+        // A choice from the link menu is the person's own; anything else is
+        // the page opening a window, which the pop-up policy decides.
+        let intent = (webView as? PageWebView)?.takeLinkIntent()
+        guard intent != nil || tab.permissions.allowsPopup(to: navigationAction.request.url, from: webView.url)
         else { return nil }
         let child = Tab(openerConfiguration: configuration)
-        browser.insert(child, after: tab, select: true)
+        switch intent {
+        case .backgroundTab:
+            // As in Safari: the new tab waits behind the one being read.
+            browser.insert(child, after: tab, select: false)
+        case .window:
+            Windows.shared.openWindow(adopting: child, from: browser)
+        case nil:
+            browser.insert(child, after: tab, select: true)
+        }
         return child.realize()
     }
 
