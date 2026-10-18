@@ -91,7 +91,19 @@ public enum APIKeyStore {
             // Never syncs, and unavailable until the Mac has been unlocked once.
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-        let status = SecItemAdd(query as CFDictionary, nil)
+        var status = SecItemAdd(query as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            // The delete above did not take: the item was made by another build
+            // of Zentic, and the Keychain will not let this one remove it
+            // silently. Updating it in place is allowed — at most macOS asks the
+            // user once whether this build may change it.
+            let match: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: provider.rawValue,
+            ]
+            status = SecItemUpdate(match as CFDictionary, [kSecValueData as String: Data(trimmed.utf8)] as CFDictionary)
+        }
         guard status == errSecSuccess else {
             cache.set(nil, for: provider)
             throw APIKeyError.keychain(status)
@@ -149,7 +161,20 @@ public enum APIKeyStore {
     }
 }
 
-public enum APIKeyError: Error, Sendable, Equatable {
+public enum APIKeyError: LocalizedError, Sendable, Equatable {
     case keychain(OSStatus)
     case missing(APIKeyStore.Provider)
+
+    /// The Keychain's own words, not "APIKeyError error 0": a person can act on
+    /// "the user name or passphrase you entered is not correct"; nobody can act
+    /// on an enum's ordinal.
+    public var errorDescription: String? {
+        switch self {
+        case .keychain(let status):
+            let reason = (SecCopyErrorMessageString(status, nil) as String?) ?? "error \(status)"
+            return "The key couldn’t be saved to your Keychain: \(reason)"
+        case .missing(let provider):
+            return "No \(provider.title) key is saved."
+        }
+    }
 }

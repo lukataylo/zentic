@@ -644,3 +644,14 @@ struct AppIconTests {
         #expect(AppIconImage.thumbnail(Data("<svg onload=x()>".utf8), pixels: 256) == nil)
     }
 }
+
+@Suite("API key errors")
+struct APIKeyErrorTests {
+    /// What Settings shows must be the Keychain's reason, not an enum ordinal.
+    @Test func keychainFailuresSayWhy() {
+        let message = APIKeyError.keychain(errSecDuplicateItem).localizedDescription
+        #expect(!message.contains("error 0"))
+        #expect(message.contains("Keychain"))
+        #expect(message.lowercased().contains("already exists"))
+    }
+}
