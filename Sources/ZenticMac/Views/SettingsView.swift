@@ -7,6 +7,7 @@ struct SettingsView: View {
             SwiftUI.Tab("General", systemImage: "gearshape") { GeneralSettings() }
             SwiftUI.Tab("Intelligence", systemImage: "wand.and.sparkles") { IntelligenceSettings() }
             SwiftUI.Tab("Sites", systemImage: "globe") { SitesSettings() }
+            SwiftUI.Tab("Library", systemImage: "square.grid.2x2") { LibrarySettings() }
             SwiftUI.Tab("Passwords", systemImage: "key") { PasswordsSettings() }
             SwiftUI.Tab("Permissions", systemImage: "hand.raised") { PermissionsSettings() }
             SwiftUI.Tab("Security", systemImage: "checkmark.shield") { SafetySettings() }

@@ -194,6 +194,18 @@ final class AppModel {
     var model: String {
         didSet { defaults.set(model, forKey: "openAIModel") }
     }
+    /// The model apps are designed with — separate from the one for custom
+    /// versions, because a whole app is worth the strongest model's wait.
+    var appModel: String {
+        didSet { defaults.set(appModel, forKey: "openAIAppModel") }
+    }
+    /// Whether each new app gets an icon drawn by OpenAI's image model.
+    var drawsAppIcons: Bool {
+        didSet { defaults.set(drawsAppIcons, forKey: "drawsAppIcons") }
+    }
+    var imageModel: String {
+        didSet { defaults.set(imageModel, forKey: "openAIImageModel") }
+    }
     /// How much of the desktop shows through the window frame, 0…1.
     var translucency: Double {
         didSet { defaults.set(translucency, forKey: "translucency") }
@@ -248,6 +260,9 @@ final class AppModel {
         history = [:]
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(URLGuess.SearchEngine.init) ?? .duckDuckGo
         model = defaults.string(forKey: "openAIModel") ?? OpenAIDesigner.defaultModel
+        appModel = defaults.string(forKey: "openAIAppModel") ?? OpenAILibrarian.defaultAppModel
+        drawsAppIcons = defaults.object(forKey: "drawsAppIcons") as? Bool ?? true
+        imageModel = defaults.string(forKey: "openAIImageModel") ?? OpenAILibrarian.defaultImageModel
         hasAPIKey = APIKeyStore.has(.openAI)
         translucency = defaults.object(forKey: "translucency") as? Double ?? 0.85
         appearance = defaults.string(forKey: "appearance").flatMap(AppAppearance.init) ?? .system

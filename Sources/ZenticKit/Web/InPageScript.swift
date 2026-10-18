@@ -18,6 +18,27 @@ public enum InPageScript {
     /// code by weight, so it runs at document-end, off the path to first paint.
     public static let consentBundle = resource("zentic-consent")
 
+    /// The page-world recorder (`web/src/recorder-entry.ts`), with its site list
+    /// and channel still as placeholders. See ``recorderScript(_:)``.
+    public static let recorderBundle = resource("zentic-recorder")
+
+    /// What a tab needs to record a library source: which sites are sources, and
+    /// the name of the DOM event the recorder and the bundle talk over — random
+    /// per web view, so page script cannot listen for an event it cannot name.
+    public struct Capture: Sendable, Hashable {
+        public var sites: Set<String>
+        public var channel: String
+
+        public init(sites: Set<String>, channel: String = Capture.newChannel()) {
+            self.sites = sites
+            self.channel = channel
+        }
+
+        public static func newChannel() -> String {
+            "zc" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        }
+    }
+
     static func resource(_ name: String) -> String {
         guard let url = Bundle.module.url(forResource: name, withExtension: "js"),
             let source = try? String(contentsOf: url, encoding: .utf8)
@@ -34,7 +55,7 @@ public enum InPageScript {
     /// Resolved in the page rather than in Swift because a redirect can land a
     /// tab on a different host than the one it navigated to, and only the
     /// document itself knows for certain where it ended up.
-    public static func bootstrap(_ config: InPageConfig) -> String {
+    public static func bootstrap(_ config: InPageConfig, capture: Capture? = nil) -> String {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         // Each site's entry stays a string until its own page asks for it: a
@@ -53,9 +74,9 @@ public enum InPageScript {
         }
         let table = (try? encoder.encode(sites)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         // U+2028/9 are line terminators to older JS parsers; escape them anyway.
-        let safe = table
-            .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
-            .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+        let safe = escapeLineTerminators(table)
+        let sources = escapeLineTerminators(json(capture.map { $0.sites.sorted() } ?? []))
+        let channel = json(capture?.channel ?? "")
         return """
             (() => {
               const web = location.protocol === "http:" || location.protocol === "https:";
@@ -66,9 +87,28 @@ public enum InPageScript {
               const custom = mode === "custom" && entry && entry.custom
                 ? { base: entry.custom.base, css: entry.custom.css, hide: entry.custom.hide }
                 : null;
-              window.__zenticConfig = { mode, custom };
+              const capture = web && \(sources).includes(key) ? \(channel) : null;
+              window.__zenticConfig = { mode, custom, capture };
             })();
             """
+    }
+
+    private static func escapeLineTerminators(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+            .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+    }
+
+    private static func json(_ value: some Encodable) -> String {
+        (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "null"
+    }
+
+    /// The recorder with its sites and channel baked in, so it can decline to
+    /// patch anything on a page that is not a source before the page's own
+    /// scripts run.
+    public static func recorderScript(_ capture: Capture) -> String {
+        recorderBundle
+            .replacingOccurrences(of: "\"__ZENTIC_CAPTURE_SITES__\"", with: escapeLineTerminators(json(capture.sites.sorted())))
+            .replacingOccurrences(of: "__ZENTIC_CAPTURE_CHANNEL__", with: capture.channel)
     }
 
     private struct PageEntry: Encodable {
@@ -86,10 +126,29 @@ public enum InPageScript {
     /// - Parameter consent: whether to include cookie-wall dismissal. It goes
     ///   with content blocking — both are off exactly on Original pages — so
     ///   an Original page never pays to parse it.
-    @MainActor public static func userScripts(_ config: InPageConfig, consent: Bool) -> [WKUserScript] {
+    ///
+    /// - Parameter capture: the library's sources, for a tab that may record
+    ///   them. Nil in a private window, which writes nothing to disk.
+    @MainActor public static func userScripts(_ config: InPageConfig, consent: Bool, capture: Capture? = nil)
+        -> [WKUserScript]
+    {
         let bootstrap = WKUserScript(
-            source: bootstrap(config), injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world)
-        return [bootstrap, bundleScript] + (consent ? [consentScript] : [])
+            source: bootstrap(config, capture: capture), injectionTime: .atDocumentStart, forMainFrameOnly: true,
+            in: world)
+        var scripts = [bootstrap, bundleScript] + (consent ? [consentScript] : [])
+        // The one script Zentic runs in the *page's* world. Deliberately: the
+        // page's `fetch` and `XMLHttpRequest` are only reachable from there, and
+        // observing the site's own responses — rather than calling its API — is
+        // what keeps capture working when the site rotates its request signing.
+        // It forwards and never decides; see `recorder-entry.ts`. Installed only
+        // when there is a source, so most people run nothing in any page world.
+        if let capture, !capture.sites.isEmpty {
+            scripts.append(
+                WKUserScript(
+                    source: recorderScript(capture), injectionTime: .atDocumentStart, forMainFrameOnly: true,
+                    in: .page))
+        }
+        return scripts
     }
 
     // Made once and shared by every tab: the sources are hundreds of

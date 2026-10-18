@@ -31,7 +31,12 @@ struct BrowserView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if let outcome = browser.recoveryNotice {
+            if let notice = browser.notice, browser.appComposer == nil {
+                NoticeView(notice: notice)
+                    .id(notice.id)
+                    .padding(.bottom, 22)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let outcome = browser.recoveryNotice {
                 RecoveryToast(outcome: outcome) {
                     browser.recoveryNotice = nil
                 } sendReport: {
@@ -46,6 +51,7 @@ struct BrowserView: View {
         .background(WindowConfigurator { browser.attach(to: $0) })
         .animation(.smooth(duration: 0.32), value: browser.sidebarVisible)
         .animation(.spring(response: 0.45, dampingFraction: 0.85), value: browser.recoveryNotice)
+        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: browser.notice)
         .onChange(of: browser.sidebarVisible || browser.sidebarPeeking, initial: true) { _, shown in
             TrafficLights.setHidden(!shown, in: browser.window)
         }

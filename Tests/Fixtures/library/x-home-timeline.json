@@ -1,0 +1,158 @@
+{
+  "data": {
+    "home": {
+      "home_timeline_urt": {
+        "instructions": [
+          {
+            "type": "TimelineAddEntries",
+            "entries": [
+              {
+                "entryId": "tweet-1850000000000000001",
+                "content": {
+                  "entryType": "TimelineTimelineItem",
+                  "itemContent": {
+                    "itemType": "TimelineTweet",
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "Tweet",
+                        "rest_id": "1850000000000000001",
+                        "core": {
+                          "user_results": {
+                            "result": {
+                              "__typename": "User",
+                              "core": { "name": "Simon Willison", "screen_name": "simonw" },
+                              "avatar": { "image_url": "https://pbs.twimg.com/profile_images/1/simon_normal.jpg" }
+                            }
+                          }
+                        },
+                        "views": { "count": "48211" },
+                        "legacy": {
+                          "created_at": "Fri Oct 16 09:14:02 +0000 2026",
+                          "full_text": "Spent the morning building a tiny tool that diffs two SQLite schemas &amp; migrations, with @hamelhusain https://t.co/abc123",
+                          "entities": {
+                            "user_mentions": [{ "screen_name": "HamelHusain" }],
+                            "urls": [{ "url": "https://t.co/abc123", "expanded_url": "https://simonwillison.net/2026/Oct/16/sqlite-diffable/", "display_url": "simonwillison.net/2026/Oct/16/sql…" }]
+                          },
+                          "conversation_id_str": "1850000000000000001",
+                          "favorite_count": 380,
+                          "retweet_count": 12,
+                          "reply_count": 41,
+                          "quote_count": 3,
+                          "extended_entities": {
+                            "media": [
+                              { "type": "photo", "media_url_https": "https://pbs.twimg.com/media/A1.jpg" },
+                              { "type": "photo", "media_url_https": "https://pbs.twimg.com/media/A2.jpg" }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "promoted-tweet-1850000000000000099",
+                "content": {
+                  "entryType": "TimelineTimelineItem",
+                  "itemContent": {
+                    "itemType": "TimelineTweet",
+                    "promotedMetadata": { "advertiser_results": {} },
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "Tweet",
+                        "rest_id": "1850000000000000099",
+                        "core": { "user_results": { "result": { "legacy": { "name": "BrandCo", "screen_name": "brandco" } } } },
+                        "legacy": {
+                          "created_at": "Fri Oct 16 09:00:00 +0000 2026",
+                          "full_text": "Buy our thing.",
+                          "favorite_count": 2
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "tweet-1850000000000000002",
+                "content": {
+                  "entryType": "TimelineTimelineItem",
+                  "itemContent": {
+                    "itemType": "TimelineTweet",
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "Tweet",
+                        "rest_id": "1850000000000000002",
+                        "core": { "user_results": { "result": { "legacy": { "name": "Hamel", "screen_name": "hamelhusain" } } } },
+                        "legacy": {
+                          "created_at": "Fri Oct 16 10:00:00 +0000 2026",
+                          "full_text": "RT @b0rk: new zine page",
+                          "retweeted_status_result": {
+                            "result": {
+                              "__typename": "Tweet",
+                              "rest_id": "1850000000000000003",
+                              "core": {
+                                "user_results": {
+                                  "result": {
+                                    "legacy": {
+                                      "name": "Julia Evans",
+                                      "screen_name": "b0rk",
+                                      "profile_image_url_https": "https://pbs.twimg.com/profile_images/2/julia_normal.jpg"
+                                    }
+                                  }
+                                }
+                              },
+                              "legacy": {
+                                "created_at": "Fri Oct 16 08:30:00 +0000 2026",
+                                "full_text": "new zine page: what actually happens when you press ctrl-c",
+                                "favorite_count": 2100,
+                                "retweet_count": 210
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "tweet-1850000000000000004",
+                "content": {
+                  "entryType": "TimelineTimelineItem",
+                  "itemContent": {
+                    "itemType": "TimelineTweet",
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "TweetWithVisibilityResults",
+                        "tweet": {
+                          "rest_id": "1850000000000000004",
+                          "core": { "user_results": { "result": { "legacy": { "name": "Paul Frazee", "screen_name": "pfrazee" } } } },
+                          "note_tweet": {
+                            "note_tweet_results": {
+                              "result": { "text": "A long post that runs past 280 characters, in full, with every word the truncated legacy text cuts off." }
+                            }
+                          },
+                          "legacy": {
+                            "created_at": "Fri Oct 16 11:00:00 +0000 2026",
+                            "full_text": "A long post that runs past 280 characters, in full…",
+                            "in_reply_to_status_id_str": "1850000000000000001",
+                            "conversation_id_str": "1850000000000000001",
+                            "reply_count": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "cursor-bottom-123",
+                "content": { "entryType": "TimelineTimelineCursor", "value": "DAABCgABGv", "cursorType": "Bottom" }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

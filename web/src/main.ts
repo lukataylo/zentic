@@ -4,6 +4,7 @@ import { startScrollReporting } from "./scroll";
 import { snapshot } from "./snapshot";
 import { health } from "./health";
 import { recheck } from "./recheck";
+import { startCapture } from "./capture";
 import type { ZenticConfig } from "./types";
 
 declare const __ZENTIC_VERSION__: string;
@@ -34,4 +35,7 @@ if (!window.zentic) {
   }
   startScrollReporting();
   startMetaReporting();
+  // A library source only: the bootstrap leaves the channel here when this
+  // site is one. Recording changes nothing on screen, so it ignores the mode.
+  if (window.__zenticConfig?.capture) startCapture(window.__zenticConfig.capture);
 }

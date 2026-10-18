@@ -66,7 +66,13 @@ struct ContentCard: View {
                     .environment(\.colorScheme, pageScheme(tab))
             }
 
-            if let tab, tab.design.isPresented {
+            if browser.appComposer != nil {
+                AppComposer(state: Binding(get: { browser.appComposer ?? AppComposerState(mode: .create, selected: []) }, set: { browser.appComposer = $0 }))
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 16)
+                    .padding(.horizontal, 20)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let tab, tab.design.isPresented {
                 Composer(tab: tab, design: tab.design)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 16)
@@ -98,6 +104,7 @@ struct ContentCard: View {
         }
         .animation(.smooth(duration: 0.3), value: browser.findBar.isPresented)
         .animation(.smooth(duration: 0.36), value: tab?.design.isPresented)
+        .animation(.smooth(duration: 0.36), value: browser.appComposer != nil)
         .animation(.smooth(duration: 0.2), value: browser.commandBar.isPresented)
         .animation(.smooth(duration: 0.3), value: tab?.securityWarning)
     }

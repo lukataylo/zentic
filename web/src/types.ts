@@ -10,6 +10,8 @@ export interface ZenticConfig {
   mode: Mode;
   /** Non-null only when `mode === "custom"`. */
   custom: CustomVersion | null;
+  /** The recorder's event name, on a library source; null everywhere else. */
+  capture?: string | null;
 }
 
 export interface SelectorReport {
@@ -27,6 +29,7 @@ export interface ApplyResult {
 export type OutboundMessage =
   | { type: "scroll"; y: number; direction: "up" | "down" }
   | { type: "meta"; icon: string | null }
+  | { type: "capture"; url: string; via: "fetch" | "xhr" | "embedded"; body: string }
   | {
       type: "login-field";
       role: "username" | "password";

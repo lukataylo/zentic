@@ -424,6 +424,48 @@ final class Browser: Identifiable {
 
     func tabDidChange(_ tab: Tab) { scheduleSave() }
 
+    // MARK: - Apps
+
+    /// Open an app: switch to a tab in this space already showing it, or open one.
+    func open(_ app: GeneratedApp) {
+        if let existing = space.allTabs.first(where: { $0.appID == app.id }) {
+            select(existing)
+        } else {
+            openTab(app.url, after: selectedTab)
+        }
+    }
+
+    /// An app was deleted: its tabs go, pinned or not.
+    func closeApp(_ tab: Tab) {
+        if tab.isPinned { unpin(tab) }
+        close(tab)
+    }
+
+    /// An app linked somewhere it was not given. Shown whole — scheme, host,
+    /// path and query — because the query is exactly where an app would put data.
+    func confirmAppLink(_ url: URL, from tab: Tab) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = "Open a link from “\(tab.displayHost)”?"
+        alert.informativeText = """
+            This address isn’t one of the posts or links the app was given, so Zentic is \
+            checking with you before opening it. Anything in the address goes to that site.
+
+            \(url.absoluteString)
+            """
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Open")
+        alert.beginSheetModal(for: window) { [weak self, weak tab] response in
+            guard response == .alertSecondButtonReturn else { return }
+            MainActor.assumeIsolated { _ = self?.openTab(url, after: tab) }
+        }
+    }
+
+    /// The composer for a new app, or for revising one, while it is up.
+    var appComposer: AppComposerState?
+    /// A short note at the bottom of the window: "Recording x.com".
+    var notice: Notice?
+
     // MARK: - Navigation entry
 
     /// Load what the user typed, in the current tab or a new one.

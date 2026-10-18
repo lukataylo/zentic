@@ -16,7 +16,12 @@ const GRID = [
   ':is(div, section):has(> figure + figure + figure)',
 ].join(",\n");
 
-export const MINIMAL_CSS = String.raw`
+/**
+ * The design tokens alone: Minimal's palette, type and measure, light and dark.
+ * Shared with generated apps (`app-runtime.ts`), so an app built on `var(--z-…)`
+ * looks like a Minimal page and follows the system's appearance the same way.
+ */
+export const MINIMAL_TOKENS = String.raw`
 :root {
   --z-bg: #fbfbf9;
   --z-fg: #1c1c1e;
@@ -42,7 +47,10 @@ export const MINIMAL_CSS = String.raw`
     --z-border: rgba(255, 255, 255, 0.1);
   }
 }
+`;
 
+export const MINIMAL_CSS = String.raw`
+${MINIMAL_TOKENS}
 /* ---------- Things that must not show ---------- */
 [data-zentic-hidden], [hidden], template, noscript, dialog:not([open]),
 script, style, link, meta,

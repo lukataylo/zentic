@@ -117,6 +117,7 @@ final class FixtureServer: @unchecked Sendable {
         case "html": "text/html; charset=utf-8"
         case "css": "text/css"
         case "js": "text/javascript"
+        case "json": "application/json"
         default: "application/octet-stream"
         }
     }

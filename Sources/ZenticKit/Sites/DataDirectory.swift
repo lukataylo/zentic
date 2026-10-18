@@ -56,6 +56,10 @@ public enum DataDirectory {
         return (raw as NSString).expandingTildeInPath
     }
 
+    /// A second store of Zentic's own, named — generated apps keep theirs apart
+    /// from the pages'. Derived like ``isolationID``, so it moves with the data.
+    public static func storeID(named name: String) -> UUID { storeID(for: root.appending(path: name)) }
+
     static func storeID(for directory: URL) -> UUID {
         let digest = Array(SHA256.hash(data: Data(directory.standardizedFileURL.path.utf8)))
         return UUID(uuid: (

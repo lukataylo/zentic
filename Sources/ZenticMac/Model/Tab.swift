@@ -104,11 +104,21 @@ final class Tab: Identifiable {
     /// Back/forward list and scroll position, kept across a suspension.
     @ObservationIgnored private var savedState: Any?
     var displayHost: String {
+        if let appID { return Apps.shared.app(appID)?.name ?? "App" }
         // A warning page stands in for whatever the tab showed before, extension page or not.
         if securityWarning == nil, let name = Extensions.shared.name(ofPage: url) { return name }
         return URLGuess.displayHost(securityWarning?.url ?? url ?? pendingURL)
     }
     var siteKey: String? { SiteKey.for(url ?? pendingURL) }
+
+    /// The generated app this tab shows, if it is an app's tab. Fixed by what the
+    /// tab was opened on: the web cannot navigate a tab into `zentic://`, and an
+    /// app's tab sends everything else to a new one.
+    var appID: String? { GeneratedApp.id(from: url ?? pendingURL) }
+    var isApp: Bool { appID != nil }
+    /// The DOM event this tab's recorder and bundle talk over. Random per tab, so
+    /// page script cannot listen for an event it cannot name.
+    @ObservationIgnored private let captureChannel = InPageScript.Capture.newChannel()
 
     init(id: UUID = UUID(), url: URL?, title: String = "", pinnedURL: URL? = nil) {
         self.id = id
@@ -149,6 +159,10 @@ final class Tab: Identifiable {
             configuration.userContentController = WKUserContentController()
         }
         openerConfiguration = nil
+        // An app's tab is sealed at the engine level before its page exists.
+        if isApp, !AppEnvironment.seal(configuration, isPrivate: isPrivate) {
+            trace("apps", "peer connections could not be disabled on this WebKit")
+        }
         let delegate = TabDelegate(tab: self)
         self.delegate = delegate
         let controller = configuration.userContentController
@@ -334,6 +348,9 @@ final class Tab: Identifiable {
         // One controller for every tab; WebKit keeps each extension to the
         // windows it is allowed in (see `Extensions.controller`).
         configuration.webExtensionController = Extensions.shared.controller
+        // Generated apps. On Zentic's own configurations only — never a pop-up's,
+        // which WebKit made: a page's pop-up has no business opening an app.
+        configuration.setURLSchemeHandler(AppSchemeHandler.shared, forURLScheme: AppSandbox.scheme)
         return configuration
     }
 
@@ -352,7 +369,13 @@ final class Tab: Identifiable {
         guard let controller = controller ?? webView?.configuration.userContentController else { return }
         controller.removeAllUserScripts()
         let consent = blockingAttached ?? siteMode(for: url ?? pendingURL).blocks
-        for script in InPageScript.userScripts((browser?.book ?? AppModel.shared.book).inPageConfig(), consent: consent) {
+        // Library sources are recorded in ordinary windows only: a private window
+        // writes nothing to disk, and an app's own page is never a source.
+        let sites = isPrivate || isApp ? [] : Apps.shared.sourceSites
+        let capture = sites.isEmpty ? nil : InPageScript.Capture(sites: sites, channel: captureChannel)
+        for script in InPageScript.userScripts(
+            (browser?.book ?? AppModel.shared.book).inPageConfig(), consent: consent, capture: capture)
+        {
             controller.addUserScript(script)
         }
         controller.addUserScript(InPageScript.passwordScript(saving: !isPrivate))
@@ -400,6 +423,13 @@ final class Tab: Identifiable {
     // MARK: - Navigation
 
     func load(_ url: URL) {
+        // An app's tab stays its app. A URL typed or chosen while one is showing
+        // opens beside it — and could not load in it anyway: its engine is sealed
+        // off from the network.
+        if let appID, GeneratedApp.id(from: url) != appID {
+            browser?.openTab(url, after: self)
+            return
+        }
         failure = nil
         securityWarning = nil
         chromeCollapsed = false
@@ -722,6 +752,41 @@ final class Tab: Identifiable {
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
+    /// Tell an app's page that the library changed under it.
+    func notifyLibraryChanged() {
+        guard isApp, let webView else { return }
+        webView.evaluateJavaScript("dispatchEvent(new Event('zentic:change'))", in: nil, in: .page)
+    }
+
+    /// A capture from this tab's page. Filed under the sending frame's origin as
+    /// WebKit reports it, never anything the page said about itself.
+    fileprivate func receiveCapture(_ body: [String: Any], from origin: WKSecurityOrigin) {
+        guard !isPrivate, !isApp, let capture = CapturePayload(message: body) else { return }
+        Apps.shared.ingest(capture, frameScheme: origin.protocol, frameHost: origin.host, pageURL: webView?.url)
+    }
+
+    /// Where an app's page may go. See `AppSandbox.decide`.
+    fileprivate func appNavigation(to target: URL, in webView: WKWebView, type: WKNavigationType) -> AppSandbox.Navigation? {
+        // The app this web view is showing, or — before its first load — the
+        // one the tab was opened on.
+        if let appID = GeneratedApp.id(from: webView.url) ?? (webView.url == nil ? appID : nil) {
+            return AppSandbox.decide(
+                target: target, appID: appID, isLinkActivation: type == .linkActivated,
+                allowance: Apps.shared.linkAllowance(for: appID))
+        }
+        // The web does not open apps: a page that knew an app's id still may not
+        // navigate a tab to it.
+        return target.scheme?.lowercased() == AppSandbox.scheme ? .cancel : nil
+    }
+
+    fileprivate func follow(_ navigation: AppSandbox.Navigation) {
+        switch navigation {
+        case .openInNewTab(let url): browser?.openTab(url, after: self)
+        case .confirm(let url): browser?.confirmAppLink(url, from: self)
+        case .allow, .cancel: break
+        }
+    }
+
     var snapshotSource: Saved { Saved(id: id, url: url ?? pendingURL, title: title, pinnedURL: pinnedURL) }
     typealias Saved = SessionSnapshot.Tab
 }
@@ -755,6 +820,20 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         preferences: WKWebpagePreferences
     ) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
         let url = navigationAction.request.url
+        // Apps first: their navigation is decided by the sandbox, and nothing
+        // below — not ⌘-click, not another app's link — applies to them.
+        if navigationAction.targetFrame?.isMainFrame != false, let tab, let url,
+            let decision = tab.appNavigation(to: url, in: webView, type: navigationAction.navigationType)
+        {
+            if decision == .allow {
+                await withCheckedContinuation { continuation in
+                    tab.prepareBlocking(for: url) { continuation.resume() }
+                }
+                return (.allow, preferences)
+            }
+            tab.follow(decision)
+            return (.cancel, preferences)
+        }
         // ⌘-click and middle-click open in a new tab, as everywhere on the Mac.
         if navigationAction.navigationType == .linkActivated,
             navigationAction.modifierFlags.contains(.command) || navigationAction.buttonNumber == 2,
@@ -889,6 +968,14 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         guard let tab, let browser = tab.browser else { return nil }
+        if let url = navigationAction.request.url,
+            let decision = tab.appNavigation(to: url, in: webView, type: navigationAction.navigationType)
+        {
+            // From an app, only a link it was given opens without asking; a
+            // `window.open` (not a link) opens nothing.
+            if decision != .allow { tab.follow(decision) }
+            return nil
+        }
         // A choice from the link menu is the person's own; anything else is
         // the page opening a window, which the pop-up policy decides.
         let intent = (webView as? PageWebView)?.takeLinkIntent()
@@ -1001,6 +1088,10 @@ private final class TabDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, W
         guard message.frameInfo.isMainFrame, let body = message.body as? [String: Any] else { return }
         if (body["type"] as? String)?.hasPrefix("login-") == true {
             tab?.passwords.receive(body, from: message.frameInfo.securityOrigin)
+            return
+        }
+        if body["type"] as? String == "capture" {
+            tab?.receiveCapture(body, from: message.frameInfo.securityOrigin)
             return
         }
         tab?.receive(body)

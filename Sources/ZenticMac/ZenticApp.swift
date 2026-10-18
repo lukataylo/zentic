@@ -69,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OpenFromElsewhere.didFinishLaunching(notification)
         TabSync.shared.start()
         Diagnostics.shared.start()
+        // Off the path to the first window: sources, apps and record counts.
+        Task { await Apps.shared.load() }
         #if canImport(Sparkle)
         _ = Updates.shared  // starts the updater's schedule
         #endif

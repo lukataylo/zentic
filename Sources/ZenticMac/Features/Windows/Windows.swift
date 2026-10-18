@@ -94,6 +94,17 @@ final class Windows {
     /// Windows made but not on screen yet — one a tab was just moved to, say.
     var waitingToOpen: [Browser] { pending }
 
+    /// Every tab of every window, open or waiting to open.
+    var everyTab: [Tab] { (open + pending).flatMap(\.allTabs) }
+
+    /// The library's sources changed: every live page's document-start scripts
+    /// are rebuilt, so the next document on a new source gets the recorder and
+    /// one on a removed source does not. The documents on screen keep what they
+    /// loaded with — a recorder cannot be added to a page after its scripts ran.
+    func librarySourcesChanged() {
+        for tab in everyTab where tab.isRealized { tab.installScripts() }
+    }
+
     /// The browser window in front, for commands given while another window
     /// (Settings, say) is key.
     var frontmost: Browser? {

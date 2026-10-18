@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture Feed</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsArticle","headline":"Embedded headline"}</script>
+</head>
+<body>
+  <h1>Fixture Feed</h1>
+  <p id="fetched">Loading…</p>
+  <p id="xhr">Loading…</p>
+  <script>
+    // The page's own requests, as a site's app would make them. The recorder
+    // must hand each back untouched: these lines are the page's proof.
+    fetch("/feed.json?via=fetch")
+      .then((r) => r.json())
+      .then((data) => { document.getElementById("fetched").textContent = data.items[0].title; })
+      .catch((e) => { document.getElementById("fetched").textContent = "failed: " + e; });
+    const request = new XMLHttpRequest();
+    request.open("GET", "/feed.json?via=xhr");
+    request.onload = () => { document.getElementById("xhr").textContent = JSON.parse(request.responseText).items[1].title; };
+    request.send();
+  </script>
+</body>
+</html>

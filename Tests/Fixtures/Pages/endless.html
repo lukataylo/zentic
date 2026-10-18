@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Endless</title></head>
+<body>
+  <h1>Endless feed</h1>
+  <div id="items"></div>
+  <p id="sentinel">Loading more…</p>
+  <script>
+    // An endless feed as sites build them: the next page is fetched when the
+    // bottom comes into view. Only scrolling loads more.
+    let page = 0, loading = false;
+    const list = document.getElementById("items");
+    async function more() {
+      if (loading) return;
+      loading = true;
+      page += 1;
+      const data = await (await fetch("/feed.json?page=" + page)).json();
+      for (const item of data.items) {
+        const p = document.createElement("p");
+        p.style.height = "700px";
+        p.textContent = "page " + page + ": " + item.title;
+        list.append(p);
+      }
+      loading = false;
+    }
+    new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) more(); })
+      .observe(document.getElementById("sentinel"));
+  </script>
+</body>
+</html>

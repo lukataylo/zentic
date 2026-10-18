@@ -9,6 +9,9 @@
 //                      paint.
 //   zentic-passwords.js  sign-in detection and AutoFill. At document-end; adds
 //                      listeners and nothing else until a login field is used.
+//   zentic-recorder.js  copies the JSON a library source's page fetches. The
+//                      page's world, document-start, sources only.
+//   zentic-app.js      `window.zentic` for generated apps (not injected: served).
 //
 // Output is committed so an Xcode/SwiftPM build never needs Node. Run
 // `npm run build` after changing anything under src/ and commit the result.
@@ -59,6 +62,11 @@ export const bundles = [
   bundle("main.ts", "zentic.js"),
   bundle("consent-entry.ts", "zentic-consent.js"),
   bundle("passwords-entry.ts", "zentic-passwords.js"),
+  // The one script in a page's *own* world, on library sources only. Separate,
+  // so nothing else of Zentic's ever runs where page script can see it.
+  bundle("recorder-entry.ts", "zentic-recorder.js"),
+  // `window.zentic` for generated apps, served from each app's own origin.
+  bundle("app-runtime.ts", "zentic-app.js"),
 ];
 
 const invokedDirectly =

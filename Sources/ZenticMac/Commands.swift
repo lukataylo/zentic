@@ -152,6 +152,21 @@ struct BrowserCommands: Commands {
             if let permissions = tab?.permissions, permissions.isCapturing {
                 Button("Stop Using \(permissions.inUseTitle)") { permissions.stopCapture() }
             }
+            Divider()
+            if let tab, let origin = Apps.originKey(tab.url), Apps.shared.source(origin) != nil {
+                Button("Stop Keeping a Database of This Site…") {
+                    if let browser { LibraryActions.removeSource(origin, in: browser) }
+                }
+            } else {
+                Button("Keep a Database of This Site") {
+                    if let browser, let tab, let url = tab.url {
+                        Task { await LibraryActions.addSource(url: url, title: tab.title, in: browser, reloading: tab) }
+                    }
+                }
+                .disabled(!SiteKey.isWeb(tab?.url) || browser?.isPrivate != false)
+            }
+            Button("New App…") { if let browser { LibraryActions.newApp(in: browser) } }
+                .disabled(browser == nil)
         }
 
         CommandMenu("History") {

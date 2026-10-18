@@ -76,6 +76,10 @@ struct ModePicker: View {
             PagePermissionsSection(tab: tab)
                 .padding(.top, 2)
 
+            if !browser.isPrivate {
+                LibrarySection(tab: tab)
+            }
+
             Divider().padding(.vertical, 10)
 
             HStack {

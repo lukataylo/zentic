@@ -22,7 +22,7 @@ struct Sidebar: View {
                     }
                 }
 
-            if !app.favorites.isEmpty {
+            if !app.favorites.isEmpty || !Apps.shared.apps.isEmpty || Apps.shared.generation != nil {
                 FavoritesGrid()
                     .padding(.horizontal, 10)
                     .padding(.bottom, 6)
@@ -248,6 +248,13 @@ private struct FavoritesGrid: View {
             ForEach(app.favorites) { favorite in
                 FavoriteTile(favorite: favorite, active: browser.selectedTab?.siteKey == SiteKey.for(favorite.url))
             }
+            // Apps after the favourites: places of the user's own making.
+            ForEach(Apps.shared.apps) { made in
+                AppTile(app: made, active: browser.selectedTab?.appID == made.id)
+            }
+            if let generation = Apps.shared.generation, generation.revising == nil {
+                GeneratingTile(generation: generation)
+            }
         }
         .onDrop(of: [.text], isTargeted: nil) { providers in
             // Drop a tab onto the grid to make it a favourite.
@@ -361,7 +368,9 @@ private struct TabRow: View {
     var body: some View {
         HStack(spacing: 10) {
             ZStack {
-                if tab.isLoading && tab.icon == nil {
+                if let made = Apps.shared.app(tab.appID) {
+                    AppGlyph(app: made, size: 16)
+                } else if tab.isLoading && tab.icon == nil {
                     ProgressView().controlSize(.mini)
                 } else {
                     SiteIcon(image: tab.icon, size: 16)
